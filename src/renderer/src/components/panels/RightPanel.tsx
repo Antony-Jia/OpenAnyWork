@@ -704,6 +704,7 @@ function FileTreeNode({
   expanded: Set<string>
   onToggle: (path: string) => void
 }) {
+  const { openFile } = useAppStore()
   const isExpanded = expanded.has(node.path)
   const hasChildren = node.children.length > 0
   const paddingLeft = 8 + depth * 16
@@ -711,6 +712,9 @@ function FileTreeNode({
   const handleClick = () => {
     if (node.is_dir) {
       onToggle(node.path)
+    } else {
+      // Open file in a new tab
+      openFile(node.path, node.name)
     }
   }
 
@@ -719,8 +723,7 @@ function FileTreeNode({
       <div
         onClick={handleClick}
         className={cn(
-          "flex items-center gap-1.5 py-1 pr-3 text-xs hover:bg-background-interactive",
-          node.is_dir && "cursor-pointer"
+          "flex items-center gap-1.5 py-1 pr-3 text-xs hover:bg-background-interactive cursor-pointer"
         )}
         style={{ paddingLeft }}
       >

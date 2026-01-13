@@ -175,6 +175,15 @@ const api = {
       error?: string
     }> => {
       return ipcRenderer.invoke('workspace:loadFromDisk', { threadId })
+    },
+    readFile: (threadId: string, filePath: string): Promise<{
+      success: boolean
+      content?: string
+      size?: number
+      modified_at?: string
+      error?: string
+    }> => {
+      return ipcRenderer.invoke('workspace:readFile', { threadId, filePath })
     }
   }
 }

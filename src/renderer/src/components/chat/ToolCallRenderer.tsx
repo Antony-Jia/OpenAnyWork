@@ -60,17 +60,19 @@ function getFileName(path: string): string {
 
 // Render todos nicely
 function TodosDisplay({ todos }: { todos: Todo[] }) {
-  const statusConfig = {
+  const statusConfig: Record<string, { icon: typeof Circle; color: string }> = {
     pending: { icon: Circle, color: 'text-muted-foreground' },
     in_progress: { icon: Clock, color: 'text-status-info' },
     completed: { icon: CheckCircle2, color: 'text-status-nominal' },
     cancelled: { icon: XCircle, color: 'text-muted-foreground' }
   }
 
+  const defaultConfig = { icon: Circle, color: 'text-muted-foreground' }
+
   return (
     <div className="space-y-1">
       {todos.map((todo, i) => {
-        const config = statusConfig[todo.status]
+        const config = statusConfig[todo.status] || defaultConfig
         const Icon = config.icon
         const isDone = todo.status === 'completed' || todo.status === 'cancelled'
         return (

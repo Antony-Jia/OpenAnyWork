@@ -65,6 +65,13 @@ interface CustomAPI {
       workspacePath?: string
       error?: string
     }>
+    readFile: (threadId: string, filePath: string) => Promise<{
+      success: boolean
+      content?: string
+      size?: number
+      modified_at?: string
+      error?: string
+    }>
   }
 }
 

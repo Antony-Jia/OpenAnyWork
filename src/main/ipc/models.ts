@@ -387,6 +387,57 @@ export function registerModelHandlers(ipcMain: IpcMain) {
       }
     }
   )
+
+  // Read a single file's contents from disk
+  ipcMain.handle(
+    'workspace:readFile',
+    async (_event, { threadId, filePath }: { threadId: string; filePath: string }) => {
+      const { getThread } = await import('../db')
+
+      // Get workspace path from thread metadata
+      const thread = getThread(threadId)
+      const metadata = thread?.metadata ? JSON.parse(thread.metadata) : {}
+      const workspacePath = metadata.workspacePath as string | null
+
+      if (!workspacePath) {
+        return { success: false, error: 'No workspace folder linked' }
+      }
+
+      try {
+        // Convert virtual path to full disk path
+        const relativePath = filePath.startsWith('/') ? filePath.slice(1) : filePath
+        const fullPath = path.join(workspacePath, relativePath)
+
+        // Security check: ensure the resolved path is within the workspace
+        const resolvedPath = path.resolve(fullPath)
+        const resolvedWorkspace = path.resolve(workspacePath)
+        if (!resolvedPath.startsWith(resolvedWorkspace)) {
+          return { success: false, error: 'Access denied: path outside workspace' }
+        }
+
+        // Check if file exists
+        const stat = await fs.stat(fullPath)
+        if (stat.isDirectory()) {
+          return { success: false, error: 'Cannot read directory as file' }
+        }
+
+        // Read file contents
+        const content = await fs.readFile(fullPath, 'utf-8')
+
+        return {
+          success: true,
+          content,
+          size: stat.size,
+          modified_at: stat.mtime.toISOString()
+        }
+      } catch (e) {
+        return {
+          success: false,
+          error: e instanceof Error ? e.message : 'Unknown error'
+        }
+      }
+    }
+  )
 }
 
 function hasApiKey(provider: string): boolean {

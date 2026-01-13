@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { ThreadSidebar } from '@/components/sidebar/ThreadSidebar'
-import { ChatContainer } from '@/components/chat/ChatContainer'
+import { TabbedPanel, TabBar } from '@/components/tabs'
 import { RightPanel } from '@/components/panels/RightPanel'
 import { ResizeHandle } from '@/components/ui/resizable'
 import { useAppStore } from '@/lib/store'
@@ -81,16 +81,33 @@ function App(): React.JSX.Element {
 
   return (
     <div className="flex flex-col h-screen overflow-hidden bg-background">
-      {/* Draggable titlebar region with app badge */}
-      <div className="h-8 w-full shrink-0 app-drag-region bg-sidebar relative">
-        <div className="absolute top-[14px] left-[76px] flex items-center gap-1.5 px-2 py-0.5 rounded-sm bg-primary/10 border border-primary/30 leading-none">
-          <span className="text-[10px] font-semibold uppercase tracking-widest text-primary leading-none">
-            OPENWORK
-          </span>
-          <span className="text-[9px] text-primary/70 font-mono leading-none">
-            {__APP_VERSION__}
-          </span>
+      {/* Titlebar row with tabs integrated */}
+      <div className="flex h-9 w-full shrink-0 app-drag-region bg-sidebar">
+        {/* Left section - app badge area (matches left sidebar width) */}
+        <div style={{ width: leftWidth }} className="shrink-0 flex items-center relative">
+          <div className="absolute top-1/2 -translate-y-1/2 left-[76px] flex items-center gap-1.5 px-2 py-0.5 rounded-sm bg-primary/10 border border-primary/30 leading-none">
+            <span className="text-[10px] font-semibold uppercase tracking-widest text-primary leading-none">
+              OPENWORK
+            </span>
+            <span className="text-[9px] text-primary/70 font-mono leading-none">
+              {__APP_VERSION__}
+            </span>
+          </div>
         </div>
+
+        {/* Resize handle spacer */}
+        <div className="w-[1px] shrink-0" />
+
+        {/* Center section - Tab bar */}
+        <div className="flex-1 min-w-0">
+          {currentThreadId && <TabBar className="h-full border-b-0" />}
+        </div>
+
+        {/* Resize handle spacer */}
+        <div className="w-[1px] shrink-0" />
+
+        {/* Right section spacer (matches right panel width) */}
+        <div style={{ width: rightWidth }} className="shrink-0" />
       </div>
 
       {/* Main content area */}
@@ -102,10 +119,10 @@ function App(): React.JSX.Element {
 
         <ResizeHandle onDrag={handleLeftResize} />
 
-        {/* Center - Chat Interface */}
+        {/* Center - Content Panel (Agent Chat + File Viewer) */}
         <main className="flex flex-1 flex-col min-w-0 overflow-hidden">
           {currentThreadId ? (
-            <ChatContainer threadId={currentThreadId} />
+            <TabbedPanel threadId={currentThreadId} showTabBar={false} />
           ) : (
             <div className="flex flex-1 items-center justify-center text-muted-foreground">
               Select or create a thread to begin

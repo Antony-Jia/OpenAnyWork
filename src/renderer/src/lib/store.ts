@@ -10,6 +10,12 @@ import type {
   Subagent
 } from '@/types'
 
+// Open file tab type
+export interface OpenFile {
+  path: string
+  name: string
+}
+
 interface AppState {
   // Threads
   threads: Thread[]
@@ -44,6 +50,11 @@ interface AppState {
 
   // Sidebar state
   sidebarCollapsed: boolean
+
+  // File viewer tabs state
+  openFiles: OpenFile[]
+  activeTab: 'agent' | string // 'agent' or file path
+  fileContents: Record<string, string> // path -> content cache
 
   // Actions
   loadThreads: () => Promise<void>
@@ -90,6 +101,12 @@ interface AppState {
   // Sidebar actions
   toggleSidebar: () => void
   setSidebarCollapsed: (collapsed: boolean) => void
+
+  // File viewer tab actions
+  openFile: (path: string, name: string) => void
+  closeFile: (path: string) => void
+  setActiveTab: (tab: 'agent' | string) => void
+  setFileContents: (path: string, content: string) => void
 }
 
 export const useAppStore = create<AppState>((set, get) => ({
@@ -108,6 +125,9 @@ export const useAppStore = create<AppState>((set, get) => ({
   rightPanelTab: 'todos',
   settingsOpen: false,
   sidebarCollapsed: false,
+  openFiles: [],
+  activeTab: 'agent',
+  fileContents: {},
 
   // Thread actions
   loadThreads: async () => {
@@ -390,5 +410,59 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   setSidebarCollapsed: (collapsed: boolean) => {
     set({ sidebarCollapsed: collapsed })
+  },
+
+  // File viewer tab actions
+  openFile: (path: string, name: string) => {
+    set((state) => {
+      // Check if file is already open
+      const alreadyOpen = state.openFiles.some((f) => f.path === path)
+      if (alreadyOpen) {
+        // Just switch to it
+        return { activeTab: path }
+      }
+      // Add to open files and switch to it
+      return {
+        openFiles: [...state.openFiles, { path, name }],
+        activeTab: path
+      }
+    })
+  },
+
+  closeFile: (path: string) => {
+    set((state) => {
+      const newOpenFiles = state.openFiles.filter((f) => f.path !== path)
+      // Remove from content cache
+      const { [path]: _, ...newFileContents } = state.fileContents
+
+      // If closing the active tab, switch to agent or the previous file
+      let newActiveTab = state.activeTab
+      if (state.activeTab === path) {
+        const closedIndex = state.openFiles.findIndex((f) => f.path === path)
+        if (newOpenFiles.length === 0) {
+          newActiveTab = 'agent'
+        } else if (closedIndex > 0) {
+          newActiveTab = newOpenFiles[closedIndex - 1].path
+        } else {
+          newActiveTab = newOpenFiles[0].path
+        }
+      }
+
+      return {
+        openFiles: newOpenFiles,
+        activeTab: newActiveTab,
+        fileContents: newFileContents
+      }
+    })
+  },
+
+  setActiveTab: (tab: 'agent' | string) => {
+    set({ activeTab: tab })
+  },
+
+  setFileContents: (path: string, content: string) => {
+    set((state) => ({
+      fileContents: { ...state.fileContents, [path]: content }
+    }))
   }
 }))

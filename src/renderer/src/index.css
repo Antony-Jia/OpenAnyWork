@@ -354,3 +354,32 @@
 .app-drag-region a {
   -webkit-app-region: no-drag;
 }
+
+/* Shiki syntax highlighting styles */
+.shiki-wrapper {
+  font-size: 0.875rem;
+  line-height: 1.6;
+}
+
+.shiki-content pre {
+  margin: 0;
+  padding: 1rem;
+  background-color: transparent !important;
+  overflow-x: auto;
+}
+
+.shiki-content code {
+  font-family: 'JetBrains Mono', 'Fira Code', 'SF Mono', ui-monospace, monospace;
+  font-size: inherit;
+  background: transparent !important;
+}
+
+.shiki-content .line {
+  display: inline-block;
+  width: 100%;
+  min-height: 1.6em;
+}
+
+.shiki-content .line:hover {
+  background-color: var(--background-interactive);
+}

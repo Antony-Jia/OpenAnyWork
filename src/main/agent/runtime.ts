@@ -12,6 +12,32 @@ import type * as _lcMessages from '@langchain/core/messages'
 import type * as _lcLanggraph from '@langchain/langgraph'
 import type * as _lcZodTypes from '@langchain/core/utils/types'
 
+import { BASE_SYSTEM_PROMPT } from './system-prompt'
+
+/**
+ * Generate the full system prompt for the agent.
+ *
+ * @param workspacePath - The workspace path the agent is operating in
+ * @returns The complete system prompt
+ */
+function getSystemPrompt(workspacePath: string): string {
+  const workingDirSection = `### Current Working Directory
+
+The filesystem backend is currently operating in: \`${workspacePath}\`
+
+### File System and Paths
+
+**IMPORTANT - Path Handling:**
+- All file paths must be absolute paths (e.g., \`${workspacePath}/file.txt\`)
+- Use the working directory to construct absolute paths
+- Example: To create a file in your working directory, use \`${workspacePath}/research_project/file.md\`
+- Never use relative paths - always construct full absolute paths
+
+`
+
+  return workingDirSection + BASE_SYSTEM_PROMPT
+}
+
 // Singleton checkpointer instance
 let checkpointer: SqlJsSaver | null = null
 
@@ -96,10 +122,13 @@ export async function createAgentRuntime(options: CreateAgentRuntimeOptions) {
     virtualMode: true // Use virtual paths starting with /
   })
 
+  const systemPrompt = getSystemPrompt(workspacePath)
+
   const agent = createDeepAgent({
     model,
     checkpointer,
-    backend
+    backend,
+    systemPrompt
   })
 
   console.log('[Runtime] Deep agent created with FilesystemBackend at:', workspacePath)

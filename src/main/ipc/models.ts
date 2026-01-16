@@ -15,7 +15,8 @@ const store = new Store({
 // Provider configurations
 const PROVIDERS: Omit<Provider, 'hasApiKey'>[] = [
   { id: 'anthropic', name: 'Anthropic' },
-  { id: 'openai', name: 'OpenAI' }
+  { id: 'openai', name: 'OpenAI' },
+  { id: 'google', name: 'Google' }
 ]
 
 // Available models configuration (updated Jan 2026)
@@ -151,6 +152,39 @@ const AVAILABLE_MODELS: ModelConfig[] = [
     provider: 'openai',
     model: 'gpt-4o-mini',
     description: 'Cost-efficient variant with faster response times',
+    available: true
+  },
+  // Google Gemini models
+  {
+    id: 'gemini-3-pro-preview',
+    name: 'Gemini 3 Pro Preview',
+    provider: 'google',
+    model: 'gemini-3-pro-preview',
+    description: 'State-of-the-art reasoning and multimodal understanding',
+    available: true
+  },
+  {
+    id: 'gemini-2.5-pro',
+    name: 'Gemini 2.5 Pro',
+    provider: 'google',
+    model: 'gemini-2.5-pro',
+    description: 'High-capability model for complex reasoning and coding',
+    available: true
+  },
+  {
+    id: 'gemini-2.5-flash',
+    name: 'Gemini 2.5 Flash',
+    provider: 'google',
+    model: 'gemini-2.5-flash',
+    description: 'Lightning-fast with balance of intelligence and latency',
+    available: true
+  },
+  {
+    id: 'gemini-2.5-flash-lite',
+    name: 'Gemini 2.5 Flash Lite',
+    provider: 'google',
+    model: 'gemini-2.5-flash-lite',
+    description: 'Fast, low-cost, high-performance model',
     available: true
   }
 ]

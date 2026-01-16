@@ -4,6 +4,7 @@ import { getDefaultModel } from '../ipc/models'
 import { getApiKey, getCheckpointDbPath } from '../storage'
 import { ChatAnthropic } from '@langchain/anthropic'
 import { ChatOpenAI } from '@langchain/openai'
+import { ChatGoogleGenerativeAI } from '@langchain/google-genai'
 import { SqlJsSaver } from '../checkpointer/sqljs-saver'
 import { LocalSandbox } from './local-sandbox'
 
@@ -47,7 +48,7 @@ export async function getCheckpointer(): Promise<SqlJsSaver> {
 }
 
 // Get the appropriate model instance based on configuration
-function getModelInstance(modelId?: string): ChatAnthropic | ChatOpenAI | string {
+function getModelInstance(modelId?: string): ChatAnthropic | ChatOpenAI | ChatGoogleGenerativeAI | string {
   const model = modelId || getDefaultModel()
   console.log('[Runtime] Using model:', model)
 
@@ -76,6 +77,16 @@ function getModelInstance(modelId?: string): ChatAnthropic | ChatOpenAI | string
     return new ChatOpenAI({
       model,
       openAIApiKey: apiKey
+    })
+  } else if (model.startsWith('gemini')) {
+    const apiKey = getApiKey('google')
+    console.log('[Runtime] Google API key present:', !!apiKey)
+    if (!apiKey) {
+      throw new Error('Google API key not configured')
+    }
+    return new ChatGoogleGenerativeAI({
+      model,
+      apiKey: apiKey
     })
   }
 

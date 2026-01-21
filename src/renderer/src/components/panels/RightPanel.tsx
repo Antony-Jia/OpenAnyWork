@@ -65,7 +65,9 @@ function SectionHeader({
       <Icon className="size-4" />
       <span className="flex-1 text-left">{title}</span>
       {badge !== undefined && badge > 0 && (
-        <span className="text-[10px] text-muted-foreground tabular-nums">{badge}</span>
+        <span className="flex items-center justify-center min-w-[16px] h-4 px-1 rounded-full bg-muted text-[9px] font-bold text-muted-foreground tabular-nums">
+          {badge}
+        </span>
       )}
     </button>
   )
@@ -115,6 +117,10 @@ function ResizeHandle({ onDrag }: ResizeHandleProps): React.JSX.Element {
   )
 }
 
+import { useLanguage } from "@/lib/i18n"
+
+// ... imports
+
 export function RightPanel(): React.JSX.Element {
   const { currentThreadId } = useAppStore()
   const threadState = useThreadState(currentThreadId)
@@ -122,6 +128,8 @@ export function RightPanel(): React.JSX.Element {
   const workspaceFiles = threadState?.workspaceFiles ?? []
   const subagents = threadState?.subagents ?? []
   const containerRef = useRef<HTMLDivElement>(null)
+
+  const { t } = useLanguage()
 
   const [tasksOpen, setTasksOpen] = useState(true)
   const [filesOpen, setFilesOpen] = useState(true)
@@ -316,7 +324,7 @@ export function RightPanel(): React.JSX.Element {
       {/* TASKS */}
       <div className="flex flex-col shrink-0 border-b border-border">
         <SectionHeader
-          title="TASKS"
+          title={t("panel.tasks")}
           icon={ListTodo}
           badge={todos.length}
           isOpen={tasksOpen}
@@ -335,7 +343,7 @@ export function RightPanel(): React.JSX.Element {
       {/* FILES */}
       <div className="flex flex-col shrink-0 border-b border-border">
         <SectionHeader
-          title="FILES"
+          title={t("panel.files")}
           icon={FolderTree}
           badge={workspaceFiles.length}
           isOpen={filesOpen}
@@ -354,7 +362,7 @@ export function RightPanel(): React.JSX.Element {
       {/* AGENTS */}
       <div className="flex flex-col shrink-0">
         <SectionHeader
-          title="AGENTS"
+          title={t("panel.agents")}
           icon={GitBranch}
           badge={subagents.length}
           isOpen={agentsOpen}
@@ -399,18 +407,21 @@ const STATUS_CONFIG = {
   }
 }
 
+// ... (previous/hidden code)
+
 function TasksContent(): React.JSX.Element {
   const { currentThreadId } = useAppStore()
   const threadState = useThreadState(currentThreadId)
   const todos = threadState?.todos ?? []
   const [completedExpanded, setCompletedExpanded] = useState(false)
+  const { t } = useLanguage()
 
   if (todos.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center text-center text-sm text-muted-foreground py-8 px-4">
         <ListTodo className="size-8 mb-2 opacity-50" />
-        <span>No tasks yet</span>
-        <span className="text-xs mt-1">Tasks appear when the agent creates them</span>
+        <span>{t("panel.no_tasks")}</span>
+        <span className="text-xs mt-1">{t("panel.tasks_desc")}</span>
       </div>
     )
   }
@@ -432,7 +443,7 @@ function TasksContent(): React.JSX.Element {
       {/* Progress bar */}
       <div className="p-3 border-b border-border/50">
         <div className="flex items-center justify-between mb-1.5 text-xs">
-          <span className="text-muted-foreground">PROGRESS</span>
+          <span className="text-muted-foreground">{t("common.progress")}</span>
           <span className="font-mono">
             {done}/{total}
           </span>
@@ -460,7 +471,7 @@ function TasksContent(): React.JSX.Element {
                 <ChevronRight className="size-3.5" />
               )}
               <span className="uppercase tracking-wider font-medium">
-                Completed ({doneItems.length})
+                {t("panel.completed")} ({doneItems.length})
               </span>
             </button>
             {completedExpanded && (
@@ -488,6 +499,19 @@ function TasksContent(): React.JSX.Element {
 }
 
 function TaskItem({ todo }: { todo: Todo }): React.JSX.Element {
+  const { t } = useLanguage()
+
+  // Need to map status to localized label
+  const getStatusLabel = (status: string) => {
+    switch (status) {
+      case "pending": return t("panel.pending")
+      case "in_progress": return t("panel.in_progress")
+      case "completed": return t("panel.completed")
+      case "cancelled": return t("panel.cancelled")
+      default: return status.toUpperCase()
+    }
+  }
+
   const config = STATUS_CONFIG[todo.status]
   const Icon = config.icon
   const isDone = todo.status === "completed" || todo.status === "cancelled"
@@ -502,7 +526,7 @@ function TaskItem({ todo }: { todo: Todo }): React.JSX.Element {
       <Icon className={cn("size-4 shrink-0 mt-0.5", config.color)} />
       <span className={cn("flex-1 text-sm", isDone && "line-through")}>{todo.content}</span>
       <Badge variant={config.badge} className="shrink-0 text-[10px]">
-        {config.label}
+        {getStatusLabel(todo.status)}
       </Badge>
     </div>
   )
@@ -517,6 +541,44 @@ function FilesContent(): React.JSX.Element {
   const setWorkspaceFiles = threadState?.setWorkspaceFiles
   const [syncing, setSyncing] = useState(false)
   const [syncSuccess] = useState(false)
+  const { t } = useLanguage()
+
+  // ... (keep useEffects logic same)
+
+  // ... (keep handle functions same)
+  // Handle selecting a workspace folder
+  async function handleSelectFolder(): Promise<void> {
+    if (!currentThreadId || !setWorkspacePath || !setWorkspaceFiles) return
+    setSyncing(true)
+    try {
+      const path = await window.api.workspace.select(currentThreadId)
+      if (path) {
+        setWorkspacePath(path)
+        // Load files from the newly selected folder
+        const result = await window.api.workspace.loadFromDisk(currentThreadId)
+        if (result.success && result.files) {
+          setWorkspaceFiles(result.files)
+        }
+      }
+    } catch (e) {
+      console.error("[FilesContent] Select folder error:", e)
+    } finally {
+      setSyncing(false)
+    }
+  }
+
+  async function handleSyncToDisk(): Promise<void> {
+    if (!currentThreadId) return
+
+    // If no files, just select a folder
+    if (workspaceFiles.length === 0) {
+      await handleSelectFolder()
+      return
+    }
+
+    // syncToDisk is not yet implemented
+    console.warn("[FilesContent] syncToDisk is not yet implemented")
+  }
 
   // Load workspace path and files for current thread
   useEffect(() => {
@@ -557,41 +619,6 @@ function FilesContent(): React.JSX.Element {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentThreadId])
 
-  // Handle selecting a workspace folder
-  async function handleSelectFolder(): Promise<void> {
-    if (!currentThreadId || !setWorkspacePath || !setWorkspaceFiles) return
-    setSyncing(true)
-    try {
-      const path = await window.api.workspace.select(currentThreadId)
-      if (path) {
-        setWorkspacePath(path)
-        // Load files from the newly selected folder
-        const result = await window.api.workspace.loadFromDisk(currentThreadId)
-        if (result.success && result.files) {
-          setWorkspaceFiles(result.files)
-        }
-      }
-    } catch (e) {
-      console.error("[FilesContent] Select folder error:", e)
-    } finally {
-      setSyncing(false)
-    }
-  }
-
-  // Handle sync to disk
-  // TODO: Implement syncToDisk API in main process
-  async function handleSyncToDisk(): Promise<void> {
-    if (!currentThreadId) return
-
-    // If no files, just select a folder
-    if (workspaceFiles.length === 0) {
-      await handleSelectFolder()
-      return
-    }
-
-    // syncToDisk is not yet implemented
-    console.warn("[FilesContent] syncToDisk is not yet implemented")
-  }
 
   return (
     <div className="flex flex-col h-full">
@@ -629,7 +656,7 @@ function FilesContent(): React.JSX.Element {
             <FolderSync className="size-3" />
           )}
           <span className="ml-1">
-            {workspaceFiles.length > 0 ? "Sync" : workspacePath ? "Change" : "Link"}
+            {workspaceFiles.length > 0 ? t("panel.sync_files") : workspacePath ? t("panel.change_folder") : t("panel.link_folder")}
           </span>
         </Button>
       </div>
@@ -638,11 +665,11 @@ function FilesContent(): React.JSX.Element {
       {workspaceFiles.length === 0 ? (
         <div className="flex flex-col items-center justify-center text-center text-sm text-muted-foreground py-8 px-4 flex-1">
           <FolderTree className="size-8 mb-2 opacity-50" />
-          <span>No workspace files</span>
+          <span>{t("panel.no_files")}</span>
           <span className="text-xs mt-1">
             {workspacePath
               ? `Linked to ${workspacePath.split("/").pop()}`
-              : 'Click "Link" to set a sync folder'}
+              : t("panel.link_desc")}
           </span>
         </div>
       ) : (

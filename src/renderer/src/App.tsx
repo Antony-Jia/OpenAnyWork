@@ -5,13 +5,12 @@ import { RightPanel } from "@/components/panels/RightPanel"
 import { ResizeHandle } from "@/components/ui/resizable"
 import { useAppStore } from "@/lib/store"
 import { ThreadProvider } from "@/lib/thread-context"
-import { SettingsMenu } from "@/components/titlebar/SettingsMenu"
+import { TitleBar } from "@/components/titlebar/TitleBar"
 
-// Badge requires ~270 screen pixels to display with comfortable margin
+// Badge customization - unused in new titlebar but kept if logic needs reference
 const BADGE_MIN_SCREEN_WIDTH = 270
 const LEFT_MAX = 350
 const LEFT_DEFAULT = 240
-
 const RIGHT_MIN = 250
 const RIGHT_MAX = 450
 const RIGHT_DEFAULT = 320
@@ -34,10 +33,11 @@ function App(): React.JSX.Element {
       if (detectedZoom > 0.5 && detectedZoom < 3) {
         setZoomLevel(detectedZoom)
 
-        // Traffic lights are at fixed screen position (y: ~28px bottom including padding)
-        // Titlebar is 36px CSS, which becomes 36*zoom screen pixels
-        // Extra padding needed when titlebar shrinks below traffic lights
-        const TRAFFIC_LIGHT_BOTTOM_SCREEN = 40 // screen pixels to clear traffic lights
+        // Titlebar is 36px CSS (9*4), which becomes 36*zoom screen pixels
+        // We set logic here if we need zoom-aware padding.
+        // For standard Windows titlebar, this is less critical than macOS traffic lights, 
+        // but we keep the listener for robustness.
+        const TRAFFIC_LIGHT_BOTTOM_SCREEN = 40
         const TITLEBAR_HEIGHT_CSS = 36
         const titlebarScreenHeight = TITLEBAR_HEIGHT_CSS * detectedZoom
         const extraPaddingScreen = Math.max(0, TRAFFIC_LIGHT_BOTTOM_SCREEN - titlebarScreenHeight)
@@ -52,7 +52,7 @@ function App(): React.JSX.Element {
     return () => window.removeEventListener("resize", updateZoom)
   }, [])
 
-  // Calculate zoom-compensated minimum width to always contain the badge
+  // Calculate zoom-compensated minimum width
   const leftMinWidth = Math.ceil(BADGE_MIN_SCREEN_WIDTH / zoomLevel)
 
   // Enforce minimum width when zoom changes
@@ -121,70 +121,49 @@ function App(): React.JSX.Element {
 
   return (
     <ThreadProvider>
-      <div className="flex h-screen overflow-hidden app-shell">
-        {/* Fixed app badge - zoom independent position and size */}
-        <div
-          className="app-badge"
-          style={{
-            // Compensate both position and scale for zoom
-            // Target screen position: top 14px, left 144px (after settings control)
-            top: `${14 / zoomLevel}px`,
-            left: `${144 / zoomLevel}px`,
-            transform: `scale(${1 / zoomLevel})`,
-            transformOrigin: "top left"
-          }}
-        >
-          <span className="app-badge-name">OPENWORK</span>
-          <span className="app-badge-version">{__APP_VERSION__}</span>
-        </div>
+      <div className="flex h-screen w-screen flex-col overflow-hidden bg-background text-foreground">
+        {/* Global Window Title Bar */}
+        <TitleBar threadId={currentThreadId} />
 
-        {/* Left + Center column */}
-        <div className="flex flex-col flex-1 min-w-0">
-          {/* Titlebar row with tabs integrated */}
-          <div className="flex h-9 w-full shrink-0 app-drag-region app-titlebar">
-            {/* Left section - spacer for traffic lights + badge (matches left sidebar width) */}
-            <div style={{ width: leftWidth }} className="shrink-0">
-              <div className="flex h-full items-center gap-2 pl-16 pr-2">
-                <SettingsMenu threadId={currentThreadId} />
-              </div>
-            </div>
+        {/* Main Workspace Area */}
+        <div className="flex flex-1 overflow-hidden">
 
-            {/* Resize handle spacer */}
-            <div className="w-[1px] shrink-0" />
-
-            {/* Center section - Tab bar */}
-            <div className="flex-1 min-w-0">
-              {currentThreadId && <TabBar className="h-full border-b-0" />}
-            </div>
-          </div>
-
-          {/* Main content area */}
-          <div className="flex flex-1 overflow-hidden">
-            {/* Left Sidebar - Thread List */}
-            <div style={{ width: leftWidth }} className="shrink-0">
+          {/* Left + Center Layout */}
+          <div className="flex flex-1 min-w-0">
+            {/* Sidebar (Thread List) */}
+            <div style={{ width: leftWidth }} className="shrink-0 flex flex-col border-r border-border bg-sidebar/50">
               <ThreadSidebar />
             </div>
 
             <ResizeHandle onDrag={handleLeftResize} />
 
-            {/* Center - Content Panel (Agent Chat + File Viewer) */}
-            <main className="flex flex-1 flex-col min-w-0 overflow-hidden">
-              {currentThreadId ? (
-                <TabbedPanel threadId={currentThreadId} showTabBar={false} />
-              ) : (
-                <div className="flex flex-1 items-center justify-center text-muted-foreground">
-                  Select or create a thread to begin
+            {/* Center Panel (Chat) */}
+            <main className="flex flex-1 flex-col min-w-0 overflow-hidden bg-background/50 relative">
+              {/* Center Header with Tabs */}
+              {currentThreadId && (
+                <div className="h-9 border-b border-border flex items-center px-1 shrink-0 bg-background/50 backdrop-blur-sm">
+                  <TabBar className="h-full border-b-0 w-full" />
                 </div>
               )}
+
+              <div className="flex-1 overflow-hidden relative">
+                {currentThreadId ? (
+                  <TabbedPanel threadId={currentThreadId} showTabBar={false} />
+                ) : (
+                  <div className="flex flex-1 items-center justify-center text-muted-foreground h-full text-sm">
+                    Select or create a thread to begin
+                  </div>
+                )}
+              </div>
             </main>
           </div>
-        </div>
 
-        <ResizeHandle onDrag={handleRightResize} />
+          <ResizeHandle onDrag={handleRightResize} />
 
-        {/* Right Panel - Status Panels (full height) */}
-        <div style={{ width: rightWidth }} className="shrink-0">
-          <RightPanel />
+          {/* Right Panel */}
+          <div style={{ width: rightWidth }} className="shrink-0 border-l border-border bg-sidebar">
+            <RightPanel />
+          </div>
         </div>
       </div>
     </ThreadProvider>

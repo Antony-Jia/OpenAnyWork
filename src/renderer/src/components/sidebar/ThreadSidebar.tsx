@@ -12,6 +12,7 @@ import {
   ContextMenuSeparator,
   ContextMenuTrigger
 } from "@/components/ui/context-menu"
+import { useLanguage } from "@/lib/i18n"
 import type { Thread } from "@/types"
 
 // Thread loading indicator that subscribes to the stream context
@@ -48,15 +49,16 @@ function ThreadListItem({
   onCancelEditing: () => void
   onEditingTitleChange: (value: string) => void
 }): React.JSX.Element {
+  const { t } = useLanguage()
   return (
     <ContextMenu>
       <ContextMenuTrigger asChild>
         <div
           className={cn(
-            "group flex items-center gap-2 rounded-sm px-3 py-2 cursor-pointer transition-colors overflow-hidden",
+            "group relative flex items-center gap-2 rounded-md px-2.5 py-2 cursor-pointer transition-all duration-200 overflow-hidden mx-2",
             isSelected
-              ? "bg-sidebar-accent text-sidebar-accent-foreground"
-              : "hover:bg-sidebar-accent/50"
+              ? "bg-sidebar-accent text-foreground shadow-sm ring-1 ring-border/50"
+              : "text-muted-foreground hover:bg-sidebar-accent/50 hover:text-foreground"
           )}
           onClick={() => {
             if (!isEditing) {
@@ -107,12 +109,12 @@ function ThreadListItem({
       <ContextMenuContent>
         <ContextMenuItem onClick={onStartEditing}>
           <Pencil className="size-4 mr-2" />
-          Rename
+          {t("sidebar.rename")}
         </ContextMenuItem>
         <ContextMenuSeparator />
         <ContextMenuItem variant="destructive" onClick={onDelete}>
           <Trash2 className="size-4 mr-2" />
-          Delete
+          {t("sidebar.delete")}
         </ContextMenuItem>
       </ContextMenuContent>
     </ContextMenu>
@@ -122,6 +124,7 @@ function ThreadListItem({
 export function ThreadSidebar(): React.JSX.Element {
   const { threads, currentThreadId, createThread, selectThread, deleteThread, updateThread } =
     useAppStore()
+  const { t } = useLanguage()
 
   const [editingThreadId, setEditingThreadId] = useState<string | null>(null)
   const [editingTitle, setEditingTitle] = useState("")
@@ -159,7 +162,7 @@ export function ThreadSidebar(): React.JSX.Element {
           onClick={handleNewThread}
         >
           <Plus className="size-4" />
-          New Thread
+          {t("sidebar.new_thread")}
         </Button>
       </div>
 
@@ -184,7 +187,7 @@ export function ThreadSidebar(): React.JSX.Element {
 
           {threads.length === 0 && (
             <div className="px-3 py-8 text-center text-sm text-muted-foreground">
-              No threads yet
+              {t("sidebar.no_threads")}
             </div>
           )}
         </div>

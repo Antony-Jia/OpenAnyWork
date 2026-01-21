@@ -17,8 +17,9 @@ function createWindow(): void {
     minWidth: 1200,
     minHeight: 700,
     show: false,
+    frame: false, // Frameless mode
     backgroundColor: "#0D0D0F",
-    titleBarStyle: "hiddenInset",
+    // titleBarStyle: "hiddenInset", // Removed for custom controls
     trafficLightPosition: { x: 16, y: 16 },
     webPreferences: {
       preload: join(__dirname, "../preload/index.js"),
@@ -28,11 +29,32 @@ function createWindow(): void {
 
   mainWindow.on("ready-to-show", () => {
     mainWindow?.show()
+    // Auto-open devtools to debug issues
+    if (mainWindow) {
+      mainWindow.webContents.openDevTools()
+    }
   })
 
   mainWindow.webContents.setWindowOpenHandler((details) => {
     shell.openExternal(details.url)
     return { action: "deny" }
+  })
+
+  // IPC Handlers for Window Controls
+  ipcMain.on("window-minimize", () => {
+    mainWindow?.minimize()
+  })
+
+  ipcMain.on("window-maximize", () => {
+    if (mainWindow?.isMaximized()) {
+      mainWindow?.unmaximize()
+    } else {
+      mainWindow?.maximize()
+    }
+  })
+
+  ipcMain.on("window-close", () => {
+    mainWindow?.close()
   })
 
   // HMR for renderer based on electron-vite cli

@@ -5,12 +5,14 @@ import { Button } from "@/components/ui/button"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { useCurrentThread } from "@/lib/thread-context"
 import { cn } from "@/lib/utils"
+import { useLanguage } from "@/lib/i18n"
 
 interface WorkspacePickerProps {
   threadId: string
 }
 
 export function WorkspacePicker({ threadId }: WorkspacePickerProps): React.JSX.Element {
+  const { t } = useLanguage()
   const { workspacePath, setWorkspacePath, setWorkspaceFiles } = useCurrentThread(threadId)
   const [open, setOpen] = useState(false)
   const [loading, setLoading] = useState(false)
@@ -55,53 +57,52 @@ export function WorkspacePicker({ threadId }: WorkspacePickerProps): React.JSX.E
         >
           <Folder className="size-3.5" />
           <span className="max-w-[120px] truncate">
-            {workspacePath ? folderName : "Select workspace"}
+            {workspacePath ? folderName : t("chat.select_workspace_button")}
           </span>
           <ChevronDown className="size-3 opacity-50" />
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-64 p-3" align="start">
         <div className="space-y-3">
-          <div className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
-            Workspace Folder
+          <div className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest pl-1">
+            {t("chat.workspace_picker_title")}
           </div>
 
           {workspacePath ? (
             <div className="space-y-2">
-              <div className="flex items-center gap-2 p-2 rounded-md bg-background-secondary border border-border">
+              <div className="flex items-center gap-2 p-2 rounded-md bg-background-secondary border border-border bg-muted/40">
                 <Check className="size-3.5 text-status-nominal shrink-0" />
-                <span className="text-sm truncate flex-1" title={workspacePath}>
+                <span className="text-xs font-mono truncate flex-1" title={workspacePath}>
                   {folderName}
                 </span>
               </div>
-              <p className="text-[11px] text-muted-foreground leading-relaxed">
-                The agent will read and write files in this folder.
+              <p className="text-[11px] text-muted-foreground leading-relaxed px-1">
+                {t("chat.workspace_picker_active_desc")}
               </p>
               <Button
                 variant="outline"
                 size="sm"
-                className="w-full h-8 text-xs"
+                className="w-full h-7 text-xs"
                 onClick={handleSelectFolder}
                 disabled={loading}
               >
-                Change Folder
+                {t("chat.change_folder")}
               </Button>
             </div>
           ) : (
             <div className="space-y-2">
               <p className="text-[11px] text-muted-foreground leading-relaxed">
-                Select a folder for the agent to work in. The agent will read and write files
-                directly to this location.
+                {t("chat.workspace_picker_desc")}
               </p>
               <Button
                 variant="default"
                 size="sm"
-                className="w-full h-8 text-xs"
+                className="w-full h-7 text-xs bg-primary text-primary-foreground hover:bg-primary/90"
                 onClick={handleSelectFolder}
                 disabled={loading}
               >
                 <Folder className="size-3.5 mr-1.5" />
-                Select Folder
+                {t("chat.select_folder")}
               </Button>
             </div>
           )}

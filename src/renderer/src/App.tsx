@@ -5,9 +5,10 @@ import { RightPanel } from "@/components/panels/RightPanel"
 import { ResizeHandle } from "@/components/ui/resizable"
 import { useAppStore } from "@/lib/store"
 import { ThreadProvider } from "@/lib/thread-context"
+import { SettingsMenu } from "@/components/titlebar/SettingsMenu"
 
-// Badge requires ~235 screen pixels to display with comfortable margin
-const BADGE_MIN_SCREEN_WIDTH = 235
+// Badge requires ~270 screen pixels to display with comfortable margin
+const BADGE_MIN_SCREEN_WIDTH = 270
 const LEFT_MAX = 350
 const LEFT_DEFAULT = 240
 
@@ -120,15 +121,15 @@ function App(): React.JSX.Element {
 
   return (
     <ThreadProvider>
-      <div className="flex h-screen overflow-hidden bg-background">
+      <div className="flex h-screen overflow-hidden app-shell">
         {/* Fixed app badge - zoom independent position and size */}
         <div
           className="app-badge"
           style={{
             // Compensate both position and scale for zoom
-            // Target screen position: top 14px, left 82px (just past traffic lights)
+            // Target screen position: top 14px, left 144px (after settings control)
             top: `${14 / zoomLevel}px`,
-            left: `${82 / zoomLevel}px`,
+            left: `${144 / zoomLevel}px`,
             transform: `scale(${1 / zoomLevel})`,
             transformOrigin: "top left"
           }}
@@ -140,9 +141,13 @@ function App(): React.JSX.Element {
         {/* Left + Center column */}
         <div className="flex flex-col flex-1 min-w-0">
           {/* Titlebar row with tabs integrated */}
-          <div className="flex h-9 w-full shrink-0 app-drag-region bg-sidebar">
+          <div className="flex h-9 w-full shrink-0 app-drag-region app-titlebar">
             {/* Left section - spacer for traffic lights + badge (matches left sidebar width) */}
-            <div style={{ width: leftWidth }} className="shrink-0" />
+            <div style={{ width: leftWidth }} className="shrink-0">
+              <div className="flex h-full items-center gap-2 pl-16 pr-2">
+                <SettingsMenu threadId={currentThreadId} />
+              </div>
+            </div>
 
             {/* Resize handle spacer */}
             <div className="w-[1px] shrink-0" />

@@ -369,6 +369,32 @@
   --sidebar-safe-padding: 0px;
 }
 
+/* App shell surface */
+.app-shell {
+  background-color: var(--background);
+  background-image: radial-gradient(
+      1200px 600px at 12% -10%,
+      color-mix(in srgb, var(--primary) 18%, transparent),
+      transparent 60%
+    ),
+    radial-gradient(
+      900px 500px at 90% 10%,
+      color-mix(in srgb, var(--accent) 16%, transparent),
+      transparent 60%
+    );
+}
+
+.app-titlebar {
+  background-color: color-mix(in srgb, var(--sidebar) 92%, transparent);
+  background-image: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--sidebar) 90%, transparent),
+    var(--sidebar)
+  );
+  border-bottom: 1px solid color-mix(in srgb, var(--sidebar-border) 70%, transparent);
+  backdrop-filter: blur(8px);
+}
+
 /* App badge that stays fixed size regardless of zoom (position/scale set via JS) */
 .app-badge {
   position: fixed;
@@ -378,8 +404,15 @@
   gap: 8px;
   padding: 4px 10px;
   border-radius: 3px;
-  background-color: color-mix(in srgb, var(--primary) 10%, transparent);
-  border: 1px solid color-mix(in srgb, var(--primary) 30%, transparent);
+  background-color: color-mix(in srgb, var(--primary) 12%, transparent);
+  background-image: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--primary) 28%, transparent),
+    color-mix(in srgb, var(--accent) 18%, transparent)
+  );
+  border: 1px solid color-mix(in srgb, var(--primary) 35%, transparent);
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.28);
+  backdrop-filter: blur(8px);
   line-height: 1;
   pointer-events: none;
   -webkit-app-region: drag;

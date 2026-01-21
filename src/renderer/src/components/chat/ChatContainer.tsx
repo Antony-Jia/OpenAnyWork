@@ -5,7 +5,6 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import { useAppStore } from "@/lib/store"
 import { useCurrentThread, useThreadStream } from "@/lib/thread-context"
 import { MessageBubble } from "./MessageBubble"
-import { ModelSwitcher } from "./ModelSwitcher"
 import { Folder } from "lucide-react"
 import { WorkspacePicker } from "./WorkspacePicker"
 import { selectWorkspaceFolder } from "@/lib/workspace-utils"
@@ -406,8 +405,6 @@ export function ChatContainer({ threadId }: ChatContainerProps): React.JSX.Eleme
             </div>
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <ModelSwitcher threadId={threadId} />
-                <div className="w-px h-4 bg-border" />
                 <WorkspacePicker threadId={threadId} />
               </div>
               {tokenUsage && (

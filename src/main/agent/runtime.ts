@@ -56,13 +56,13 @@ export async function closeCheckpointer(threadId: string): Promise<void> {
 }
 
 // Get the appropriate model instance based on new simplified provider configuration
-function getModelInstance(
-  _modelId?: string
-): ChatOpenAI {
+function getModelInstance(_modelId?: string): ChatOpenAI {
   const config = getProviderConfig()
 
   if (!config) {
-    throw new Error("Provider not configured. Please configure Ollama or OpenAI-compatible provider in Settings.")
+    throw new Error(
+      "Provider not configured. Please configure Ollama or OpenAI-compatible provider in Settings."
+    )
   }
 
   console.log("[Runtime] Using provider config:", config.type)

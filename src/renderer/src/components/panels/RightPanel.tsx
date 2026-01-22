@@ -504,11 +504,16 @@ function TaskItem({ todo }: { todo: Todo }): React.JSX.Element {
   // Need to map status to localized label
   const getStatusLabel = (status: string) => {
     switch (status) {
-      case "pending": return t("panel.pending")
-      case "in_progress": return t("panel.in_progress")
-      case "completed": return t("panel.completed")
-      case "cancelled": return t("panel.cancelled")
-      default: return status.toUpperCase()
+      case "pending":
+        return t("panel.pending")
+      case "in_progress":
+        return t("panel.in_progress")
+      case "completed":
+        return t("panel.completed")
+      case "cancelled":
+        return t("panel.cancelled")
+      default:
+        return status.toUpperCase()
     }
   }
 
@@ -619,7 +624,6 @@ function FilesContent(): React.JSX.Element {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentThreadId])
 
-
   return (
     <div className="flex flex-col h-full">
       {/* Header with sync button */}
@@ -656,7 +660,11 @@ function FilesContent(): React.JSX.Element {
             <FolderSync className="size-3" />
           )}
           <span className="ml-1">
-            {workspaceFiles.length > 0 ? t("panel.sync_files") : workspacePath ? t("panel.change_folder") : t("panel.link_folder")}
+            {workspaceFiles.length > 0
+              ? t("panel.sync_files")
+              : workspacePath
+                ? t("panel.change_folder")
+                : t("panel.link_folder")}
           </span>
         </Button>
       </div>
@@ -667,9 +675,7 @@ function FilesContent(): React.JSX.Element {
           <FolderTree className="size-8 mb-2 opacity-50" />
           <span>{t("panel.no_files")}</span>
           <span className="text-xs mt-1">
-            {workspacePath
-              ? `Linked to ${workspacePath.split("/").pop()}`
-              : t("panel.link_desc")}
+            {workspacePath ? `Linked to ${workspacePath.split("/").pop()}` : t("panel.link_desc")}
           </span>
         </div>
       ) : (

@@ -287,7 +287,7 @@ export function ChatContainer({ threadId }: ChatContainerProps): React.JSX.Eleme
   }
 
   const handleSelectWorkspaceFromEmptyState = async (): Promise<void> => {
-    await selectWorkspaceFolder(threadId, setWorkspacePath, setWorkspaceFiles, () => { }, undefined)
+    await selectWorkspaceFolder(threadId, setWorkspacePath, setWorkspaceFiles, () => {}, undefined)
   }
 
   return (
@@ -298,13 +298,17 @@ export function ChatContainer({ threadId }: ChatContainerProps): React.JSX.Eleme
           <div className="max-w-3xl mx-auto space-y-4">
             {displayMessages.length === 0 && !isLoading && (
               <div className="flex flex-col items-center justify-center py-20 text-muted-foreground animate-in fade-in duration-500">
-                <div className="text-section-header mb-4 text-xs tracking-[0.2em] opacity-50">{t("chat.new_thread")}</div>
+                <div className="text-section-header mb-4 text-xs tracking-[0.2em] opacity-50">
+                  {t("chat.new_thread")}
+                </div>
                 {workspacePath ? (
                   <div className="text-sm font-light">{t("chat.start_conversation")}</div>
                 ) : (
                   <div className="text-sm text-center space-y-4 max-w-xs">
                     <div className="bg-background-elevated p-4 rounded-lg border border-border/50 shadow-sm">
-                      <span className="block text-amber-500 font-medium mb-1">{t("chat.select_workspace")}</span>
+                      <span className="block text-amber-500 font-medium mb-1">
+                        {t("chat.select_workspace")}
+                      </span>
                       <span className="block text-xs text-muted-foreground leading-relaxed">
                         {t("chat.workspace_needed")}
                       </span>
@@ -348,7 +352,9 @@ export function ChatContainer({ threadId }: ChatContainerProps): React.JSX.Eleme
               <div className="flex items-start gap-3 rounded-md border border-destructive/50 bg-destructive/10 p-4">
                 <AlertCircle className="size-5 text-destructive shrink-0 mt-0.5" />
                 <div className="flex-1 min-w-0">
-                  <div className="font-medium text-destructive text-sm">{t("chat.error_title")}</div>
+                  <div className="font-medium text-destructive text-sm">
+                    {t("chat.error_title")}
+                  </div>
                   <div className="text-sm text-muted-foreground mt-1 break-words">
                     {threadError}
                   </div>
@@ -390,7 +396,13 @@ export function ChatContainer({ threadId }: ChatContainerProps): React.JSX.Eleme
               </div>
               <div className="flex items-center">
                 {isLoading ? (
-                  <Button type="button" variant="ghost" size="icon-sm" onClick={handleCancel} className="h-7 w-7">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon-sm"
+                    onClick={handleCancel}
+                    className="h-7 w-7"
+                  >
                     <Square className="size-3.5 fill-current" />
                   </Button>
                 ) : (
@@ -401,7 +413,9 @@ export function ChatContainer({ threadId }: ChatContainerProps): React.JSX.Eleme
                     disabled={!input.trim()}
                     className={cn(
                       "h-7 w-7 transition-all duration-200",
-                      input.trim() ? "bg-primary text-primary-foreground hover:bg-primary/90" : "text-muted-foreground"
+                      input.trim()
+                        ? "bg-primary text-primary-foreground hover:bg-primary/90"
+                        : "text-muted-foreground"
                     )}
                   >
                     <Send className="size-3.5" />

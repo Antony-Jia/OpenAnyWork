@@ -103,15 +103,15 @@ export type SimpleProviderId = "ollama" | "openai-compatible"
 
 export interface OllamaConfig {
   type: "ollama"
-  url: string      // e.g., "http://localhost:11434"
-  model: string    // e.g., "qwen2.5:7b"
+  url: string // e.g., "http://localhost:11434"
+  model: string // e.g., "qwen2.5:7b"
 }
 
 export interface OpenAICompatibleConfig {
   type: "openai-compatible"
-  url: string      // e.g., "https://api.deepseek.com"
+  url: string // e.g., "https://api.deepseek.com"
   apiKey: string
-  model: string    // e.g., "deepseek-chat"
+  model: string // e.g., "deepseek-chat"
 }
 
 export type ProviderConfig = OllamaConfig | OpenAICompatibleConfig

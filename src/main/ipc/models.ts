@@ -12,7 +12,15 @@ import type {
   WorkspaceFileParams
 } from "../types"
 import { startWatching, stopWatching } from "../services/workspace-watcher"
-import { getOpenworkDir, getApiKey, setApiKey, deleteApiKey, hasApiKey, getProviderConfig, setProviderConfig } from "../storage"
+import {
+  getOpenworkDir,
+  getApiKey,
+  setApiKey,
+  deleteApiKey,
+  hasApiKey,
+  getProviderConfig,
+  setProviderConfig
+} from "../storage"
 
 // Store for non-sensitive settings only (no encryption needed)
 const store = new Store({

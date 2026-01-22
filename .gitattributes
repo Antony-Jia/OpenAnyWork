@@ -1,0 +1,10 @@
+# Handle line endings automatically for files detected as text
+# and perform LF normalization on checkin.
+* text=auto
+
+# Explicitly set default line endings to LF for all text files
+# to prevent CRLF vs LF conflicts in Windows vs Unix/Linux environments.
+* eol=lf
+
+# Keep specific files as CRLF if necessary
+# *.bat text eol=crlf

@@ -28,7 +28,7 @@ export function SettingsMenu({ threadId: _threadId }: SettingsMenuProps): React.
   useEffect(() => {
     async function loadConfig() {
       try {
-        const config = await window.api.provider.getConfig() as ProviderConfig | null
+        const config = (await window.api.provider.getConfig()) as ProviderConfig | null
         if (config) {
           setHasConfig(true)
           setProviderType(config.type === "ollama" ? "ollama" : "openai-compatible")
@@ -49,9 +49,10 @@ export function SettingsMenu({ threadId: _threadId }: SettingsMenuProps): React.
   }, [])
 
   const handleSave = useCallback(async () => {
-    const config: ProviderConfig = providerType === "ollama"
-      ? { type: "ollama", url: ollamaUrl, model: ollamaModel }
-      : { type: "openai-compatible", url: openaiUrl, apiKey: openaiKey, model: openaiModel }
+    const config: ProviderConfig =
+      providerType === "ollama"
+        ? { type: "ollama", url: ollamaUrl, model: ollamaModel }
+        : { type: "openai-compatible", url: openaiUrl, apiKey: openaiKey, model: openaiModel }
 
     try {
       await window.api.provider.setConfig(config)
@@ -97,17 +98,17 @@ export function SettingsMenu({ threadId: _threadId }: SettingsMenuProps): React.
           <span className="text-xs text-muted-foreground">{t("settings.language")}</span>
           <div className="flex gap-2">
             <Button
-              variant={language === 'en' ? 'secondary' : 'ghost'}
+              variant={language === "en" ? "secondary" : "ghost"}
               size="sm"
-              onClick={() => setLanguage('en')}
+              onClick={() => setLanguage("en")}
               className="h-6 text-xs"
             >
               {t("settings.language.english")}
             </Button>
             <Button
-              variant={language === 'zh' ? 'secondary' : 'ghost'}
+              variant={language === "zh" ? "secondary" : "ghost"}
               size="sm"
-              onClick={() => setLanguage('zh')}
+              onClick={() => setLanguage("zh")}
               className="h-6 text-xs"
             >
               {t("settings.language.chinese")}
@@ -120,18 +121,24 @@ export function SettingsMenu({ threadId: _threadId }: SettingsMenuProps): React.
           <span className="text-xs text-muted-foreground">{t("settings.theme")}</span>
           <div className="flex gap-2">
             <Button
-              variant={theme === 'dark' ? 'secondary' : 'ghost'}
+              variant={theme === "dark" ? "secondary" : "ghost"}
               size="sm"
-              onClick={() => setTheme('dark')}
-              className={cn("h-6 text-xs", theme === 'dark' && "bg-secondary text-secondary-foreground")}
+              onClick={() => setTheme("dark")}
+              className={cn(
+                "h-6 text-xs",
+                theme === "dark" && "bg-secondary text-secondary-foreground"
+              )}
             >
               {t("settings.theme.dark")}
             </Button>
             <Button
-              variant={theme === 'light' ? 'secondary' : 'ghost'}
+              variant={theme === "light" ? "secondary" : "ghost"}
               size="sm"
-              onClick={() => setTheme('light')}
-              className={cn("h-6 text-xs", theme === 'light' && "bg-secondary text-secondary-foreground")}
+              onClick={() => setTheme("light")}
+              className={cn(
+                "h-6 text-xs",
+                theme === "light" && "bg-secondary text-secondary-foreground"
+              )}
             >
               {t("settings.theme.light")}
             </Button>
@@ -147,24 +154,26 @@ export function SettingsMenu({ threadId: _threadId }: SettingsMenuProps): React.
             {hasConfig ? (
               <span className="text-[10px] text-green-500">{t("provider.saved")}</span>
             ) : (
-              <span className="text-[10px] text-status-warning">{t("provider.not_configured")}</span>
+              <span className="text-[10px] text-status-warning">
+                {t("provider.not_configured")}
+              </span>
             )}
           </div>
 
           {/* Provider Type Selection */}
           <div className="flex gap-2 mb-3">
             <Button
-              variant={providerType === 'ollama' ? 'secondary' : 'ghost'}
+              variant={providerType === "ollama" ? "secondary" : "ghost"}
               size="sm"
-              onClick={() => setProviderType('ollama')}
+              onClick={() => setProviderType("ollama")}
               className="h-7 text-xs flex-1"
             >
               {t("provider.ollama")}
             </Button>
             <Button
-              variant={providerType === 'openai-compatible' ? 'secondary' : 'ghost'}
+              variant={providerType === "openai-compatible" ? "secondary" : "ghost"}
               size="sm"
-              onClick={() => setProviderType('openai-compatible')}
+              onClick={() => setProviderType("openai-compatible")}
               className="h-7 text-xs flex-1"
             >
               {t("provider.openai_compatible")}
@@ -172,7 +181,7 @@ export function SettingsMenu({ threadId: _threadId }: SettingsMenuProps): React.
           </div>
 
           {/* Ollama Configuration */}
-          {providerType === 'ollama' && (
+          {providerType === "ollama" && (
             <div className="space-y-2">
               <div>
                 <label className="text-[10px] text-muted-foreground block mb-1">
@@ -202,7 +211,7 @@ export function SettingsMenu({ threadId: _threadId }: SettingsMenuProps): React.
           )}
 
           {/* OpenAI Compatible Configuration */}
-          {providerType === 'openai-compatible' && (
+          {providerType === "openai-compatible" && (
             <div className="space-y-2">
               <div>
                 <label className="text-[10px] text-muted-foreground block mb-1">

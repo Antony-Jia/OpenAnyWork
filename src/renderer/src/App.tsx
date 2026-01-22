@@ -127,11 +127,13 @@ function App(): React.JSX.Element {
 
         {/* Main Workspace Area */}
         <div className="flex flex-1 min-h-0 overflow-hidden">
-
           {/* Left + Center Layout */}
           <div className="flex flex-1 min-w-0 min-h-0">
             {/* Sidebar (Thread List) */}
-            <div style={{ width: leftWidth }} className="shrink-0 flex flex-col border-r border-border bg-sidebar/50">
+            <div
+              style={{ width: leftWidth }}
+              className="shrink-0 flex flex-col border-r border-border bg-sidebar/50"
+            >
               <ThreadSidebar />
             </div>
 

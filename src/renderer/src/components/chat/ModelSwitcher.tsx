@@ -58,9 +58,7 @@ export function ModelPickerPanel({
   onModelSelected,
   className
 }: ModelPickerPanelProps): React.JSX.Element {
-  const [selectedProviderId, setSelectedProviderId] = useState<ProviderId | null>(
-    null
-  )
+  const [selectedProviderId, setSelectedProviderId] = useState<ProviderId | null>(null)
   const [apiKeyDialogOpen, setApiKeyDialogOpen] = useState(false)
   const [apiKeyProvider, setApiKeyProvider] = useState<Provider | null>(null)
 
@@ -183,9 +181,7 @@ export function ModelPickerPanel({
                 ))}
 
                 {filteredModels.length === 0 && (
-                  <p className="text-xs text-muted-foreground px-2 py-4">
-                    No models available
-                  </p>
+                  <p className="text-xs text-muted-foreground px-2 py-4">No models available</p>
                 )}
               </div>
 
@@ -245,10 +241,7 @@ export function ModelSwitcher({ threadId }: ModelSwitcherProps): React.JSX.Eleme
         align="start"
         sideOffset={8}
       >
-        <ModelPickerPanel
-          threadId={threadId}
-          onModelSelected={() => setOpen(false)}
-        />
+        <ModelPickerPanel threadId={threadId} onModelSelected={() => setOpen(false)} />
       </PopoverContent>
     </Popover>
   )

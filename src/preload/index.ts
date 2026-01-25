@@ -1,5 +1,13 @@
 import { contextBridge, ipcRenderer } from "electron"
-import type { Thread, ModelConfig, Provider, StreamEvent, HITLDecision } from "../main/types"
+import type {
+  Thread,
+  ModelConfig,
+  Provider,
+  StreamEvent,
+  HITLDecision,
+  SubagentConfig,
+  SkillItem
+} from "../main/types"
 
 // Simple electron API - replaces @electron-toolkit/preload
 const electronAPI = {
@@ -156,6 +164,43 @@ const api = {
     },
     setConfig: (config: unknown): Promise<void> => {
       return ipcRenderer.invoke("provider:setConfig", config)
+    }
+  },
+  subagents: {
+    list: (): Promise<SubagentConfig[]> => {
+      return ipcRenderer.invoke("subagents:list")
+    },
+    create: (input: Omit<SubagentConfig, "id">): Promise<SubagentConfig> => {
+      return ipcRenderer.invoke("subagents:create", input)
+    },
+    update: (
+      id: string,
+      updates: Partial<Omit<SubagentConfig, "id">>
+    ): Promise<SubagentConfig> => {
+      return ipcRenderer.invoke("subagents:update", { id, updates })
+    },
+    delete: (id: string): Promise<void> => {
+      return ipcRenderer.invoke("subagents:delete", id)
+    }
+  },
+  skills: {
+    list: (): Promise<SkillItem[]> => {
+      return ipcRenderer.invoke("skills:list")
+    },
+    create: (input: { name: string; description: string; content?: string }): Promise<SkillItem> => {
+      return ipcRenderer.invoke("skills:create", input)
+    },
+    install: (input: { path: string }): Promise<SkillItem> => {
+      return ipcRenderer.invoke("skills:install", input)
+    },
+    delete: (name: string): Promise<void> => {
+      return ipcRenderer.invoke("skills:delete", name)
+    },
+    getContent: (name: string): Promise<string> => {
+      return ipcRenderer.invoke("skills:getContent", name)
+    },
+    saveContent: (input: { name: string; content: string }): Promise<SkillItem> => {
+      return ipcRenderer.invoke("skills:saveContent", input)
     }
   },
   workspace: {

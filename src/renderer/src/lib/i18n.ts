@@ -23,6 +23,8 @@ const translations = {
     "settings.theme.dark": "Dark",
     "settings.theme.light": "Light",
     "app.title": "OPENWORK",
+    "titlebar.subagents": "Subagents",
+    "titlebar.skills": "Skills",
 
     // Provider Configuration
     "provider.title": "MODEL PROVIDER",
@@ -84,6 +86,41 @@ const translations = {
     "panel.change_folder": "Change",
     "panel.link_desc": 'Click "Link" to set a sync folder',
 
+    // Subagents
+    "subagents.title": "SUBAGENTS",
+    "subagents.add": "New Subagent",
+    "subagents.empty": "No custom subagents yet",
+    "subagents.name": "Name",
+    "subagents.description": "Description",
+    "subagents.system_prompt": "System Prompt",
+    "subagents.interrupt_on": "Require approval for tools",
+    "subagents.model_hint": "Model uses current provider unless overridden",
+    "subagents.tools": "Tools",
+    "subagents.middleware": "Middleware",
+    "subagents.save": "Save",
+    "subagents.cancel": "Cancel",
+    "subagents.edit": "Edit",
+    "subagents.delete": "Delete",
+
+    // Skills
+    "skills.title": "SKILLS",
+    "skills.add": "Add Skill",
+    "skills.create": "Create Skill",
+    "skills.install": "Install from Path",
+    "skills.empty": "No skills found",
+    "skills.name": "Name",
+    "skills.name_hint": "lowercase-hyphen format",
+    "skills.description": "Description",
+    "skills.content": "Content",
+    "skills.content_placeholder": "Include YAML frontmatter (name/description). Leave empty to auto-generate.",
+    "skills.path": "Path",
+    "skills.install_path": "Skill Path",
+    "skills.install_hint": "Folder containing SKILL.md or the SKILL.md file path",
+    "skills.save": "Save",
+    "skills.cancel": "Cancel",
+    "skills.edit": "Edit",
+    "skills.delete": "Delete",
+
     // General
     "common.progress": "PROGRESS",
     "common.done": "DONE"
@@ -98,6 +135,8 @@ const translations = {
     "settings.theme.dark": "深色",
     "settings.theme.light": "浅色",
     "app.title": "OPENWORK",
+    "titlebar.subagents": "智能体",
+    "titlebar.skills": "技能",
 
     // Provider Configuration
     "provider.title": "模型提供者",
@@ -158,6 +197,41 @@ const translations = {
     "panel.sync_files": "同步",
     "panel.change_folder": "切换",
     "panel.link_desc": '点击"关联"设置同步文件夹',
+
+    // Subagents
+    "subagents.title": "智能体管理",
+    "subagents.add": "新建智能体",
+    "subagents.empty": "暂无自定义智能体",
+    "subagents.name": "名称",
+    "subagents.description": "描述",
+    "subagents.system_prompt": "系统提示词",
+    "subagents.interrupt_on": "工具需人工确认",
+    "subagents.model_hint": "模型默认使用当前配置",
+    "subagents.tools": "工具",
+    "subagents.middleware": "中间件",
+    "subagents.save": "保存",
+    "subagents.cancel": "取消",
+    "subagents.edit": "编辑",
+    "subagents.delete": "删除",
+
+    // Skills
+    "skills.title": "技能管理",
+    "skills.add": "添加技能",
+    "skills.create": "创建技能",
+    "skills.install": "路径安装",
+    "skills.empty": "暂无技能",
+    "skills.name": "名称",
+    "skills.name_hint": "小写-连字符",
+    "skills.description": "描述",
+    "skills.content": "内容",
+    "skills.content_placeholder": "请包含 YAML frontmatter（name/description），留空将自动生成。",
+    "skills.path": "路径",
+    "skills.install_path": "技能路径",
+    "skills.install_hint": "包含 SKILL.md 的文件夹或 SKILL.md 文件路径",
+    "skills.save": "保存",
+    "skills.cancel": "取消",
+    "skills.edit": "编辑",
+    "skills.delete": "删除",
 
     // General
     "common.progress": "进度",

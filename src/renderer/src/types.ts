@@ -59,6 +59,26 @@ export interface OpenAICompatibleConfig {
 
 export type ProviderConfig = OllamaConfig | OpenAICompatibleConfig
 
+// Custom subagent configuration
+export interface SubagentConfig {
+  id: string
+  name: string
+  description: string
+  systemPrompt: string
+  model?: string
+  tools?: string[]
+  middleware?: string[]
+  interruptOn?: boolean
+}
+
+// Skill metadata for management UI
+export interface SkillItem {
+  name: string
+  description: string
+  path: string
+  source?: string
+}
+
 // Subagent types (from deepagentsjs)
 export interface Subagent {
   id: string

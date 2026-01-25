@@ -1,4 +1,12 @@
-import type { Thread, ModelConfig, Provider, StreamEvent, HITLDecision } from "../main/types"
+import type {
+  Thread,
+  ModelConfig,
+  Provider,
+  StreamEvent,
+  HITLDecision,
+  SubagentConfig,
+  SkillItem
+} from "../main/types"
 
 interface ElectronAPI {
   ipcRenderer: {
@@ -56,6 +64,23 @@ interface CustomAPI {
   provider: {
     getConfig: () => Promise<unknown>
     setConfig: (config: unknown) => Promise<void>
+  }
+  subagents: {
+    list: () => Promise<SubagentConfig[]>
+    create: (input: Omit<SubagentConfig, "id">) => Promise<SubagentConfig>
+    update: (
+      id: string,
+      updates: Partial<Omit<SubagentConfig, "id">>
+    ) => Promise<SubagentConfig>
+    delete: (id: string) => Promise<void>
+  }
+  skills: {
+    list: () => Promise<SkillItem[]>
+    create: (input: { name: string; description: string; content?: string }) => Promise<SkillItem>
+    install: (input: { path: string }) => Promise<SkillItem>
+    delete: (name: string) => Promise<void>
+    getContent: (name: string) => Promise<string>
+    saveContent: (input: { name: string; content: string }) => Promise<SkillItem>
   }
   workspace: {
     get: (threadId?: string) => Promise<string | null>

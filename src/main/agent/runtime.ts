@@ -4,6 +4,8 @@ import { getThreadCheckpointPath, getProviderConfig } from "../storage"
 import { ChatOpenAI } from "@langchain/openai"
 import { SqlJsSaver } from "../checkpointer/sqljs-saver"
 import { LocalSandbox } from "./local-sandbox"
+import { listSubagents } from "../subagents"
+import { getSkillsRoot } from "../skills"
 
 import type * as _lcTypes from "langchain"
 import type * as _lcMessages from "@langchain/core/messages"
@@ -193,6 +195,16 @@ export async function createAgentRuntime(options: CreateAgentRuntimeOptions) {
 
   const systemPrompt = getSystemPrompt(workspacePath)
 
+  const subagents = listSubagents().map((agent) => ({
+    name: agent.name,
+    description: agent.description,
+    systemPrompt: agent.systemPrompt,
+    model: agent.model,
+    interruptOn: agent.interruptOn ? { execute: true } : undefined
+  }))
+
+  const skillsRoot = getSkillsRoot().replace(/\\/g, "/")
+
   // Custom filesystem prompt for absolute paths (matches virtualMode: false)
   const filesystemSystemPrompt = `You have access to a filesystem. All file paths use fully qualified absolute system paths.
 
@@ -212,6 +224,8 @@ The workspace root is: ${workspacePath}`
     systemPrompt,
     // Custom filesystem prompt for absolute paths (requires deepagents update)
     filesystemSystemPrompt,
+    subagents,
+    skills: [skillsRoot],
     // Require human approval for all shell commands
     interruptOn: { execute: true }
   } as Parameters<typeof createDeepAgent>[0])

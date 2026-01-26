@@ -7,6 +7,7 @@ import { LocalSandbox } from "./local-sandbox"
 import { listSubagents } from "../subagents"
 import { getSkillsRoot } from "../skills"
 import { getEnabledToolInstances, resolveToolInstancesByName } from "../tools/service"
+import { getRunningMcpToolInstances } from "../mcp/service"
 import { resolveMiddlewareById } from "../middleware/registry"
 import { createDockerTools } from "../tools/docker-tools"
 import type { DockerConfig } from "../types"
@@ -251,13 +252,14 @@ export async function createAgentRuntime(options: CreateAgentRuntimeOptions) {
 The workspace root is: ${effectiveWorkspace}`
 
   const dockerTools = dockerConfig?.enabled ? createDockerTools(dockerConfig) : []
+  const mcpTools = await getRunningMcpToolInstances()
 
   const agent = createDeepAgent({
     model,
     checkpointer,
     backend,
     systemPrompt: systemPrompt + "\n\n" + filesystemSystemPrompt,
-    tools: [...getEnabledToolInstances(), ...dockerTools],
+    tools: [...getEnabledToolInstances(), ...mcpTools, ...dockerTools],
     // Custom filesystem prompt for absolute paths (requires deepagents update)
     // filesystemSystemPrompt,
     subagents,

@@ -10,7 +10,12 @@ import type {
   ToolInfo,
   ToolKeyUpdateParams,
   ToolEnableUpdateParams,
-  MiddlewareDefinition
+  MiddlewareDefinition,
+  McpServerConfig,
+  McpServerCreateParams,
+  McpServerListItem,
+  McpServerStatus,
+  McpServerUpdateParams
 } from "../main/types"
 
 // Simple electron API - replaces @electron-toolkit/preload
@@ -227,6 +232,26 @@ const api = {
   docker: {
     check: (): Promise<{ available: boolean; error?: string }> => {
       return ipcRenderer.invoke("docker:check")
+    }
+  },
+  mcp: {
+    list: (): Promise<McpServerListItem[]> => {
+      return ipcRenderer.invoke("mcp:list")
+    },
+    create: (input: McpServerCreateParams): Promise<McpServerConfig> => {
+      return ipcRenderer.invoke("mcp:create", input)
+    },
+    update: (input: McpServerUpdateParams): Promise<McpServerConfig> => {
+      return ipcRenderer.invoke("mcp:update", input)
+    },
+    delete: (id: string): Promise<void> => {
+      return ipcRenderer.invoke("mcp:delete", id)
+    },
+    start: (id: string): Promise<McpServerStatus> => {
+      return ipcRenderer.invoke("mcp:start", id)
+    },
+    stop: (id: string): Promise<McpServerStatus> => {
+      return ipcRenderer.invoke("mcp:stop", id)
     }
   },
   workspace: {

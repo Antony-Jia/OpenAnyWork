@@ -4,6 +4,7 @@ import { SubagentManager } from "./SubagentManager"
 import { SkillsManager } from "./SkillsManager"
 import { ToolsManager } from "./ToolsManager"
 import { ContainerManager } from "./ContainerManager"
+import { McpManager } from "./McpManager"
 import { WindowControls } from "./WindowControls"
 import { useLanguage } from "@/lib/i18n"
 
@@ -22,6 +23,7 @@ export function TitleBar({ threadId }: TitleBarProps): React.JSX.Element {
         <SubagentManager />
         <SkillsManager />
         <ToolsManager />
+        <McpManager />
         <ContainerManager threadId={threadId} />
       </div>
 

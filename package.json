@@ -54,6 +54,7 @@
     "@langchain/langgraph-sdk": "^1.5.3",
     "@langchain/openai": "^1.2.2",
     "@langchain/tavily": "^1.2.0",
+    "@modelcontextprotocol/sdk": "^1.25.3",
     "@radix-ui/react-context-menu": "^2.2.16",
     "@radix-ui/react-dialog": "^1.1.15",
     "@radix-ui/react-dropdown-menu": "^2.1.16",

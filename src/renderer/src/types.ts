@@ -127,6 +127,40 @@ export interface ToolEnableUpdateParams {
   enabled: boolean
 }
 
+// MCP configuration
+export type McpServerMode = "local" | "remote"
+
+export interface McpServerConfig {
+  id: string
+  name: string
+  mode: McpServerMode
+  command?: string
+  args?: string[]
+  env?: Record<string, string>
+  cwd?: string
+  url?: string
+  headers?: Record<string, string>
+  autoStart?: boolean
+}
+
+export interface McpServerStatus {
+  running: boolean
+  toolsCount: number
+  lastError?: string | null
+}
+
+export interface McpServerListItem {
+  config: McpServerConfig
+  status: McpServerStatus
+}
+
+export interface McpServerCreateParams extends Omit<McpServerConfig, "id"> {}
+
+export interface McpServerUpdateParams {
+  id: string
+  updates: Partial<Omit<McpServerConfig, "id">>
+}
+
 export interface MiddlewareDefinition {
   id: string
   label: string

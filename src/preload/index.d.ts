@@ -9,7 +9,12 @@ import type {
   ToolInfo,
   ToolKeyUpdateParams,
   ToolEnableUpdateParams,
-  MiddlewareDefinition
+  MiddlewareDefinition,
+  McpServerConfig,
+  McpServerCreateParams,
+  McpServerListItem,
+  McpServerStatus,
+  McpServerUpdateParams
 } from "../main/types"
 
 interface ElectronAPI {
@@ -93,6 +98,14 @@ interface CustomAPI {
   }
   docker: {
     check: () => Promise<{ available: boolean; error?: string }>
+  }
+  mcp: {
+    list: () => Promise<McpServerListItem[]>
+    create: (input: McpServerCreateParams) => Promise<McpServerConfig>
+    update: (input: McpServerUpdateParams) => Promise<McpServerConfig>
+    delete: (id: string) => Promise<void>
+    start: (id: string) => Promise<McpServerStatus>
+    stop: (id: string) => Promise<McpServerStatus>
   }
   workspace: {
     get: (threadId?: string) => Promise<string | null>

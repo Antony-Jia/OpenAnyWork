@@ -13,6 +13,11 @@ export function generateTitle(message: string): string {
   // Clean up the message
   const cleaned = message.trim().replace(/\s+/g, " ")
 
+  // If empty, return a default title
+  if (!cleaned) {
+    return "New Conversation"
+  }
+
   // If already short enough, use as-is
   if (cleaned.length <= 50) {
     return cleaned
@@ -35,12 +40,13 @@ export function generateTitle(message: string): string {
     title = title ? title + " " + word : word
   }
 
-  // Add ellipsis if we truncated
-  if (words.join(" ").length > title.length) {
-    title += "..."
+  // If we got some content, return it (without ellipsis to avoid confusion)
+  if (title) {
+    return title
   }
 
-  return title
+  // Fallback
+  return "New Conversation"
 }
 
 /**

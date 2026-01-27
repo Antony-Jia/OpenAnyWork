@@ -93,7 +93,14 @@ function ThreadListItem({
               />
             ) : (
               <>
-                <div className="text-sm truncate block w-full" title={thread.title || thread.thread_id}>
+                <div
+                  className="text-sm truncate block w-full cursor-text"
+                  title={thread.title || thread.thread_id}
+                  onDoubleClick={(e) => {
+                    e.stopPropagation()
+                    onStartEditing()
+                  }}
+                >
                   {thread.title?.trim() || truncate(thread.thread_id, 20)}
                 </div>
                 <div className="text-[10px] text-muted-foreground truncate">

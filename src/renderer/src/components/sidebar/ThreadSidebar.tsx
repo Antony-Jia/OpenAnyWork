@@ -76,7 +76,7 @@ function ThreadListItem({
           }}
         >
           <ThreadLoadingIcon threadId={thread.thread_id} />
-          <div className="flex-1 min-w-0 overflow-hidden">
+          <div className="flex-1 min-w-0">
             {isEditing ? (
               <input
                 type="text"
@@ -93,8 +93,8 @@ function ThreadListItem({
               />
             ) : (
               <>
-                <div className="text-sm truncate block">
-                  {thread.title || truncate(thread.thread_id, 20)}
+                <div className="text-sm truncate block w-full" title={thread.title || thread.thread_id}>
+                  {thread.title?.trim() || truncate(thread.thread_id, 20)}
                 </div>
                 <div className="text-[10px] text-muted-foreground truncate">
                   {formatRelativeTime(thread.updated_at)}

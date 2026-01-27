@@ -2,9 +2,11 @@ import { useEffect, useState, useMemo } from "react"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { createHighlighterCore, type HighlighterCore } from "shiki/core"
 import { createJavaScriptRegexEngine } from "shiki/engine/javascript"
+import { useLanguage } from "@/lib/i18n"
 
 // Import bundled themes and languages
 import githubDarkDefault from "shiki/themes/github-dark-default.mjs"
+import githubLightDefault from "shiki/themes/github-light-default.mjs"
 import langTypescript from "shiki/langs/typescript.mjs"
 import langTsx from "shiki/langs/tsx.mjs"
 import langJavascript from "shiki/langs/javascript.mjs"
@@ -24,7 +26,7 @@ let highlighterPromise: Promise<HighlighterCore> | null = null
 async function getHighlighter(): Promise<HighlighterCore> {
   if (!highlighterPromise) {
     highlighterPromise = createHighlighterCore({
-      themes: [githubDarkDefault],
+      themes: [githubDarkDefault, githubLightDefault],
       langs: [
         langTypescript,
         langTsx,
@@ -95,6 +97,7 @@ function getLanguage(ext: string | undefined): string | null {
 
 export function CodeViewer({ filePath, content }: CodeViewerProps) {
   const [highlightedHtml, setHighlightedHtml] = useState<string | null>(null)
+  const { theme } = useLanguage()
 
   // Get file extension for syntax highlighting
   const fileName = filePath.split("/").pop() || filePath
@@ -119,7 +122,7 @@ export function CodeViewer({ filePath, content }: CodeViewerProps) {
 
         const html = highlighter.codeToHtml(content, {
           lang: language,
-          theme: "github-dark-default"
+          theme: theme === "dark" ? "github-dark-default" : "github-light-default"
         })
 
         if (cancelled) return
@@ -137,7 +140,7 @@ export function CodeViewer({ filePath, content }: CodeViewerProps) {
     return () => {
       cancelled = true
     }
-  }, [content, language])
+  }, [content, language, theme])
 
   const lineCount = content?.split("\n").length ?? 0
 

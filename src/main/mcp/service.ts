@@ -18,6 +18,11 @@ import type {
 type McpToolDefinition = {
   name: string
   description?: string
+  inputSchema?: {
+    type: "object"
+    properties?: Record<string, unknown>
+    required?: string[]
+  }
 }
 
 type RunningMcpServer = {
@@ -64,11 +69,57 @@ function parseToolDefinitions(raw: unknown): McpToolDefinition[] {
   return tools.filter((item) => item && typeof item.name === "string")
 }
 
+function jsonSchemaToZod(
+  inputSchema?: McpToolDefinition["inputSchema"]
+): z.ZodObject<Record<string, z.ZodTypeAny>> {
+  if (!inputSchema?.properties || Object.keys(inputSchema.properties).length === 0) {
+    return z.object({})
+  }
+
+  const shape: Record<string, z.ZodTypeAny> = {}
+  const required = new Set(inputSchema.required ?? [])
+
+  for (const [key, prop] of Object.entries(inputSchema.properties)) {
+    const propObj = prop as { type?: string; description?: string }
+    let zodType: z.ZodTypeAny
+
+    switch (propObj.type) {
+      case "string":
+        zodType = z.string()
+        break
+      case "number":
+      case "integer":
+        zodType = z.number()
+        break
+      case "boolean":
+        zodType = z.boolean()
+        break
+      case "array":
+        zodType = z.array(z.any())
+        break
+      case "object":
+        zodType = z.record(z.string(), z.any())
+        break
+      default:
+        zodType = z.any()
+    }
+
+    if (propObj.description) {
+      zodType = zodType.describe(propObj.description)
+    }
+
+    shape[key] = required.has(key) ? zodType : zodType.optional()
+  }
+
+  return z.object(shape)
+}
+
 function buildToolInstances(serverId: string, tools: McpToolDefinition[]): Array<unknown> {
   return tools.map((toolDef) => {
     const toolName = `mcp.${serverId}.${toolDef.name}`
     const description =
       toolDef.description || `Call MCP tool "${toolDef.name}" from server ${serverId}.`
+    const schema = jsonSchemaToZod(toolDef.inputSchema)
 
     return tool(
       async (args: Record<string, unknown>) => {
@@ -109,7 +160,7 @@ function buildToolInstances(serverId: string, tools: McpToolDefinition[]): Array
       {
         name: toolName,
         description,
-        schema: z.record(z.any()).describe("Arguments for the MCP tool")
+        schema
       }
     )
   })

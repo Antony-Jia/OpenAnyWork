@@ -319,7 +319,7 @@ export function RightPanel(): React.JSX.Element {
   return (
     <aside
       ref={containerRef}
-      className="flex h-full w-full flex-col border-l border-border bg-sidebar overflow-hidden"
+      className="flex h-full w-full flex-col border-l border-border bg-sidebar overflow-x-hidden overflow-y-auto"
     >
       {/* TASKS */}
       <div className="flex flex-col shrink-0 border-b border-border">
@@ -331,7 +331,7 @@ export function RightPanel(): React.JSX.Element {
           onToggle={() => setTasksOpen((prev) => !prev)}
         />
         {tasksOpen && (
-          <div className="overflow-auto" style={{ height: heights.tasks }}>
+          <div className="overflow-auto" style={{ minHeight: heights.tasks }}>
             <TasksContent />
           </div>
         )}
@@ -350,7 +350,7 @@ export function RightPanel(): React.JSX.Element {
           onToggle={() => setFilesOpen((prev) => !prev)}
         />
         {filesOpen && (
-          <div className="overflow-auto" style={{ height: heights.files }}>
+          <div className="overflow-auto" style={{ minHeight: heights.files }}>
             <FilesContent />
           </div>
         )}
@@ -369,7 +369,7 @@ export function RightPanel(): React.JSX.Element {
           onToggle={() => setAgentsOpen((prev) => !prev)}
         />
         {agentsOpen && (
-          <div className="overflow-auto" style={{ height: heights.agents }}>
+          <div className="overflow-auto" style={{ minHeight: heights.agents }}>
             <AgentsContent />
           </div>
         )}

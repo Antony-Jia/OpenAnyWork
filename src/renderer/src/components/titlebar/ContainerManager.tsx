@@ -165,170 +165,187 @@ export function ContainerManager({ threadId }: ContainerManagerProps): React.JSX
         <Box className="size-4" />
       </Button>
 
-      <DialogContent className="max-w-2xl">
-        <DialogHeader>
-          <DialogTitle className="text-sm uppercase tracking-[0.2em] text-muted-foreground">
-            {t("container.title")}
-          </DialogTitle>
-        </DialogHeader>
+      <DialogContent className="w-[900px] h-[640px] max-w-[90vw] max-h-[85vh] p-0 overflow-hidden">
+        <div className="flex h-full flex-col">
+          <DialogHeader className="px-6 pt-6">
+            <DialogTitle className="text-sm uppercase tracking-[0.2em] text-muted-foreground">
+              {t("container.title")}
+            </DialogTitle>
+          </DialogHeader>
 
-        <div className="space-y-4">
-          <div className="flex items-center justify-between text-xs text-muted-foreground">
-            <span>{t("container.status")}</span>
-            <span className={cn(available ? "text-status-nominal" : "text-status-critical")}>
-              {checking
-                ? t("common.loading")
-                : available
-                  ? t("container.available")
-                  : t("container.unavailable")}
-            </span>
-          </div>
-          {statusError && <div className="text-xs text-status-critical">{statusError}</div>}
+          <div className="flex-1 overflow-y-auto px-6 pb-6 pt-4">
+            <div className="space-y-4">
+              <div className="flex items-center justify-between text-xs text-muted-foreground">
+                <span>{t("container.status")}</span>
+                <span className={cn(available ? "text-status-nominal" : "text-status-critical")}>
+                  {checking
+                    ? t("common.loading")
+                    : available
+                      ? t("container.available")
+                      : t("container.unavailable")}
+                </span>
+              </div>
+              {statusError && <div className="text-xs text-status-critical">{statusError}</div>}
 
-          <label className="flex items-center gap-2 text-xs text-muted-foreground">
-            <input
-              type="checkbox"
-              checked={enabled}
-              disabled={!available}
-              onChange={(e) => setEnabled(e.target.checked)}
-            />
-            {t("container.enabled")}
-          </label>
+              <label className="flex items-center gap-2 text-xs text-muted-foreground">
+                <input
+                  type="checkbox"
+                  checked={enabled}
+                  disabled={!available}
+                  onChange={(e) => setEnabled(e.target.checked)}
+                />
+                {t("container.enabled")}
+              </label>
 
-          <div className="space-y-2">
-            <label className="text-xs text-muted-foreground">{t("container.image")}</label>
-            <Input value={image} onChange={(e) => setImage(e.target.value)} disabled={!enabled} />
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-2">
-              <label className="text-xs text-muted-foreground">{t("container.cpu")}</label>
-              <Input
-                value={cpu}
-                onChange={(e) => setCpu(e.target.value)}
-                disabled={!enabled}
-              />
-            </div>
-            <div className="space-y-2">
-              <label className="text-xs text-muted-foreground">{t("container.memory")}</label>
-              <Input
-                value={memory}
-                onChange={(e) => setMemory(e.target.value)}
-                disabled={!enabled}
-              />
-            </div>
-          </div>
-
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <span className="text-xs text-muted-foreground">{t("container.mounts")}</span>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setMounts((prev) => [...prev, { ...defaultMount }])}
-                disabled={!enabled}
-              >
-                <Plus className="size-3.5" />
-                {t("container.add_mount")}
-              </Button>
-            </div>
-            {mounts.map((mount, index) => (
-              <div key={`${mount.containerPath}-${index}`} className="grid grid-cols-12 gap-2">
+              <div className="space-y-2">
+                <label className="text-xs text-muted-foreground">{t("container.image")}</label>
                 <Input
-                  className="col-span-5"
-                  value={mount.hostPath}
-                  onChange={(e) => updateMount(index, { hostPath: e.target.value })}
-                  placeholder={t("container.host_path")}
+                  value={image}
+                  onChange={(e) => setImage(e.target.value)}
                   disabled={!enabled}
                 />
-                <Input
-                  className="col-span-4"
-                  value={mount.containerPath}
-                  onChange={(e) => updateMount(index, { containerPath: e.target.value })}
-                  placeholder={t("container.container_path")}
-                  disabled={!enabled}
-                />
-                <label className="col-span-2 flex items-center gap-2 text-xs text-muted-foreground">
-                  <input
-                    type="checkbox"
-                    checked={!!mount.readOnly}
-                    onChange={(e) => updateMount(index, { readOnly: e.target.checked })}
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-2">
+                  <label className="text-xs text-muted-foreground">{t("container.cpu")}</label>
+                  <Input
+                    value={cpu}
+                    onChange={(e) => setCpu(e.target.value)}
                     disabled={!enabled}
                   />
-                  {t("container.read_only")}
-                </label>
-                <Button
-                  variant="ghost"
-                  size="icon-sm"
-                  className="col-span-1"
-                  onClick={() => removeMount(index)}
-                  disabled={!enabled}
-                >
-                  <Trash2 className="size-3.5" />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-xs text-muted-foreground">{t("container.memory")}</label>
+                  <Input
+                    value={memory}
+                    onChange={(e) => setMemory(e.target.value)}
+                    disabled={!enabled}
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-muted-foreground">{t("container.mounts")}</span>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setMounts((prev) => [...prev, { ...defaultMount }])}
+                    disabled={!enabled}
+                  >
+                    <Plus className="size-3.5" />
+                    {t("container.add_mount")}
+                  </Button>
+                </div>
+                {mounts.map((mount, index) => (
+                  <div key={`${mount.containerPath}-${index}`} className="grid grid-cols-12 gap-2">
+                    <Input
+                      className="col-span-5"
+                      value={mount.hostPath}
+                      onChange={(e) => updateMount(index, { hostPath: e.target.value })}
+                      placeholder={t("container.host_path")}
+                      disabled={!enabled}
+                    />
+                    <Input
+                      className="col-span-4"
+                      value={mount.containerPath}
+                      onChange={(e) => updateMount(index, { containerPath: e.target.value })}
+                      placeholder={t("container.container_path")}
+                      disabled={!enabled}
+                    />
+                    <label className="col-span-2 flex items-center gap-2 text-xs text-muted-foreground">
+                      <input
+                        type="checkbox"
+                        checked={!!mount.readOnly}
+                        onChange={(e) => updateMount(index, { readOnly: e.target.checked })}
+                        disabled={!enabled}
+                      />
+                      {t("container.read_only")}
+                    </label>
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      className="col-span-1"
+                      onClick={() => removeMount(index)}
+                      disabled={!enabled}
+                    >
+                      <Trash2 className="size-3.5" />
+                    </Button>
+                  </div>
+                ))}
+              </div>
+
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-muted-foreground">{t("container.ports")}</span>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() =>
+                      setPorts((prev) => [...prev, { host: 0, container: 0, protocol: "tcp" }])
+                    }
+                    disabled={!enabled}
+                  >
+                    <Plus className="size-3.5" />
+                    {t("container.add_port")}
+                  </Button>
+                </div>
+                {ports.map((port, index) => (
+                  <div
+                    key={`${port.host}-${port.container}-${index}`}
+                    className="grid grid-cols-12 gap-2"
+                  >
+                    <Input
+                      className="col-span-3"
+                      value={port.host ? String(port.host) : ""}
+                      onChange={(e) => updatePort(index, { host: Number(e.target.value) || 0 })}
+                      placeholder={t("container.port_host")}
+                      disabled={!enabled}
+                    />
+                    <Input
+                      className="col-span-3"
+                      value={port.container ? String(port.container) : ""}
+                      onChange={(e) =>
+                        updatePort(index, { container: Number(e.target.value) || 0 })
+                      }
+                      placeholder={t("container.port_container")}
+                      disabled={!enabled}
+                    />
+                    <select
+                      className="col-span-4 h-9 rounded-md border border-input bg-background px-2 text-xs"
+                      value={port.protocol || "tcp"}
+                      onChange={(e) =>
+                        updatePort(index, { protocol: e.target.value as "tcp" | "udp" })
+                      }
+                      disabled={!enabled}
+                    >
+                      <option value="tcp">{t("container.protocol")} TCP</option>
+                      <option value="udp">{t("container.protocol")} UDP</option>
+                    </select>
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      className="col-span-2"
+                      onClick={() => removePort(index)}
+                      disabled={!enabled}
+                    >
+                      <Trash2 className="size-3.5" />
+                    </Button>
+                  </div>
+                ))}
+              </div>
+
+              {!enabled && (
+                <div className="text-xs text-muted-foreground">{t("container.disabled_hint")}</div>
+              )}
+
+              <div className="flex justify-end">
+                <Button onClick={handleSave} disabled={!available && enabled}>
+                  {t("container.save")}
                 </Button>
               </div>
-            ))}
-          </div>
-
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <span className="text-xs text-muted-foreground">{t("container.ports")}</span>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() =>
-                  setPorts((prev) => [...prev, { host: 0, container: 0, protocol: "tcp" }])
-                }
-                disabled={!enabled}
-              >
-                <Plus className="size-3.5" />
-                {t("container.add_port")}
-              </Button>
             </div>
-            {ports.map((port, index) => (
-              <div key={`${port.host}-${port.container}-${index}`} className="grid grid-cols-12 gap-2">
-                <Input
-                  className="col-span-3"
-                  value={port.host ? String(port.host) : ""}
-                  onChange={(e) => updatePort(index, { host: Number(e.target.value) || 0 })}
-                  placeholder={t("container.port_host")}
-                  disabled={!enabled}
-                />
-                <Input
-                  className="col-span-3"
-                  value={port.container ? String(port.container) : ""}
-                  onChange={(e) => updatePort(index, { container: Number(e.target.value) || 0 })}
-                  placeholder={t("container.port_container")}
-                  disabled={!enabled}
-                />
-                <select
-                  className="col-span-4 h-9 rounded-md border border-input bg-background px-2 text-xs"
-                  value={port.protocol || "tcp"}
-                  onChange={(e) => updatePort(index, { protocol: e.target.value as "tcp" | "udp" })}
-                  disabled={!enabled}
-                >
-                  <option value="tcp">{t("container.protocol")} TCP</option>
-                  <option value="udp">{t("container.protocol")} UDP</option>
-                </select>
-                <Button
-                  variant="ghost"
-                  size="icon-sm"
-                  className="col-span-2"
-                  onClick={() => removePort(index)}
-                  disabled={!enabled}
-                >
-                  <Trash2 className="size-3.5" />
-                </Button>
-              </div>
-            ))}
-          </div>
-
-          {!enabled && <div className="text-xs text-muted-foreground">{t("container.disabled_hint")}</div>}
-
-          <div className="flex justify-end">
-            <Button onClick={handleSave} disabled={!available && enabled}>
-              {t("container.save")}
-            </Button>
           </div>
         </div>
       </DialogContent>

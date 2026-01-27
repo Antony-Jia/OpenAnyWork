@@ -136,143 +136,147 @@ export function SkillsManager(): React.JSX.Element {
         <Puzzle className="size-4" />
       </Button>
 
-      <DialogContent className="max-w-2xl">
-        <DialogHeader>
-          <DialogTitle className="text-sm uppercase tracking-[0.2em] text-muted-foreground">
-            {t("skills.title")}
-          </DialogTitle>
-        </DialogHeader>
+      <DialogContent className="w-[900px] h-[640px] max-w-[90vw] max-h-[85vh] p-0 overflow-hidden">
+        <div className="flex h-full flex-col">
+          <DialogHeader className="px-6 pt-6">
+            <DialogTitle className="text-sm uppercase tracking-[0.2em] text-muted-foreground">
+              {t("skills.title")}
+            </DialogTitle>
+          </DialogHeader>
 
-        {mode === "list" ? (
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                <Folder className="size-3.5" />
-                <span>{t("skills.path")}: .openwork/skills</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <Button variant="ghost" size="sm" onClick={startInstall}>
-                  {t("skills.install")}
-                </Button>
-                <Button size="sm" onClick={startCreate}>
-                  <Plus className="size-3.5" />
-                  {t("skills.create")}
-                </Button>
-              </div>
-            </div>
+          <div className="flex-1 overflow-y-auto px-6 pb-6 pt-4">
+            {mode === "list" ? (
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                    <Folder className="size-3.5" />
+                    <span>{t("skills.path")}: .openwork/skills</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Button variant="ghost" size="sm" onClick={startInstall}>
+                      {t("skills.install")}
+                    </Button>
+                    <Button size="sm" onClick={startCreate}>
+                      <Plus className="size-3.5" />
+                      {t("skills.create")}
+                    </Button>
+                  </div>
+                </div>
 
-            {skills.length === 0 ? (
-              <div className="rounded-sm border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
-                {t("skills.empty")}
+                {skills.length === 0 ? (
+                  <div className="rounded-sm border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
+                    {t("skills.empty")}
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {skills.map((skill) => (
+                      <div
+                        key={skill.name}
+                        className="flex items-start justify-between gap-3 rounded-sm border border-border p-3"
+                      >
+                        <div className="space-y-1">
+                          <div className="text-sm font-medium">{skill.name}</div>
+                          <div className="text-xs text-muted-foreground">{skill.description}</div>
+                          <div className="text-[10px] text-muted-foreground">{skill.path}</div>
+                          {!skill.enabled && (
+                            <div className="text-[10px] text-muted-foreground">
+                              {t("skills.disabled_hint")}
+                            </div>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => handleToggleEnabled(skill)}
+                            className={cn(
+                              "text-[10px] uppercase tracking-[0.2em] transition-colors",
+                              skill.enabled
+                                ? "text-foreground"
+                                : "text-muted-foreground hover:text-foreground"
+                            )}
+                          >
+                            {skill.enabled ? t("tools.enabled") : t("tools.disabled")}
+                          </button>
+                          <Button variant="ghost" size="sm" onClick={() => startEdit(skill)}>
+                            <Pencil className="size-3.5" />
+                            {t("skills.edit")}
+                          </Button>
+                          <Button variant="ghost" size="sm" onClick={() => handleDelete(skill)}>
+                            <Trash2 className="size-3.5" />
+                            {t("skills.delete")}
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ) : mode === "install" ? (
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <label className="text-xs text-muted-foreground">{t("skills.install_path")}</label>
+                  <Input
+                    value={installPath}
+                    onChange={(e) => setInstallPath(e.target.value)}
+                    placeholder={t("skills.install_hint")}
+                  />
+                </div>
+                {error && <div className="text-xs text-status-critical">{error}</div>}
               </div>
             ) : (
-              <div className="space-y-2">
-                {skills.map((skill) => (
-                  <div
-                    key={skill.name}
-                    className="flex items-start justify-between gap-3 rounded-sm border border-border p-3"
-                  >
-                    <div className="space-y-1">
-                      <div className="text-sm font-medium">{skill.name}</div>
-                      <div className="text-xs text-muted-foreground">{skill.description}</div>
-                      <div className="text-[10px] text-muted-foreground">{skill.path}</div>
-                      {!skill.enabled && (
-                        <div className="text-[10px] text-muted-foreground">
-                          {t("skills.disabled_hint")}
-                        </div>
-                      )}
+              <div className="space-y-4">
+                {mode === "create" && (
+                  <>
+                    <div className="space-y-2">
+                      <label className="text-xs text-muted-foreground">{t("skills.name")}</label>
+                      <Input
+                        value={form.name}
+                        onChange={(e) => setForm((prev) => ({ ...prev, name: e.target.value }))}
+                        placeholder={t("skills.name_hint")}
+                      />
                     </div>
-                    <div className="flex items-center gap-2">
-                      <button
-                        type="button"
-                        onClick={() => handleToggleEnabled(skill)}
-                        className={cn(
-                          "text-[10px] uppercase tracking-[0.2em] transition-colors",
-                          skill.enabled
-                            ? "text-foreground"
-                            : "text-muted-foreground hover:text-foreground"
-                        )}
-                      >
-                        {skill.enabled ? t("tools.enabled") : t("tools.disabled")}
-                      </button>
-                      <Button variant="ghost" size="sm" onClick={() => startEdit(skill)}>
-                        <Pencil className="size-3.5" />
-                        {t("skills.edit")}
-                      </Button>
-                      <Button variant="ghost" size="sm" onClick={() => handleDelete(skill)}>
-                        <Trash2 className="size-3.5" />
-                        {t("skills.delete")}
-                      </Button>
+                    <div className="space-y-2">
+                      <label className="text-xs text-muted-foreground">
+                        {t("skills.description")}
+                      </label>
+                      <Input
+                        value={form.description}
+                        onChange={(e) =>
+                          setForm((prev) => ({ ...prev, description: e.target.value }))
+                        }
+                      />
                     </div>
+                  </>
+                )}
+                {mode === "edit" && (
+                  <div className="space-y-2">
+                    <label className="text-xs text-muted-foreground">{t("skills.name")}</label>
+                    <Input value={form.name} disabled />
                   </div>
-                ))}
+                )}
+                <div className="space-y-2">
+                  <label className="text-xs text-muted-foreground">{t("skills.content")}</label>
+                  <textarea
+                    value={form.content}
+                    onChange={(e) => setForm((prev) => ({ ...prev, content: e.target.value }))}
+                    placeholder={t("skills.content_placeholder")}
+                    className="w-full min-h-[160px] rounded-sm border border-input bg-background px-3 py-2 text-sm text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                  />
+                </div>
+                {error && <div className="text-xs text-status-critical">{error}</div>}
               </div>
             )}
           </div>
-        ) : mode === "install" ? (
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <label className="text-xs text-muted-foreground">{t("skills.install_path")}</label>
-              <Input
-                value={installPath}
-                onChange={(e) => setInstallPath(e.target.value)}
-                placeholder={t("skills.install_hint")}
-              />
-            </div>
-            {error && <div className="text-xs text-status-critical">{error}</div>}
-          </div>
-        ) : (
-          <div className="space-y-4">
-            {mode === "create" && (
-              <>
-                <div className="space-y-2">
-                  <label className="text-xs text-muted-foreground">{t("skills.name")}</label>
-                  <Input
-                    value={form.name}
-                    onChange={(e) => setForm((prev) => ({ ...prev, name: e.target.value }))}
-                    placeholder={t("skills.name_hint")}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <label className="text-xs text-muted-foreground">
-                    {t("skills.description")}
-                  </label>
-                  <Input
-                    value={form.description}
-                    onChange={(e) =>
-                      setForm((prev) => ({ ...prev, description: e.target.value }))
-                    }
-                  />
-                </div>
-              </>
-            )}
-            {mode === "edit" && (
-              <div className="space-y-2">
-                <label className="text-xs text-muted-foreground">{t("skills.name")}</label>
-                <Input value={form.name} disabled />
-              </div>
-            )}
-            <div className="space-y-2">
-              <label className="text-xs text-muted-foreground">{t("skills.content")}</label>
-              <textarea
-                value={form.content}
-                onChange={(e) => setForm((prev) => ({ ...prev, content: e.target.value }))}
-                placeholder={t("skills.content_placeholder")}
-                className="w-full min-h-[160px] rounded-sm border border-input bg-background px-3 py-2 text-sm text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-              />
-            </div>
-            {error && <div className="text-xs text-status-critical">{error}</div>}
-          </div>
-        )}
 
-        {mode !== "list" && (
-          <DialogFooter>
-            <Button variant="ghost" onClick={resetForm}>
-              {t("skills.cancel")}
-            </Button>
-            <Button onClick={handleSave}>{t("skills.save")}</Button>
-          </DialogFooter>
-        )}
+          {mode !== "list" && (
+            <DialogFooter className="px-6 pb-6 pt-2">
+              <Button variant="ghost" onClick={resetForm}>
+                {t("skills.cancel")}
+              </Button>
+              <Button onClick={handleSave}>{t("skills.save")}</Button>
+            </DialogFooter>
+          )}
+        </div>
       </DialogContent>
     </Dialog>
   )

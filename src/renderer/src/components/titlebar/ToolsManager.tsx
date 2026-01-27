@@ -118,105 +118,115 @@ export function ToolsManager(): React.JSX.Element {
         <Wrench className="size-4" />
       </Button>
 
-      <DialogContent className="max-w-2xl">
-        <DialogHeader>
-          <DialogTitle className="text-sm uppercase tracking-[0.2em] text-muted-foreground">
-            {t("tools.title")}
-          </DialogTitle>
-        </DialogHeader>
+      <DialogContent className="w-[900px] h-[640px] max-w-[90vw] max-h-[85vh] p-0 overflow-hidden">
+        <div className="flex h-full flex-col">
+          <DialogHeader className="px-6 pt-6">
+            <DialogTitle className="text-sm uppercase tracking-[0.2em] text-muted-foreground">
+              {t("tools.title")}
+            </DialogTitle>
+          </DialogHeader>
 
-        <div className="space-y-4">
-          {tools.length === 0 ? (
-            <div className="rounded-sm border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
-              {t("tools.empty")}
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {tools.map((tool) => (
-                <div key={tool.name} className="rounded-sm border border-border p-3 space-y-3">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="space-y-1">
-                      <div className="text-sm font-medium">{tool.label}</div>
-                      <div className="text-xs text-muted-foreground">{tool.description}</div>
-                      {tool.envVar && (
-                        <div className="text-[10px] text-muted-foreground">
-                          {t("tools.env_var")}: {tool.envVar}
+          <div className="flex-1 overflow-y-auto px-6 pb-6 pt-4">
+            <div className="space-y-4">
+              {tools.length === 0 ? (
+                <div className="rounded-sm border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
+                  {t("tools.empty")}
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {tools.map((tool) => (
+                    <div key={tool.name} className="rounded-sm border border-border p-3 space-y-3">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="space-y-1">
+                          <div className="text-sm font-medium">{tool.label}</div>
+                          <div className="text-xs text-muted-foreground">{tool.description}</div>
+                          {tool.envVar && (
+                            <div className="text-[10px] text-muted-foreground">
+                              {t("tools.env_var")}: {tool.envVar}
+                            </div>
+                          )}
+                        </div>
+                        <div className="flex flex-col items-end gap-2">
+                          <button
+                            type="button"
+                            disabled={toggling[tool.name]}
+                            onClick={() => handleToggle(tool)}
+                            className={cn(
+                              "text-[10px] uppercase tracking-[0.2em] transition-colors",
+                              tool.enabled
+                                ? "text-foreground"
+                                : "text-muted-foreground hover:text-foreground"
+                            )}
+                          >
+                            {tool.enabled ? t("tools.enabled") : t("tools.disabled")}
+                          </button>
+                          <span
+                            className={cn(
+                              "text-[10px] uppercase tracking-[0.2em]",
+                              tool.hasKey ? "text-status-success" : "text-muted-foreground"
+                            )}
+                          >
+                            {tool.hasKey ? t("tools.status_configured") : t("tools.status_missing")}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="space-y-2">
+                        <label className="text-xs text-muted-foreground">
+                          {tool.keyLabel || t("tools.key")}
+                        </label>
+                        <div className="relative">
+                          <Input
+                            type={showKeys[tool.name] ? "text" : "password"}
+                            value={keyInputs[tool.name] ?? ""}
+                            onChange={(e) => handleKeyChange(tool.name, e.target.value)}
+                            placeholder={t("tools.key_placeholder")}
+                            className="pr-10"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => toggleShowKey(tool.name)}
+                            className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                          >
+                            {showKeys[tool.name] ? (
+                              <EyeOff className="size-4" />
+                            ) : (
+                              <Eye className="size-4" />
+                            )}
+                          </button>
+                        </div>
+                      </div>
+
+                      {!tool.enabled && (
+                        <div className="text-xs text-muted-foreground">
+                          {t("tools.disabled_hint")}
                         </div>
                       )}
+                      <div className="flex items-center justify-end gap-2">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleSave(tool, true)}
+                          disabled={saving[tool.name]}
+                        >
+                          {t("tools.clear")}
+                        </Button>
+                        <Button
+                          size="sm"
+                          onClick={() => handleSave(tool)}
+                          disabled={saving[tool.name]}
+                        >
+                          {t("tools.save")}
+                        </Button>
+                      </div>
                     </div>
-                    <div className="flex flex-col items-end gap-2">
-                      <button
-                        type="button"
-                        disabled={toggling[tool.name]}
-                        onClick={() => handleToggle(tool)}
-                        className={cn(
-                          "text-[10px] uppercase tracking-[0.2em] transition-colors",
-                          tool.enabled
-                            ? "text-foreground"
-                            : "text-muted-foreground hover:text-foreground"
-                        )}
-                      >
-                        {tool.enabled ? t("tools.enabled") : t("tools.disabled")}
-                      </button>
-                      <span
-                        className={cn(
-                          "text-[10px] uppercase tracking-[0.2em]",
-                          tool.hasKey ? "text-status-success" : "text-muted-foreground"
-                        )}
-                      >
-                        {tool.hasKey ? t("tools.status_configured") : t("tools.status_missing")}
-                      </span>
-                    </div>
-                  </div>
-
-                  <div className="space-y-2">
-                    <label className="text-xs text-muted-foreground">
-                      {tool.keyLabel || t("tools.key")}
-                    </label>
-                    <div className="relative">
-                      <Input
-                        type={showKeys[tool.name] ? "text" : "password"}
-                        value={keyInputs[tool.name] ?? ""}
-                        onChange={(e) => handleKeyChange(tool.name, e.target.value)}
-                        placeholder={t("tools.key_placeholder")}
-                        className="pr-10"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => toggleShowKey(tool.name)}
-                        className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
-                      >
-                        {showKeys[tool.name] ? (
-                          <EyeOff className="size-4" />
-                        ) : (
-                          <Eye className="size-4" />
-                        )}
-                      </button>
-                    </div>
-                  </div>
-
-                  {!tool.enabled && (
-                    <div className="text-xs text-muted-foreground">{t("tools.disabled_hint")}</div>
-                  )}
-                  <div className="flex items-center justify-end gap-2">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => handleSave(tool, true)}
-                      disabled={saving[tool.name]}
-                    >
-                      {t("tools.clear")}
-                    </Button>
-                    <Button size="sm" onClick={() => handleSave(tool)} disabled={saving[tool.name]}>
-                      {t("tools.save")}
-                    </Button>
-                  </div>
+                  ))}
                 </div>
-              ))}
-            </div>
-          )}
+              )}
 
-          {error && <div className="text-xs text-status-critical">{error}</div>}
+              {error && <div className="text-xs text-status-critical">{error}</div>}
+            </div>
+          </div>
         </div>
       </DialogContent>
     </Dialog>

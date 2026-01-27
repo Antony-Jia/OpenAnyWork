@@ -222,42 +222,44 @@ export function McpManager(): React.JSX.Element {
         <Server className="size-4" />
       </Button>
 
-      <DialogContent className="max-w-3xl">
-        <DialogHeader>
-          <DialogTitle className="text-sm uppercase tracking-[0.2em] text-muted-foreground">
-            {t("mcp.title")}
-          </DialogTitle>
-        </DialogHeader>
+      <DialogContent className="w-[900px] h-[640px] max-w-[90vw] max-h-[85vh] p-0 overflow-hidden">
+        <div className="flex h-full flex-col">
+          <DialogHeader className="px-6 pt-6">
+            <DialogTitle className="text-sm uppercase tracking-[0.2em] text-muted-foreground">
+              {t("mcp.title")}
+            </DialogTitle>
+          </DialogHeader>
 
-        {mode === "list" ? (
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <span className="text-xs text-muted-foreground">{t("mcp.hint")}</span>
-              <Button size="sm" onClick={startCreate}>
-                <Plus className="size-3.5" />
-                {t("mcp.add")}
-              </Button>
-            </div>
+          <div className="flex-1 overflow-y-auto px-6 pb-6 pt-4">
+            {mode === "list" ? (
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-muted-foreground">{t("mcp.hint")}</span>
+                  <Button size="sm" onClick={startCreate}>
+                    <Plus className="size-3.5" />
+                    {t("mcp.add")}
+                  </Button>
+                </div>
 
-            {servers.length === 0 ? (
-              <div className="rounded-sm border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
-                {t("mcp.empty")}
-              </div>
-            ) : (
-              <div className="space-y-2">
-                {servers.map((item) => (
-                  <div
-                    key={item.config.id}
-                    className="flex items-start justify-between gap-3 rounded-sm border border-border p-3"
-                  >
-                    <div className="space-y-1">
-                      <div className="text-sm font-medium">{item.config.name}</div>
-                      <div className="text-xs text-muted-foreground">
-                        {item.config.mode === "local"
-                          ? t("mcp.mode_local")
-                          : t("mcp.mode_remote")}
-                      </div>
-                      <div className="text-[10px] text-muted-foreground">
+                {servers.length === 0 ? (
+                  <div className="rounded-sm border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
+                    {t("mcp.empty")}
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {servers.map((item) => (
+                      <div
+                        key={item.config.id}
+                        className="flex items-start justify-between gap-3 rounded-sm border border-border p-3"
+                      >
+                        <div className="space-y-1">
+                          <div className="text-sm font-medium">{item.config.name}</div>
+                          <div className="text-xs text-muted-foreground">
+                            {item.config.mode === "local"
+                              ? t("mcp.mode_local")
+                              : t("mcp.mode_remote")}
+                          </div>
+                          <div className="text-[10px] text-muted-foreground">
                         {t("mcp.tools_count")}: {item.status.toolsCount}
                       </div>
                       {item.config.enabled === false && (
@@ -334,118 +336,122 @@ export function McpManager(): React.JSX.Element {
               </div>
             )}
 
-            {error && <div className="text-xs text-status-critical">{error}</div>}
-          </div>
-        ) : (
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <label className="text-xs text-muted-foreground">{t("mcp.name")}</label>
-              <Input
-                value={form.name}
-                onChange={(e) => setForm((prev) => ({ ...prev, name: e.target.value }))}
-                placeholder={t("mcp.name_placeholder")}
-              />
-            </div>
-
-            <div className="space-y-2">
-              <label className="text-xs text-muted-foreground">{t("mcp.mode")}</label>
-              <div className="flex gap-2">
-                {modeOptions.map((option) => (
-                  <Button
-                    key={option.value}
-                    variant={form.mode === option.value ? "secondary" : "ghost"}
-                    size="sm"
-                    onClick={() =>
-                      setForm((prev) => ({ ...prev, mode: option.value as McpServerMode }))
-                    }
-                    className="h-7 text-xs flex-1"
-                  >
-                    {option.label}
-                  </Button>
-                ))}
-              </div>
-            </div>
-
-            {form.mode === "local" ? (
-              <div className="space-y-3">
-                <div className="space-y-2">
-                  <label className="text-xs text-muted-foreground">{t("mcp.command")}</label>
-                  <Input
-                    value={form.command}
-                    onChange={(e) => setForm((prev) => ({ ...prev, command: e.target.value }))}
-                    placeholder={t("mcp.command_placeholder")}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <label className="text-xs text-muted-foreground">{t("mcp.args")}</label>
-                  <textarea
-                    value={form.argsText}
-                    onChange={(e) => setForm((prev) => ({ ...prev, argsText: e.target.value }))}
-                    placeholder={t("mcp.args_placeholder")}
-                    className="w-full min-h-[90px] rounded-md border border-border/60 bg-background/60 px-2 py-2 text-xs"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <label className="text-xs text-muted-foreground">{t("mcp.env")}</label>
-                  <textarea
-                    value={form.envText}
-                    onChange={(e) => setForm((prev) => ({ ...prev, envText: e.target.value }))}
-                    placeholder={t("mcp.env_placeholder")}
-                    className="w-full min-h-[90px] rounded-md border border-border/60 bg-background/60 px-2 py-2 text-xs"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <label className="text-xs text-muted-foreground">{t("mcp.cwd")}</label>
-                  <Input
-                    value={form.cwd}
-                    onChange={(e) => setForm((prev) => ({ ...prev, cwd: e.target.value }))}
-                    placeholder={t("mcp.cwd_placeholder")}
-                  />
-                </div>
+                {error && <div className="text-xs text-status-critical">{error}</div>}
               </div>
             ) : (
-              <div className="space-y-3">
+              <div className="space-y-4">
                 <div className="space-y-2">
-                  <label className="text-xs text-muted-foreground">{t("mcp.url")}</label>
+                  <label className="text-xs text-muted-foreground">{t("mcp.name")}</label>
                   <Input
-                    value={form.url}
-                    onChange={(e) => setForm((prev) => ({ ...prev, url: e.target.value }))}
-                    placeholder={t("mcp.url_placeholder")}
+                    value={form.name}
+                    onChange={(e) => setForm((prev) => ({ ...prev, name: e.target.value }))}
+                    placeholder={t("mcp.name_placeholder")}
                   />
                 </div>
+
                 <div className="space-y-2">
-                  <label className="text-xs text-muted-foreground">{t("mcp.headers")}</label>
-                  <textarea
-                    value={form.headersText}
-                    onChange={(e) =>
-                      setForm((prev) => ({ ...prev, headersText: e.target.value }))
-                    }
-                    placeholder={t("mcp.headers_placeholder")}
-                    className="w-full min-h-[90px] rounded-md border border-border/60 bg-background/60 px-2 py-2 text-xs"
-                  />
+                  <label className="text-xs text-muted-foreground">{t("mcp.mode")}</label>
+                  <div className="flex gap-2">
+                    {modeOptions.map((option) => (
+                      <Button
+                        key={option.value}
+                        variant={form.mode === option.value ? "secondary" : "ghost"}
+                        size="sm"
+                        onClick={() =>
+                          setForm((prev) => ({ ...prev, mode: option.value as McpServerMode }))
+                        }
+                        className="h-7 text-xs flex-1"
+                      >
+                        {option.label}
+                      </Button>
+                    ))}
+                  </div>
                 </div>
+
+                {form.mode === "local" ? (
+                  <div className="space-y-3">
+                    <div className="space-y-2">
+                      <label className="text-xs text-muted-foreground">{t("mcp.command")}</label>
+                      <Input
+                        value={form.command}
+                        onChange={(e) => setForm((prev) => ({ ...prev, command: e.target.value }))}
+                        placeholder={t("mcp.command_placeholder")}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-xs text-muted-foreground">{t("mcp.args")}</label>
+                      <textarea
+                        value={form.argsText}
+                        onChange={(e) => setForm((prev) => ({ ...prev, argsText: e.target.value }))}
+                        placeholder={t("mcp.args_placeholder")}
+                        className="w-full min-h-[90px] rounded-md border border-border/60 bg-background/60 px-2 py-2 text-xs"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-xs text-muted-foreground">{t("mcp.env")}</label>
+                      <textarea
+                        value={form.envText}
+                        onChange={(e) => setForm((prev) => ({ ...prev, envText: e.target.value }))}
+                        placeholder={t("mcp.env_placeholder")}
+                        className="w-full min-h-[90px] rounded-md border border-border/60 bg-background/60 px-2 py-2 text-xs"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-xs text-muted-foreground">{t("mcp.cwd")}</label>
+                      <Input
+                        value={form.cwd}
+                        onChange={(e) => setForm((prev) => ({ ...prev, cwd: e.target.value }))}
+                        placeholder={t("mcp.cwd_placeholder")}
+                      />
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    <div className="space-y-2">
+                      <label className="text-xs text-muted-foreground">{t("mcp.url")}</label>
+                      <Input
+                        value={form.url}
+                        onChange={(e) => setForm((prev) => ({ ...prev, url: e.target.value }))}
+                        placeholder={t("mcp.url_placeholder")}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-xs text-muted-foreground">{t("mcp.headers")}</label>
+                      <textarea
+                        value={form.headersText}
+                        onChange={(e) =>
+                          setForm((prev) => ({ ...prev, headersText: e.target.value }))
+                        }
+                        placeholder={t("mcp.headers_placeholder")}
+                        className="w-full min-h-[90px] rounded-md border border-border/60 bg-background/60 px-2 py-2 text-xs"
+                      />
+                    </div>
+                  </div>
+                )}
+
+                <label className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <input
+                    type="checkbox"
+                    checked={form.autoStart}
+                    onChange={(e) => setForm((prev) => ({ ...prev, autoStart: e.target.checked }))}
+                  />
+                  {t("mcp.auto_start")}
+                </label>
+
+                {error && <div className="text-xs text-status-critical">{error}</div>}
               </div>
             )}
+          </div>
 
-            <label className="flex items-center gap-2 text-xs text-muted-foreground">
-              <input
-                type="checkbox"
-                checked={form.autoStart}
-                onChange={(e) => setForm((prev) => ({ ...prev, autoStart: e.target.checked }))}
-              />
-              {t("mcp.auto_start")}
-            </label>
-
-            {error && <div className="text-xs text-status-critical">{error}</div>}
-
-            <DialogFooter>
+          {mode !== "list" && (
+            <DialogFooter className="px-6 pb-6 pt-2">
               <Button variant="ghost" onClick={resetForm}>
                 {t("mcp.cancel")}
               </Button>
               <Button onClick={handleSave}>{t("mcp.save")}</Button>
             </DialogFooter>
-          </div>
-        )}
+          )}
+        </div>
       </DialogContent>
     </Dialog>
   )

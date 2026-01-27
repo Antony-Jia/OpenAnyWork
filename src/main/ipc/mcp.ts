@@ -3,6 +3,7 @@ import {
   createMcpServer,
   deleteMcpServer,
   listMcpServers,
+  listRunningMcpTools,
   startMcpServer,
   stopMcpServer,
   updateMcpServer
@@ -12,6 +13,10 @@ import type { McpServerCreateParams, McpServerUpdateParams } from "../types"
 export function registerMcpHandlers(ipcMain: IpcMain): void {
   ipcMain.handle("mcp:list", async () => {
     return listMcpServers()
+  })
+
+  ipcMain.handle("mcp:tools", async () => {
+    return listRunningMcpTools()
   })
 
   ipcMain.handle("mcp:create", async (_event, payload: McpServerCreateParams) => {

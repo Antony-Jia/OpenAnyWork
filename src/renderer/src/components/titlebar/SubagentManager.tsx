@@ -11,7 +11,13 @@ import {
 import { Input } from "@/components/ui/input"
 import { cn } from "@/lib/utils"
 import { useLanguage } from "@/lib/i18n"
-import type { MiddlewareDefinition, SubagentConfig, ToolInfo } from "@/types"
+import type {
+  McpServerListItem,
+  McpToolInfo,
+  MiddlewareDefinition,
+  SubagentConfig,
+  ToolInfo
+} from "@/types"
 
 interface SubagentFormState {
   name: string
@@ -36,6 +42,8 @@ export function SubagentManager(): React.JSX.Element {
   const [subagents, setSubagents] = useState<SubagentConfig[]>([])
   const [tools, setTools] = useState<ToolInfo[]>([])
   const [middleware, setMiddleware] = useState<MiddlewareDefinition[]>([])
+  const [mcpServers, setMcpServers] = useState<McpServerListItem[]>([])
+  const [mcpTools, setMcpTools] = useState<McpToolInfo[]>([])
   const [mode, setMode] = useState<"list" | "create" | "edit">("list")
   const [form, setForm] = useState<SubagentFormState>(emptyForm)
   const [editingId, setEditingId] = useState<string | null>(null)
@@ -65,6 +73,17 @@ export function SubagentManager(): React.JSX.Element {
   const loadMiddleware = useCallback(async () => {
     const items = await window.api.middleware.list()
     setMiddleware(items)
+  }, [])
+
+  const loadMcp = useCallback(async () => {
+    try {
+      const servers = await window.api.mcp.list()
+      setMcpServers(servers)
+      const tools = await window.api.mcp.tools()
+      setMcpTools(tools)
+    } catch (e) {
+      console.error("[SubagentManager] loadMcp error:", e)
+    }
   }, [])
 
   const resetForm = (): void => {
@@ -110,6 +129,24 @@ export function SubagentManager(): React.JSX.Element {
         ? prev.middleware.filter((item) => item !== id)
         : [...prev.middleware, id]
       return { ...prev, middleware: nextMiddleware }
+    })
+  }
+
+  const toggleMcpServer = (serverId: string): void => {
+    setForm((prev) => {
+      const prefix = `mcp.${serverId}.`
+      const hasSelection = prev.tools.some((name) => name.startsWith(prefix))
+      if (hasSelection) {
+        return { ...prev, tools: prev.tools.filter((name) => !name.startsWith(prefix)) }
+      }
+      const serverToolNames = mcpTools
+        .filter((tool) => tool.serverId === serverId)
+        .map((tool) => tool.fullName)
+      if (serverToolNames.length === 0) {
+        return prev
+      }
+      const nextTools = Array.from(new Set([...prev.tools, ...serverToolNames]))
+      return { ...prev, tools: nextTools }
     })
   }
 
@@ -160,6 +197,7 @@ export function SubagentManager(): React.JSX.Element {
     void loadSubagents()
     void loadTools()
     void loadMiddleware()
+    void loadMcp()
   }
 
   return (
@@ -253,7 +291,7 @@ export function SubagentManager(): React.JSX.Element {
                 className="w-full min-h-[120px] rounded-sm border border-input bg-background px-3 py-2 text-sm text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
               />
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div className="space-y-2">
                 <label className="text-xs text-muted-foreground">
                   {t("subagents.tools")} ({tools.length})
@@ -301,6 +339,61 @@ export function SubagentManager(): React.JSX.Element {
                               {tool.description}
                             </div>
                           )}
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
+              </div>
+              <div className="space-y-2">
+                <label className="text-xs text-muted-foreground">
+                  {t("subagents.mcp")} ({mcpServers.length})
+                </label>
+                {mcpServers.length === 0 ? (
+                  <div className="rounded-sm border border-dashed border-border p-3 text-xs text-muted-foreground">
+                    {t("subagents.mcp_empty")}
+                  </div>
+                ) : (
+                  <div className="space-y-2 max-h-[200px] overflow-y-auto pr-1">
+                    {mcpServers.map((server) => {
+                      const prefix = `mcp.${server.config.id}.`
+                      const isSelected = form.tools.some((name) => name.startsWith(prefix))
+                      const serverTools = mcpTools.filter(
+                        (tool) => tool.serverId === server.config.id
+                      )
+                      const canSelect = serverTools.length > 0
+                      return (
+                        <div
+                          key={server.config.id}
+                          onClick={() => (canSelect ? toggleMcpServer(server.config.id) : null)}
+                          className={cn(
+                            "rounded-sm border p-2 transition-colors",
+                            canSelect ? "cursor-pointer" : "opacity-60 cursor-not-allowed",
+                            isSelected
+                              ? "border-primary bg-primary/10"
+                              : "border-border hover:border-primary/50 hover:bg-muted/50"
+                          )}
+                        >
+                          <div className="flex items-center justify-between gap-2">
+                            <div className="flex items-center gap-2 min-w-0">
+                              <input
+                                type="checkbox"
+                                checked={isSelected}
+                                onChange={() => toggleMcpServer(server.config.id)}
+                                onClick={(e) => e.stopPropagation()}
+                                disabled={!canSelect}
+                                className="shrink-0"
+                              />
+                              <span className="text-xs font-medium text-foreground truncate">
+                                {server.config.name}
+                              </span>
+                            </div>
+                            <span className="text-[10px] text-muted-foreground shrink-0">
+                              {server.status.running
+                                ? `${server.status.toolsCount} ${t("mcp.tools_count")}`
+                                : t("subagents.mcp_not_running")}
+                            </span>
+                          </div>
                         </div>
                       )
                     })}

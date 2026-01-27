@@ -16,6 +16,7 @@ import type {
   McpServerListItem,
   McpServerStatus,
   McpServerUpdateParams,
+  McpToolInfo,
   AppSettings,
   SettingsUpdateParams
 } from "../main/types"
@@ -247,6 +248,9 @@ const api = {
   mcp: {
     list: (): Promise<McpServerListItem[]> => {
       return ipcRenderer.invoke("mcp:list")
+    },
+    tools: (): Promise<McpToolInfo[]> => {
+      return ipcRenderer.invoke("mcp:tools")
     },
     create: (input: McpServerCreateParams): Promise<McpServerConfig> => {
       return ipcRenderer.invoke("mcp:create", input)

@@ -201,6 +201,14 @@ export interface McpServerUpdateParams {
   updates: Partial<Omit<McpServerConfig, "id">>
 }
 
+export interface McpToolInfo {
+  serverId: string
+  serverName: string
+  toolName: string
+  fullName: string
+  description?: string
+}
+
 export interface MiddlewareDefinition {
   id: string
   label: string

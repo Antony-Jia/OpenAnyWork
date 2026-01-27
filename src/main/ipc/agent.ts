@@ -20,6 +20,16 @@ import type {
 
 // Track active runs for cancellation
 const activeRuns = new Map<string, AbortController>()
+const EMAIL_TASK_TAG = "<OpenworkTask>"
+
+function buildEmailSubject(threadId: string, suffix: string): string {
+  const cleaned = suffix.trim()
+  return `${EMAIL_TASK_TAG} [${threadId}] ${cleaned}`.trim()
+}
+
+function stripEmailSubjectPrefix(subject: string): string {
+  return subject.replace(/^<OpenworkTask>\s*\[[^\]]+\]\s*/i, "").trim()
+}
 
 function parseMetadata(threadId: string): Record<string, unknown> {
   const row = getThread(threadId)
@@ -400,7 +410,10 @@ export function registerAgentHandlers(ipcMain: IpcMain): void {
       if (mode === "email") {
         try {
           await sendEmail({
-            subject: `<OpenworkTask> User Message - ${thread?.title || threadId}`,
+            subject: buildEmailSubject(
+              threadId,
+              `User Message - ${thread?.title || threadId}`
+            ),
             text: message
           })
         } catch (emailError) {
@@ -421,7 +434,7 @@ export function registerAgentHandlers(ipcMain: IpcMain): void {
         const summaryText = summary || "Task completed. See Openwork for details."
         try {
           await sendEmail({
-            subject: `<OpenworkTask> Completed - ${thread?.title || threadId}`,
+            subject: buildEmailSubject(threadId, `Completed - ${thread?.title || threadId}`),
             text: summaryText
           })
         } catch (emailError) {
@@ -430,7 +443,7 @@ export function registerAgentHandlers(ipcMain: IpcMain): void {
 
         if (!abortController.signal.aborted) {
           try {
-            const tasks = await fetchUnreadEmailTasks()
+            const tasks = await fetchUnreadEmailTasks(threadId)
             for (const task of tasks) {
               if (abortController.signal.aborted) break
               await resetRalphCheckpoint(threadId)
@@ -454,8 +467,12 @@ export function registerAgentHandlers(ipcMain: IpcMain): void {
 
               const taskSummaryText = taskSummary || "Task completed. See Openwork for details."
               try {
+                const cleanedSubject = stripEmailSubjectPrefix(task.subject)
                 await sendEmail({
-                  subject: `<OpenworkTask> Completed - ${task.subject}`,
+                  subject: buildEmailSubject(
+                    threadId,
+                    `Completed - ${cleanedSubject || task.subject}`
+                  ),
                   text: taskSummaryText
                 })
               } catch (emailError) {

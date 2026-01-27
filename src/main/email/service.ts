@@ -11,6 +11,8 @@ export interface EmailTask {
   text: string
 }
 
+const OPENWORK_SUBJECT_TAG = "<OpenworkTask>"
+
 function getEmailSettings(): EmailSettings {
   const settings = getSettings()
   return settings.email
@@ -59,7 +61,12 @@ export async function sendEmail({
   })
 }
 
-export async function fetchUnreadEmailTasks(): Promise<EmailTask[]> {
+function extractThreadIdFromSubject(subject: string): string | null {
+  const match = subject.match(/<OpenworkTask>\s*\[([^\]]+)\]/)
+  return match ? match[1] : null
+}
+
+export async function fetchUnreadEmailTasks(threadId?: string): Promise<EmailTask[]> {
   const settings = getEmailSettings()
   ensureEmailEnabled(settings)
 
@@ -81,7 +88,7 @@ export async function fetchUnreadEmailTasks(): Promise<EmailTask[]> {
 
     const uids = await client.search({
       seen: false,
-      header: ["subject", "<OpenworkTask>"]
+      header: ["subject", OPENWORK_SUBJECT_TAG]
     })
 
     if (uids.length === 0) {
@@ -92,8 +99,14 @@ export async function fetchUnreadEmailTasks(): Promise<EmailTask[]> {
       if (!message.source) continue
       const parsed = await simpleParser(message.source)
       const subject = parsed.subject ?? ""
-      if (!subject.includes("<OpenworkTask>")) {
+      if (!subject.includes(OPENWORK_SUBJECT_TAG)) {
         continue
+      }
+      if (threadId) {
+        const extracted = extractThreadIdFromSubject(subject)
+        if (extracted !== threadId) {
+          continue
+        }
       }
 
       const from = parsed.from?.text ?? ""

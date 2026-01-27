@@ -1,5 +1,6 @@
 import { isToolEnabled, resolveToolKey, setStoredToolKey, setToolEnabled } from "./config"
 import { toolDefinitions, toolInstanceMap } from "./registry"
+import { getRunningMcpToolInstanceMap } from "../mcp/service"
 import type { ToolInfo } from "../types"
 
 function toToolInfo(definition: (typeof toolDefinitions)[number]): ToolInfo {
@@ -30,9 +31,13 @@ export function resolveToolInstancesByName(names?: string[]): Array<unknown> | u
   if (!names) return undefined
   if (names.length === 0) return []
 
+  const mcpToolMap = getRunningMcpToolInstanceMap()
   const instances = names
-    .filter((name) => isToolEnabled(name))
-    .map((name) => toolInstanceMap.get(name))
+    .filter((name) => {
+      if (name.startsWith("mcp.")) return true
+      return isToolEnabled(name)
+    })
+    .map((name) => (name.startsWith("mcp.") ? mcpToolMap.get(name) : toolInstanceMap.get(name)))
     .filter((instance): instance is NonNullable<typeof instance> => !!instance)
 
   return instances.length > 0 ? instances : undefined

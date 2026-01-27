@@ -15,6 +15,7 @@ import type {
   McpServerListItem,
   McpServerStatus,
   McpServerUpdateParams,
+  McpToolInfo,
   AppSettings,
   SettingsUpdateParams
 } from "../main/types"
@@ -107,6 +108,7 @@ interface CustomAPI {
   }
   mcp: {
     list: () => Promise<McpServerListItem[]>
+    tools: () => Promise<McpToolInfo[]>
     create: (input: McpServerCreateParams) => Promise<McpServerConfig>
     update: (input: McpServerUpdateParams) => Promise<McpServerConfig>
     delete: (id: string) => Promise<void>

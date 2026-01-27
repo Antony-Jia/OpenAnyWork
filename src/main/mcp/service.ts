@@ -10,7 +10,8 @@ import type {
   McpServerCreateParams,
   McpServerListItem,
   McpServerStatus,
-  McpServerUpdateParams
+  McpServerUpdateParams,
+  McpToolInfo
 } from "../types"
 
 type McpToolDefinition = {
@@ -86,6 +87,20 @@ function buildToolInstances(serverId: string, tools: McpToolDefinition[]): Array
       }
     )
   })
+}
+
+function toMcpToolInfo(
+  server: McpServerConfig,
+  toolDef: McpToolDefinition
+): McpToolInfo {
+  const fullName = `mcp.${server.id}.${toolDef.name}`
+  return {
+    serverId: server.id,
+    serverName: server.name,
+    toolName: toolDef.name,
+    fullName,
+    description: toolDef.description
+  }
 }
 
 export function listMcpServers(): McpServerListItem[] {
@@ -245,4 +260,21 @@ export async function startAutoMcpServers(): Promise<void> {
 
 export async function getRunningMcpToolInstances(): Promise<Array<unknown>> {
   return Array.from(runningServers.values()).flatMap((server) => server.toolInstances)
+}
+
+export function listRunningMcpTools(): McpToolInfo[] {
+  return Array.from(runningServers.values()).flatMap((server) =>
+    server.tools.map((toolDef) => toMcpToolInfo(server.config, toolDef))
+  )
+}
+
+export function getRunningMcpToolInstanceMap(): Map<string, unknown> {
+  const entries = Array.from(runningServers.values()).flatMap((server) =>
+    server.tools.map((toolDef, index) => {
+      const fullName = `mcp.${server.config.id}.${toolDef.name}`
+      const instance = server.toolInstances[index]
+      return [fullName, instance] as const
+    })
+  )
+  return new Map(entries)
 }

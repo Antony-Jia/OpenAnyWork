@@ -10,6 +10,7 @@ import {
 import { basename, join, resolve } from "node:path"
 import { listSkills } from "deepagents"
 import type { SkillItem } from "./types"
+import { logEntry, logExit } from "./logging"
 
 const SKILLS_ROOT = join(process.cwd(), ".openwork", "skills")
 
@@ -29,14 +30,17 @@ export function getSkillsRoot(): string {
 }
 
 export function listAppSkills(): SkillItem[] {
+  logEntry("Skills", "list")
   const root = ensureSkillsDir()
   const skills = listSkills({ userSkillsDir: root })
-  return skills.map((skill) => ({
+  const result = skills.map((skill) => ({
     name: skill.name,
     description: skill.description,
     path: normalizeSkillPath(skill.path),
     source: skill.source
   }))
+  logExit("Skills", "list", { count: result.length })
+  return result
 }
 
 function validateSkillName(name: string): void {
@@ -53,6 +57,7 @@ export function createSkill(params: {
   description: string
   content?: string
 }): SkillItem {
+  logEntry("Skills", "create", { name: params.name, contentLength: params.content?.length ?? 0 })
   const root = ensureSkillsDir()
   const name = params.name.trim()
   const description = params.description.trim()
@@ -76,12 +81,14 @@ export function createSkill(params: {
   const skillPath = join(skillDir, "SKILL.md")
   writeFileSync(skillPath, content)
 
-  return {
+  const result = {
     name,
     description,
     path: normalizeSkillPath(skillPath),
     source: "user"
   }
+  logExit("Skills", "create", { name })
+  return result
 }
 
 function resolveSkillSourcePath(inputPath: string): string {
@@ -109,6 +116,7 @@ function resolveSkillSourcePath(inputPath: string): string {
 }
 
 export function installSkillFromPath(inputPath: string): SkillItem {
+  logEntry("Skills", "install", { inputPath })
   const root = ensureSkillsDir()
   const sourceDir = resolveSkillSourcePath(inputPath)
   const skillName = basename(sourceDir)
@@ -125,12 +133,14 @@ export function installSkillFromPath(inputPath: string): SkillItem {
   const skillPath = join(targetDir, "SKILL.md")
   const description = readSkillDescription(skillPath)
 
-  return {
+  const result = {
     name: skillName,
     description,
     path: normalizeSkillPath(skillPath),
     source: "user"
   }
+  logExit("Skills", "install", { name: skillName })
+  return result
 }
 
 function readSkillDescription(skillPath: string): string {
@@ -147,22 +157,31 @@ function readSkillDescription(skillPath: string): string {
 }
 
 export function deleteSkill(name: string): void {
+  logEntry("Skills", "delete", { name })
   const root = ensureSkillsDir()
   const skillDir = join(root, name)
-  if (!existsSync(skillDir)) return
+  if (!existsSync(skillDir)) {
+    logExit("Skills", "delete", { name, removed: false })
+    return
+  }
   rmSync(skillDir, { recursive: true, force: true })
+  logExit("Skills", "delete", { name })
 }
 
 export function getSkillContent(name: string): string {
+  logEntry("Skills", "getContent", { name })
   const root = ensureSkillsDir()
   const skillPath = join(root, name, "SKILL.md")
   if (!existsSync(skillPath)) {
     throw new Error("Skill not found.")
   }
-  return readFileSync(skillPath, "utf-8")
+  const content = readFileSync(skillPath, "utf-8")
+  logExit("Skills", "getContent", { name, contentLength: content.length })
+  return content
 }
 
 export function saveSkillContent(name: string, content: string): SkillItem {
+  logEntry("Skills", "saveContent", { name, contentLength: content.length })
   const root = ensureSkillsDir()
   const skillPath = join(root, name, "SKILL.md")
   if (!existsSync(skillPath)) {
@@ -170,10 +189,12 @@ export function saveSkillContent(name: string, content: string): SkillItem {
   }
   writeFileSync(skillPath, content)
   const description = readSkillDescription(skillPath)
-  return {
+  const result = {
     name,
     description,
     path: normalizeSkillPath(skillPath),
     source: "user"
   }
+  logExit("Skills", "saveContent", { name })
+  return result
 }

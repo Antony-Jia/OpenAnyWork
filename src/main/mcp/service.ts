@@ -5,6 +5,7 @@ import { Client } from "@modelcontextprotocol/sdk/client/index.js"
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js"
 import { SSEClientTransport } from "@modelcontextprotocol/sdk/client/sse.js"
 import { listMcpConfigs, saveMcpConfigs } from "./config"
+import { logEntry, logExit, summarizeArgs, summarizeList, withSpan } from "../logging"
 import type {
   McpServerConfig,
   McpServerCreateParams,
@@ -71,14 +72,39 @@ function buildToolInstances(serverId: string, tools: McpToolDefinition[]): Array
 
     return tool(
       async (args: Record<string, unknown>) => {
+        const start = Date.now()
+        logEntry("MCP", "toolCall", {
+          tool: toolName,
+          serverId,
+          ...summarizeArgs(args)
+        })
         const running = runningServers.get(serverId)
         if (!running) {
+          logExit("MCP", "toolCall", { tool: toolName, serverId, ok: false }, Date.now() - start)
           throw new Error(`MCP server ${serverId} is not running.`)
         }
-        return running.client.callTool({
-          name: toolDef.name,
-          arguments: args ?? {}
-        })
+        try {
+          const result = await running.client.callTool({
+            name: toolDef.name,
+            arguments: args ?? {}
+          })
+          logExit(
+            "MCP",
+            "toolCall",
+            { tool: toolName, serverId, ok: true },
+            Date.now() - start
+          )
+          return result
+        } catch (error) {
+          const message = error instanceof Error ? error.message : "unknown_error"
+          logExit(
+            "MCP",
+            "toolCall",
+            { tool: toolName, serverId, ok: false, error: message },
+            Date.now() - start
+          )
+          throw error
+        }
       },
       {
         name: toolName,
@@ -104,8 +130,9 @@ function toMcpToolInfo(
 }
 
 export function listMcpServers(): McpServerListItem[] {
+  logEntry("MCP", "listServers")
   const servers = listMcpConfigs()
-  return servers.map((config) => {
+  const result = servers.map((config) => {
     const running = runningServers.get(config.id)
     const status: McpServerStatus = {
       running: !!running,
@@ -114,9 +141,12 @@ export function listMcpServers(): McpServerListItem[] {
     }
     return { config, status }
   })
+  logExit("MCP", "listServers", { count: result.length })
+  return result
 }
 
 export function createMcpServer(input: McpServerCreateParams): McpServerConfig {
+  logEntry("MCP", "createServer", { name: input.name, mode: input.mode })
   if (!input.name?.trim()) {
     throw new Error("MCP server name is required.")
   }
@@ -137,6 +167,7 @@ export function createMcpServer(input: McpServerCreateParams): McpServerConfig {
     autoStart: input.autoStart ?? false
   }
   saveMcpConfigs([...servers, created])
+  logExit("MCP", "createServer", { id: created.id, name: created.name })
   return created
 }
 
@@ -144,10 +175,12 @@ export async function updateMcpServer({
   id,
   updates
 }: McpServerUpdateParams): Promise<McpServerConfig> {
+  logEntry("MCP", "updateServer", { id, updates: Object.keys(updates || {}) })
   const next = updateConfig(id, updates)
   const running = runningServers.has(id)
   if (running && updates.autoStart === false) {
     await stopMcpServer(id)
+    logExit("MCP", "updateServer", { id, running: false })
     return next
   }
 
@@ -157,70 +190,80 @@ export async function updateMcpServer({
   } else if (updates.autoStart) {
     await startMcpServer(id)
   }
+  logExit("MCP", "updateServer", { id, running: runningServers.has(id) })
   return next
 }
 
 export async function deleteMcpServer(id: string): Promise<void> {
+  logEntry("MCP", "deleteServer", { id })
   await stopMcpServer(id)
   const servers = listMcpConfigs().filter((item) => item.id !== id)
   saveMcpConfigs(servers)
   lastErrors.delete(id)
+  logExit("MCP", "deleteServer", { id })
 }
 
 export async function startMcpServer(id: string): Promise<McpServerStatus> {
-  const existing = runningServers.get(id)
-  if (existing) {
-    return { running: true, toolsCount: existing.tools.length, lastError: null }
-  }
-
-  const config = getConfigById(id)
-  if (!config) {
-    throw new Error("MCP server not found.")
-  }
-
-  try {
-    const client = new Client(clientInfo, { capabilities: {} })
-    let transport: unknown
-
-    if (config.mode === "local") {
-      transport = new StdioClientTransport({
-        command: config.command || "",
-        args: config.args || [],
-        env: { ...process.env, ...(config.env ?? {}) },
-        cwd: config.cwd
-      })
-    } else {
-      const url = new URL(config.url || "")
-      transport = new SSEClientTransport(url, {
-        headers: config.headers
-      })
+  return withSpan("MCP", "startServer", { id }, async () => {
+    const existing = runningServers.get(id)
+    if (existing) {
+      return { running: true, toolsCount: existing.tools.length, lastError: null }
     }
 
-    await client.connect(transport)
+    const config = getConfigById(id)
+    if (!config) {
+      throw new Error("MCP server not found.")
+    }
 
-    const toolList = await client.listTools()
-    const tools = parseToolDefinitions(toolList)
-    const toolInstances = buildToolInstances(config.id, tools)
+    try {
+      const client = new Client(clientInfo, { capabilities: {} })
+      let transport: unknown
 
-    runningServers.set(config.id, {
-      config,
-      client,
-      transport,
-      tools,
-      toolInstances
-    })
-    lastErrors.set(config.id, null)
-    updateConfig(config.id, { autoStart: true })
+      if (config.mode === "local") {
+        transport = new StdioClientTransport({
+          command: config.command || "",
+          args: config.args || [],
+          env: { ...process.env, ...(config.env ?? {}) },
+          cwd: config.cwd
+        })
+      } else {
+        const url = new URL(config.url || "")
+        transport = new SSEClientTransport(url, {
+          headers: config.headers
+        })
+      }
 
-    return { running: true, toolsCount: tools.length, lastError: null }
-  } catch (error) {
-    const message = error instanceof Error ? error.message : "Failed to start MCP server."
-    lastErrors.set(id, message)
-    throw new Error(message)
-  }
+      await client.connect(transport)
+
+      const toolList = await client.listTools()
+      const tools = parseToolDefinitions(toolList)
+      const toolInstances = buildToolInstances(config.id, tools)
+
+      runningServers.set(config.id, {
+        config,
+        client,
+        transport,
+        tools,
+        toolInstances
+      })
+      lastErrors.set(config.id, null)
+      updateConfig(config.id, { autoStart: true })
+
+      logEntry("MCP", "startServer.tools", {
+        id,
+        ...summarizeList(tools.map((toolDef) => toolDef.name))
+      })
+      return { running: true, toolsCount: tools.length, lastError: null }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Failed to start MCP server."
+      lastErrors.set(id, message)
+      throw new Error(message)
+    }
+  })
 }
 
 export async function stopMcpServer(id: string): Promise<McpServerStatus> {
+  logEntry("MCP", "stopServer", { id })
   const running = runningServers.get(id)
   if (running) {
     try {
@@ -243,10 +286,12 @@ export async function stopMcpServer(id: string): Promise<McpServerStatus> {
 
   updateConfig(id, { autoStart: false })
   lastErrors.set(id, null)
+  logExit("MCP", "stopServer", { id, running: false })
   return { running: false, toolsCount: 0, lastError: null }
 }
 
 export async function startAutoMcpServers(): Promise<void> {
+  logEntry("MCP", "startAuto")
   const servers = listMcpConfigs().filter((item) => item.autoStart)
   for (const server of servers) {
     try {
@@ -256,16 +301,21 @@ export async function startAutoMcpServers(): Promise<void> {
       lastErrors.set(server.id, message)
     }
   }
+  logExit("MCP", "startAuto", { count: servers.length })
 }
 
 export async function getRunningMcpToolInstances(): Promise<Array<unknown>> {
-  return Array.from(runningServers.values()).flatMap((server) => server.toolInstances)
+  const instances = Array.from(runningServers.values()).flatMap((server) => server.toolInstances)
+  logExit("MCP", "getRunningToolInstances", { count: instances.length })
+  return instances
 }
 
 export function listRunningMcpTools(): McpToolInfo[] {
-  return Array.from(runningServers.values()).flatMap((server) =>
+  const result = Array.from(runningServers.values()).flatMap((server) =>
     server.tools.map((toolDef) => toMcpToolInfo(server.config, toolDef))
   )
+  logExit("MCP", "listRunningTools", { count: result.length })
+  return result
 }
 
 export function getRunningMcpToolInstanceMap(): Map<string, unknown> {
@@ -276,5 +326,6 @@ export function getRunningMcpToolInstanceMap(): Map<string, unknown> {
       return [fullName, instance] as const
     })
   )
+  logExit("MCP", "getRunningToolInstanceMap", { count: entries.length })
   return new Map(entries)
 }

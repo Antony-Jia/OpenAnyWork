@@ -3,6 +3,7 @@ import { existsSync, readFileSync, writeFileSync } from "node:fs"
 import { join } from "node:path"
 import type { SubagentConfig } from "./types"
 import { getOpenworkDir } from "./storage"
+import { logEntry, logExit } from "./logging"
 
 const SUBAGENTS_FILE = join(getOpenworkDir(), "subagents.json")
 
@@ -25,10 +26,14 @@ function writeSubagentsFile(subagents: SubagentConfig[]): void {
 }
 
 export function listSubagents(): SubagentConfig[] {
-  return readSubagentsFile()
+  logEntry("Subagents", "list")
+  const result = readSubagentsFile()
+  logExit("Subagents", "list", { count: result.length })
+  return result
 }
 
 export function createSubagent(input: Omit<SubagentConfig, "id">): SubagentConfig {
+  logEntry("Subagents", "create", { name: input.name, toolCount: input.tools?.length ?? 0 })
   if (!input.name?.trim()) {
     throw new Error("Subagent name is required.")
   }
@@ -59,6 +64,7 @@ export function createSubagent(input: Omit<SubagentConfig, "id">): SubagentConfi
   }
 
   writeSubagentsFile([...subagents, created])
+  logExit("Subagents", "create", { id: created.id, name: created.name })
   return created
 }
 
@@ -66,6 +72,7 @@ export function updateSubagent(
   id: string,
   updates: Partial<Omit<SubagentConfig, "id">>
 ): SubagentConfig {
+  logEntry("Subagents", "update", { id, updates: Object.keys(updates || {}) })
   const subagents = readSubagentsFile()
   const index = subagents.findIndex((agent) => agent.id === id)
   if (index < 0) {
@@ -93,11 +100,14 @@ export function updateSubagent(
 
   subagents[index] = updated
   writeSubagentsFile(subagents)
+  logExit("Subagents", "update", { id, name: updated.name })
   return updated
 }
 
 export function deleteSubagent(id: string): void {
+  logEntry("Subagents", "delete", { id })
   const subagents = readSubagentsFile()
   const next = subagents.filter((agent) => agent.id !== id)
   writeSubagentsFile(next)
+  logExit("Subagents", "delete", { id })
 }

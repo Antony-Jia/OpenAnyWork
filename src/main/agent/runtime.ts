@@ -6,11 +6,12 @@ import { SqlJsSaver } from "../checkpointer/sqljs-saver"
 import { LocalSandbox } from "./local-sandbox"
 import { listSubagents } from "../subagents"
 import { getSkillsRoot } from "../skills"
-import { getEnabledToolInstances, resolveToolInstancesByName } from "../tools/service"
-import { getRunningMcpToolInstances } from "../mcp/service"
+import { getEnabledToolInstances, getEnabledToolNames, resolveToolInstancesByName } from "../tools/service"
+import { getRunningMcpToolInstances, listRunningMcpTools } from "../mcp/service"
 import { resolveMiddlewareById } from "../middleware/registry"
 import { createDockerTools } from "../tools/docker-tools"
 import type { DockerConfig } from "../types"
+import { logEntry, logExit, summarizeList } from "../logging"
 
 import type * as _lcTypes from "langchain"
 import type * as _lcMessages from "@langchain/core/messages"
@@ -204,6 +205,12 @@ export async function createAgentRuntime(options: CreateAgentRuntimeOptions) {
     )
   }
 
+  logEntry("Runtime", "createAgentRuntime", {
+    threadId,
+    hasWorkspace: !!workspacePath,
+    dockerEnabled: !!dockerConfig?.enabled
+  })
+
   console.log("[Runtime] Creating agent runtime...")
   console.log("[Runtime] Thread ID:", threadId)
   console.log("[Runtime] Workspace path:", workspacePath)
@@ -229,17 +236,29 @@ export async function createAgentRuntime(options: CreateAgentRuntimeOptions) {
     : workspacePath
   const systemPrompt = getSystemPrompt(effectiveWorkspace, dockerConfig || undefined)
 
-  const subagents = listSubagents().map((agent) => ({
-    name: agent.name,
-    description: agent.description,
-    systemPrompt: agent.systemPrompt,
-    model: agent.model,
-    tools: resolveToolInstancesByName(agent.tools),
-    middleware: resolveMiddlewareById(agent.middleware),
-    interruptOn: disableApprovals ? undefined : agent.interruptOn ? { execute: true } : undefined
-  }))
+  const subagents = listSubagents().map((agent) => {
+    const resolvedTools = resolveToolInstancesByName(agent.tools) ?? []
+    logEntry("Runtime", "subagent.tools", {
+      name: agent.name,
+      ...summarizeList(agent.tools ?? [])
+    })
+    logExit("Runtime", "subagent.tools", {
+      name: agent.name,
+      resolvedCount: resolvedTools.length
+    })
+    return {
+      name: agent.name,
+      description: agent.description,
+      systemPrompt: agent.systemPrompt,
+      model: agent.model,
+      tools: resolvedTools,
+      middleware: resolveMiddlewareById(agent.middleware),
+      interruptOn: disableApprovals ? undefined : agent.interruptOn ? { execute: true } : undefined
+    }
+  })
 
   const skillsRoot = getSkillsRoot().replace(/\\/g, "/")
+  logEntry("Runtime", "skillsRoot", { path: skillsRoot })
 
   // Custom filesystem prompt for absolute paths (matches virtualMode: false)
   const filesystemSystemPrompt = `You have access to a filesystem. All file paths use fully qualified absolute system paths.
@@ -254,7 +273,19 @@ export async function createAgentRuntime(options: CreateAgentRuntimeOptions) {
 The workspace root is: ${effectiveWorkspace}`
 
   const dockerTools = dockerConfig?.enabled ? createDockerTools(dockerConfig) : []
+  const enabledToolNames = getEnabledToolNames()
+  const mcpToolInfos = listRunningMcpTools()
+  const mcpToolNames = mcpToolInfos.map((toolInfo) => toolInfo.fullName)
   const mcpTools = await getRunningMcpToolInstances()
+
+  logEntry("Runtime", "tools.inject", {
+    ...summarizeList(enabledToolNames),
+    mcpCount: mcpToolNames.length,
+    dockerCount: dockerTools.length
+  })
+  if (mcpToolNames.length > 0) {
+    logEntry("Runtime", "tools.inject.mcp", summarizeList(mcpToolNames))
+  }
 
   const agent = createDeepAgent({
     model,
@@ -271,6 +302,7 @@ The workspace root is: ${effectiveWorkspace}`
   } as Parameters<typeof createDeepAgent>[0])
 
   console.log("[Runtime] Deep agent created with LocalSandbox at:", workspacePath)
+  logExit("Runtime", "createAgentRuntime", { threadId })
   return agent
 }
 

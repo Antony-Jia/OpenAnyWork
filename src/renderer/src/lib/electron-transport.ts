@@ -391,12 +391,12 @@ export class ElectronIPCTransport implements UseStreamTransport {
         break
     }
 
-    console.log(
-      "[Transport] convertToSDKEvents total:",
-      events.length,
-      "events",
-      events.map((e) => e.event)
-    )
+    // console.log(
+    //   "[Transport] convertToSDKEvents total:",
+    //   events.length,
+    //   "events",
+    //   events.map((e) => e.event)
+    // )
     return events
   }
 
@@ -477,12 +477,12 @@ export class ElectronIPCTransport implements UseStreamTransport {
         // Usage metadata is present on completed AI messages (not streaming chunks)
         const usageMetadata = kwargs.usage_metadata || kwargs.response_metadata?.usage
         if (usageMetadata) {
-          console.log("[ElectronTransport] Found usage_metadata:", {
-            input_tokens: usageMetadata.input_tokens,
-            output_tokens: usageMetadata.output_tokens,
-            total_tokens: usageMetadata.total_tokens,
-            has_cache_details: !!usageMetadata.input_token_details
-          })
+          // console.log("[ElectronTransport] Found usage_metadata:", {
+          //   input_tokens: usageMetadata.input_tokens,
+          //   output_tokens: usageMetadata.output_tokens,
+          //   total_tokens: usageMetadata.total_tokens,
+          //   has_cache_details: !!usageMetadata.input_token_details
+          // })
 
           // Only emit if we have actual token counts (not on every chunk)
           if (usageMetadata.input_tokens !== undefined && usageMetadata.input_tokens > 0) {

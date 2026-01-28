@@ -5,7 +5,7 @@ import { HumanMessage } from "@langchain/core/messages"
 import { Command } from "@langchain/langgraph"
 import { createAgentRuntime, closeCheckpointer } from "../agent/runtime"
 import { getThread, updateThread as dbUpdateThread } from "../db"
-import { deleteThreadCheckpoint } from "../storage"
+import { deleteThreadCheckpoint, hasThreadCheckpoint } from "../storage"
 import { getSettings } from "../settings"
 import { buildEmailSubject, sendEmail } from "../email/service"
 import { ensureDockerRunning, getDockerRuntimeConfig } from "../docker/session"
@@ -62,7 +62,6 @@ function appendProgressEntry(workspacePath: string, storyId = "INIT"): void {
   const progressPath = join(workspacePath, "progress.txt")
   appendFileSync(progressPath, entry)
 }
-
 
 function buildRalphInitPrompt(userMessage: string): string {
   const example = [
@@ -346,12 +345,19 @@ export function registerAgentHandlers(ipcMain: IpcMain): void {
         }
 
         if (ralph.phase === "running") {
-          window.webContents.send(channel, {
-            type: "error",
-            error: "RALPH_RUNNING",
-            message: "Ralph 正在运行中，请等待完成。"
-          })
-          return
+          // 检查是否有 checkpoint，如果有则说明是上次运行中断，自动重置状态
+          if (hasThreadCheckpoint(threadId)) {
+            console.log("[Agent] Ralph stuck in running state, resetting to awaiting_confirm")
+            updateMetadata(threadId, { ralph: { phase: "awaiting_confirm", iterations: 0 } })
+            // 继续执行，不返回错误
+          } else {
+            window.webContents.send(channel, {
+              type: "error",
+              error: "RALPH_RUNNING",
+              message: "Ralph 正在运行中，请等待完成。"
+            })
+            return
+          }
         }
 
         if (ralph.phase === "done") {

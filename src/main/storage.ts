@@ -48,6 +48,11 @@ export function deleteThreadCheckpoint(threadId: string): void {
   }
 }
 
+export function hasThreadCheckpoint(threadId: string): boolean {
+  const path = getThreadCheckpointPath(threadId)
+  return existsSync(path)
+}
+
 export function getEnvFilePath(): string {
   return ENV_FILE
 }

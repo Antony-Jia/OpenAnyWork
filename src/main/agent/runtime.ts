@@ -142,7 +142,7 @@ export async function closeCheckpointer(threadId: string): Promise<void> {
 }
 
 // Get the appropriate model instance based on new simplified provider configuration
-function getModelInstance(_modelId?: string): ChatOpenAI {
+function getModelInstance(modelId?: string): ChatOpenAI {
   const config = getProviderConfig()
 
   if (!config) {
@@ -151,8 +151,11 @@ function getModelInstance(_modelId?: string): ChatOpenAI {
     )
   }
 
+  // 优先使用传入的 modelId，否则使用配置中的 model
+  const effectiveModel = modelId || config.model
   console.log("[Runtime] Using provider config:", config.type)
-  console.log("[Runtime] Model:", config.model)
+  console.log("[Runtime] Requested model:", modelId)
+  console.log("[Runtime] Effective model:", effectiveModel)
 
   if (config.type === "ollama") {
     // Ollama uses OpenAI-compatible API at /v1 endpoint
@@ -160,7 +163,7 @@ function getModelInstance(_modelId?: string): ChatOpenAI {
     console.log("[Runtime] Ollama baseURL:", baseURL)
 
     return new ChatOpenAI({
-      model: config.model,
+      model: effectiveModel,
       configuration: {
         baseURL: baseURL
       },
@@ -173,7 +176,7 @@ function getModelInstance(_modelId?: string): ChatOpenAI {
     console.log("[Runtime] OpenAI-compatible baseURL:", config.url)
 
     return new ChatOpenAI({
-      model: config.model,
+      model: effectiveModel,
       apiKey: config.apiKey,
       configuration: {
         baseURL: config.url

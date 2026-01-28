@@ -566,7 +566,7 @@ export function RightPanel(): React.JSX.Element {
   return (
     <aside
       ref={containerRef}
-      className="flex h-full w-full flex-col border-l border-border bg-sidebar overflow-x-hidden overflow-y-auto"
+      className="flex h-full w-full flex-col border-l border-border bg-sidebar overflow-hidden"
     >
       {/* TASKS */}
       <div className="flex flex-col shrink-0 border-b border-border">
@@ -578,7 +578,7 @@ export function RightPanel(): React.JSX.Element {
           onToggle={() => setTasksOpen((prev) => !prev)}
         />
         {tasksOpen && (
-          <div className="overflow-auto" style={{ minHeight: heights.tasks }}>
+          <div className="overflow-y-auto" style={{ height: heights.tasks }}>
             <TasksContent />
           </div>
         )}
@@ -599,7 +599,7 @@ export function RightPanel(): React.JSX.Element {
           onToggle={() => setFilesOpen((prev) => !prev)}
         />
         {filesOpen && (
-          <div className="overflow-auto" style={{ minHeight: heights.files }}>
+          <div className="overflow-y-auto" style={{ height: heights.files }}>
             <FilesContent />
           </div>
         )}
@@ -620,7 +620,7 @@ export function RightPanel(): React.JSX.Element {
           onToggle={() => setAgentsOpen((prev) => !prev)}
         />
         {agentsOpen && (
-          <div className="overflow-auto" style={{ minHeight: heights.agents }}>
+          <div className="overflow-y-auto" style={{ height: heights.agents }}>
             <AgentsContent />
           </div>
         )}
@@ -641,7 +641,7 @@ export function RightPanel(): React.JSX.Element {
             onToggle={() => setMountsOpen((prev) => !prev)}
           />
           {mountsOpen && (
-            <div className="overflow-auto" style={{ minHeight: heights.mounts }}>
+            <div className="overflow-y-auto" style={{ height: heights.mounts }}>
               <MountsContent />
             </div>
           )}
@@ -663,7 +663,7 @@ export function RightPanel(): React.JSX.Element {
             onToggle={() => setRalphOpen((prev) => !prev)}
           />
           {ralphOpen && (
-            <div className="overflow-auto" style={{ minHeight: heights.ralph }}>
+            <div className="overflow-y-auto" style={{ height: heights.ralph }}>
               <RalphProgress />
             </div>
           )}
@@ -916,9 +916,9 @@ function FilesContent(): React.JSX.Element {
   }, [currentThreadId])
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col">
       {/* Header with sync button */}
-      <div className="flex items-center justify-between px-3 py-2 border-b border-border/50 bg-background/30">
+      <div className="flex items-center justify-between px-3 py-2 border-b border-border/50 bg-background/30 shrink-0">
         <span
           className="text-[10px] text-muted-foreground truncate flex-1"
           title={workspacePath || undefined}
@@ -964,7 +964,7 @@ function FilesContent(): React.JSX.Element {
 
       {/* File tree or empty state */}
       {workspaceFiles.length === 0 ? (
-        <div className="flex flex-col items-center justify-center text-center text-sm text-muted-foreground py-8 px-4 flex-1">
+        <div className="flex flex-col items-center justify-center text-center text-sm text-muted-foreground py-8 px-4">
           <FolderTree className="size-8 mb-2 opacity-50" />
           <span>{t("panel.no_files")}</span>
           <span className="text-xs mt-1">
@@ -972,7 +972,7 @@ function FilesContent(): React.JSX.Element {
           </span>
         </div>
       ) : (
-        <div className="py-1 overflow-auto flex-1">
+        <div className="py-1">
           <FileTree files={workspaceFiles} />
         </div>
       )}
@@ -1028,8 +1028,8 @@ function MountsContent(): React.JSX.Element {
       : t("panel.mounts_empty")
 
   return (
-    <div className="flex flex-col h-full">
-      <div className="flex items-center justify-between px-3 py-2 border-b border-border/50 bg-background/30">
+    <div className="flex flex-col">
+      <div className="flex items-center justify-between px-3 py-2 border-b border-border/50 bg-background/30 shrink-0">
         <span className="text-[10px] text-muted-foreground truncate flex-1" title={mountLabel}>
           {mountLabel}
         </span>
@@ -1037,19 +1037,19 @@ function MountsContent(): React.JSX.Element {
       </div>
 
       {error && (
-        <div className="px-3 py-2 text-xs text-status-critical border-b border-border/50">
+        <div className="px-3 py-2 text-xs text-status-critical border-b border-border/50 shrink-0">
           {error}
         </div>
       )}
 
       {mountFiles.length === 0 ? (
-        <div className="flex flex-col items-center justify-center text-center text-sm text-muted-foreground py-8 px-4 flex-1">
+        <div className="flex flex-col items-center justify-center text-center text-sm text-muted-foreground py-8 px-4">
           <FolderTree className="size-8 mb-2 opacity-50" />
           <span>{t("panel.mounts_empty")}</span>
           <span className="text-xs mt-1">{t("panel.mounts_desc")}</span>
         </div>
       ) : (
-        <div className="py-1 overflow-auto flex-1">
+        <div className="py-1">
           <FileTree files={mountFiles} allowOpen={false} />
         </div>
       )}

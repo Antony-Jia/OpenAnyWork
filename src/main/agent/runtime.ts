@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
-import { createDeepAgent } from "deepagents"
+import { createDeepAgent, toolRetryMiddleware } from "deepagents"
 import { getThreadCheckpointPath } from "../storage"
 import { getProviderConfig } from "../provider-config"
 import { ChatOpenAI } from "@langchain/openai"
@@ -283,12 +283,12 @@ export async function createAgentRuntime(options: CreateAgentRuntimeOptions) {
   // Custom filesystem prompt for absolute paths (matches virtualMode: false)
   const filesystemSystemPrompt = `You have access to a filesystem. All file paths use fully qualified absolute system paths.
 
-- ls: list files in a directory (e.g., ls("${effectiveWorkspace}"))
-- read_file: read a file from the filesystem
-- write_file: write to a file in the filesystem
-- edit_file: edit a file in the filesystem
-- glob: find files matching a pattern (e.g., "**/*.py")
-- grep: search for text within files
+- ls(path): list files in a directory (e.g., ls("${effectiveWorkspace}"))
+- read_file(file_path, offset?, limit?): read a file from the filesystem. IMPORTANT: use "file_path" as parameter name, not "filearg"
+- write_file(file_path, content): write to a file in the filesystem
+- edit_file(file_path, old_str, new_str): edit a file in the filesystem
+- glob(pattern): find files matching a pattern (e.g., "**/*.py")
+- grep(pattern, path): search for text within files
 
 The workspace root is: ${effectiveWorkspace}`
 
@@ -308,6 +308,14 @@ The workspace root is: ${effectiveWorkspace}`
     logEntry("Runtime", "tools.inject.mcp", summarizeList(mcpToolNames))
   }
 
+  // Tool retry middleware for handling tool call failures
+  const retryMiddleware = toolRetryMiddleware({
+    maxRetries: 3,
+    onFailure: "continue",
+    initialDelayMs: 500,
+    backoffFactor: 2.0
+  })
+
   const agent = createDeepAgent({
     model,
     checkpointer,
@@ -319,7 +327,9 @@ The workspace root is: ${effectiveWorkspace}`
     subagents,
     skills: enabledSkillPaths,
     // Require human approval for all shell commands
-    interruptOn: disableApprovals ? undefined : { execute: true }
+    interruptOn: disableApprovals ? undefined : { execute: true },
+    // Add retry middleware for tool call failures
+    middleware: [retryMiddleware]
   } as Parameters<typeof createDeepAgent>[0])
 
   console.log("[Runtime] Deep agent created with LocalSandbox at:", workspacePath)

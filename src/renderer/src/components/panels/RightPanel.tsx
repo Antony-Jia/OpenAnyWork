@@ -30,6 +30,7 @@ import { useThreadState } from "@/lib/thread-context"
 import { useDockerState } from "@/lib/docker-state"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { RalphProgress } from "../sidebar/RalphProgress"
 import type { DockerMount, Todo } from "@/types"
 
 const HEADER_HEIGHT = 40 // px
@@ -128,7 +129,9 @@ import { useLanguage } from "@/lib/i18n"
 // ... imports
 
 export function RightPanel(): React.JSX.Element {
-  const { currentThreadId } = useAppStore()
+  const { currentThreadId, threads } = useAppStore()
+  const currentThread = threads.find((t) => t.thread_id === currentThreadId)
+  const isRalphMode = (currentThread?.metadata?.mode as string) === "ralph"
   const threadState = useThreadState(currentThreadId)
   const todos = threadState?.todos ?? []
   const workspaceFiles = threadState?.workspaceFiles ?? []
@@ -143,12 +146,14 @@ export function RightPanel(): React.JSX.Element {
   const [filesOpen, setFilesOpen] = useState(true)
   const [agentsOpen, setAgentsOpen] = useState(true)
   const [mountsOpen, setMountsOpen] = useState(true)
+  const [ralphOpen, setRalphOpen] = useState(true)
 
   // Store content heights in pixels (null = auto/equal distribution)
   const [tasksHeight, setTasksHeight] = useState<number | null>(null)
   const [filesHeight, setFilesHeight] = useState<number | null>(null)
   const [agentsHeight, setAgentsHeight] = useState<number | null>(null)
   const [mountsHeight, setMountsHeight] = useState<number | null>(null)
+  const [ralphHeight, setRalphHeight] = useState<number | null>(null)
 
   // Track drag start heights
   const dragStartHeights = useRef<{
@@ -156,6 +161,7 @@ export function RightPanel(): React.JSX.Element {
     files: number
     agents: number
     mounts: number
+    ralph: number
   } | null>(null)
 
   // Calculate available content height
@@ -164,19 +170,24 @@ export function RightPanel(): React.JSX.Element {
     const totalHeight = containerRef.current.clientHeight
 
     // Subtract headers (always visible)
-    const headerCount = dockerEnabled ? 4 : 3
+    let headerCount = dockerEnabled ? 4 : 3
+    if (isRalphMode) headerCount += 1
     let used = HEADER_HEIGHT * headerCount
 
     // Subtract handles (only between open panels)
-    const openSections = [tasksOpen, filesOpen, agentsOpen, dockerEnabled && mountsOpen].filter(
-      Boolean
-    ).length
+    const openSections = [
+      tasksOpen,
+      filesOpen,
+      agentsOpen,
+      dockerEnabled && mountsOpen,
+      isRalphMode && ralphOpen
+    ].filter(Boolean).length
     if (openSections > 1) {
       used += HANDLE_HEIGHT * (openSections - 1)
     }
 
     return Math.max(0, totalHeight - used)
-  }, [tasksOpen, filesOpen, agentsOpen, mountsOpen, dockerEnabled])
+  }, [tasksOpen, filesOpen, agentsOpen, mountsOpen, dockerEnabled, isRalphMode, ralphOpen])
 
   // Get current heights for each panel's content area
   const getContentHeights = useCallback(() => {
@@ -185,11 +196,12 @@ export function RightPanel(): React.JSX.Element {
       tasksOpen,
       filesOpen,
       agentsOpen,
-      dockerEnabled && mountsOpen
+      dockerEnabled && mountsOpen,
+      isRalphMode && ralphOpen
     ])
 
     if (openCount === 0) {
-      return { tasks: 0, files: 0, agents: 0, mounts: 0 }
+      return { tasks: 0, files: 0, agents: 0, mounts: 0, ralph: 0 }
     }
 
     const defaultHeight = available / openCount
@@ -198,7 +210,8 @@ export function RightPanel(): React.JSX.Element {
       tasks: tasksOpen ? (tasksHeight ?? defaultHeight) : 0,
       files: filesOpen ? (filesHeight ?? defaultHeight) : 0,
       agents: agentsOpen ? (agentsHeight ?? defaultHeight) : 0,
-      mounts: dockerEnabled && mountsOpen ? (mountsHeight ?? defaultHeight) : 0
+      mounts: dockerEnabled && mountsOpen ? (mountsHeight ?? defaultHeight) : 0,
+      ralph: isRalphMode && ralphOpen ? (ralphHeight ?? defaultHeight) : 0
     }
   }, [
     getAvailableContentHeight,
@@ -210,22 +223,35 @@ export function RightPanel(): React.JSX.Element {
     agentsHeight,
     mountsHeight,
     mountsOpen,
-    dockerEnabled
+    dockerEnabled,
+    isRalphMode,
+    ralphOpen,
+    ralphHeight
   ])
 
   // Handle resize between tasks and the next open section
   const handleTasksResize = useCallback(
     (totalDelta: number) => {
       if (!dragStartHeights.current) {
-        const heights = getContentHeights()
-        dragStartHeights.current = { ...heights }
+        dragStartHeights.current = getContentHeights()
       }
 
       const start = dragStartHeights.current
       const available = getAvailableContentHeight()
 
       // Determine which panel is being resized against
-      const otherStart = filesOpen ? start.files : agentsOpen ? start.agents : start.mounts
+      const nextOpenKey = filesOpen
+        ? "files"
+        : agentsOpen
+          ? "agents"
+          : dockerEnabled && mountsOpen
+            ? "mounts"
+            : isRalphMode && ralphOpen
+              ? "ralph"
+              : null
+      if (!nextOpenKey) return
+
+      const otherStart = start[nextOpenKey]
 
       // Calculate new heights with proper clamping
       let newTasksHeight = start.tasks + totalDelta
@@ -241,15 +267,16 @@ export function RightPanel(): React.JSX.Element {
         newTasksHeight = start.tasks + (otherStart - MIN_CONTENT_HEIGHT)
       }
 
-      // Ensure total doesn't exceed available (accounting for third panel if open)
-      const remainingSections = [
-        filesOpen ? (agentsOpen ? agentsHeight : mountsOpen ? mountsHeight : 0) : 0,
-        filesOpen && agentsOpen && dockerEnabled && mountsOpen
-          ? mountsHeight ?? available / 4
-          : 0
-      ]
-      const remainingTotal = remainingSections.reduce((sum, h) => sum + (h ?? 0), 0)
-      const maxForTwo = available - remainingTotal
+      // Ensure total doesn't exceed available
+      const remainingSectionsTotal =
+        (filesOpen && nextOpenKey !== "files" ? (filesHeight ?? available / 4) : 0) +
+        (agentsOpen && nextOpenKey !== "agents" ? (agentsHeight ?? available / 4) : 0) +
+        (dockerEnabled && mountsOpen && nextOpenKey !== "mounts"
+          ? (mountsHeight ?? available / 4)
+          : 0) +
+        (isRalphMode && ralphOpen && nextOpenKey !== "ralph" ? (ralphHeight ?? available / 4) : 0)
+
+      const maxForTwo = available - remainingSectionsTotal
       if (newTasksHeight + newOtherHeight > maxForTwo) {
         const excess = newTasksHeight + newOtherHeight - maxForTwo
         if (totalDelta > 0) {
@@ -260,33 +287,33 @@ export function RightPanel(): React.JSX.Element {
       }
 
       setTasksHeight(newTasksHeight)
-      if (filesOpen) {
-        setFilesHeight(newOtherHeight)
-      } else if (agentsOpen) {
-        setAgentsHeight(newOtherHeight)
-      } else if (dockerEnabled && mountsOpen) {
-        setMountsHeight(newOtherHeight)
-      }
+      if (nextOpenKey === "files") setFilesHeight(newOtherHeight)
+      else if (nextOpenKey === "agents") setAgentsHeight(newOtherHeight)
+      else if (nextOpenKey === "mounts") setMountsHeight(newOtherHeight)
+      else if (nextOpenKey === "ralph") setRalphHeight(newOtherHeight)
 
       // Auto-collapse if below threshold
-      if (newTasksHeight < COLLAPSE_THRESHOLD) {
-        setTasksOpen(false)
-      }
+      if (newTasksHeight < COLLAPSE_THRESHOLD) setTasksOpen(false)
       if (newOtherHeight < COLLAPSE_THRESHOLD) {
-        if (filesOpen) setFilesOpen(false)
-        else if (agentsOpen) setAgentsOpen(false)
-        else if (dockerEnabled && mountsOpen) setMountsOpen(false)
+        if (nextOpenKey === "files") setFilesOpen(false)
+        else if (nextOpenKey === "agents") setAgentsOpen(false)
+        else if (nextOpenKey === "mounts") setMountsOpen(false)
+        else if (nextOpenKey === "ralph") setRalphOpen(false)
       }
     },
     [
       getContentHeights,
       getAvailableContentHeight,
       filesOpen,
+      filesHeight,
       agentsOpen,
       agentsHeight,
       mountsOpen,
       mountsHeight,
-      dockerEnabled
+      dockerEnabled,
+      isRalphMode,
+      ralphOpen,
+      ralphHeight
     ]
   )
 
@@ -294,33 +321,51 @@ export function RightPanel(): React.JSX.Element {
   const handleFilesResize = useCallback(
     (totalDelta: number) => {
       if (!dragStartHeights.current) {
-        const heights = getContentHeights()
-        dragStartHeights.current = { ...heights }
+        dragStartHeights.current = getContentHeights()
       }
 
       const start = dragStartHeights.current
       const available = getAvailableContentHeight()
       const tasksH = tasksOpen ? (tasksHeight ?? available / 4) : 0
-      const maxForFilesAndNext = available - tasksH
+
+      // Determine which panel is being resized against
+      const nextOpenKey = agentsOpen
+        ? "agents"
+        : dockerEnabled && mountsOpen
+          ? "mounts"
+          : isRalphMode && ralphOpen
+            ? "ralph"
+            : null
+      if (!nextOpenKey) return
+
+      const otherStart = start[nextOpenKey]
 
       // Calculate new heights with proper clamping
       let newFilesHeight = start.files + totalDelta
-      const nextStart = agentsOpen ? start.agents : start.mounts
-      let newNextHeight = nextStart - totalDelta
+      let newNextHeight = otherStart - totalDelta
 
       // Clamp both to min height
       if (newFilesHeight < MIN_CONTENT_HEIGHT) {
         newFilesHeight = MIN_CONTENT_HEIGHT
-        newNextHeight = nextStart + (start.files - MIN_CONTENT_HEIGHT)
+        newNextHeight = otherStart + (start.files - MIN_CONTENT_HEIGHT)
       }
       if (newNextHeight < MIN_CONTENT_HEIGHT) {
         newNextHeight = MIN_CONTENT_HEIGHT
-        newFilesHeight = start.files + (nextStart - MIN_CONTENT_HEIGHT)
+        newFilesHeight = start.files + (otherStart - MIN_CONTENT_HEIGHT)
       }
 
-      // Ensure total doesn't exceed available
-      if (newFilesHeight + newNextHeight > maxForFilesAndNext) {
-        const excess = newFilesHeight + newNextHeight - maxForFilesAndNext
+      // Remaining total height from other panels
+      const remainingSectionsTotal =
+        tasksH +
+        (agentsOpen && nextOpenKey !== "agents" ? (agentsHeight ?? available / 4) : 0) +
+        (dockerEnabled && mountsOpen && nextOpenKey !== "mounts"
+          ? (mountsHeight ?? available / 4)
+          : 0) +
+        (isRalphMode && ralphOpen && nextOpenKey !== "ralph" ? (ralphHeight ?? available / 4) : 0)
+
+      const maxForTwo = available - remainingSectionsTotal
+      if (newFilesHeight + newNextHeight > maxForTwo) {
+        const excess = newFilesHeight + newNextHeight - maxForTwo
         if (totalDelta > 0) {
           newNextHeight = Math.max(MIN_CONTENT_HEIGHT, newNextHeight - excess)
         } else {
@@ -329,19 +374,16 @@ export function RightPanel(): React.JSX.Element {
       }
 
       setFilesHeight(newFilesHeight)
-      if (agentsOpen) {
-        setAgentsHeight(newNextHeight)
-      } else if (dockerEnabled && mountsOpen) {
-        setMountsHeight(newNextHeight)
-      }
+      if (nextOpenKey === "agents") setAgentsHeight(newNextHeight)
+      else if (nextOpenKey === "mounts") setMountsHeight(newNextHeight)
+      else if (nextOpenKey === "ralph") setRalphHeight(newNextHeight)
 
-      // Auto-collapse if below threshold
-      if (newFilesHeight < COLLAPSE_THRESHOLD) {
-        setFilesOpen(false)
-      }
+      // Auto-collapse
+      if (newFilesHeight < COLLAPSE_THRESHOLD) setFilesOpen(false)
       if (newNextHeight < COLLAPSE_THRESHOLD) {
-        if (agentsOpen) setAgentsOpen(false)
-        else if (dockerEnabled && mountsOpen) setMountsOpen(false)
+        if (nextOpenKey === "agents") setAgentsOpen(false)
+        else if (nextOpenKey === "mounts") setMountsOpen(false)
+        else if (nextOpenKey === "ralph") setRalphOpen(false)
       }
     },
     [
@@ -350,53 +392,72 @@ export function RightPanel(): React.JSX.Element {
       tasksOpen,
       tasksHeight,
       agentsOpen,
+      agentsHeight,
       mountsOpen,
-      dockerEnabled
+      mountsHeight,
+      dockerEnabled,
+      isRalphMode,
+      ralphOpen,
+      ralphHeight
     ]
   )
 
   const handleAgentsResize = useCallback(
     (totalDelta: number) => {
       if (!dragStartHeights.current) {
-        const heights = getContentHeights()
-        dragStartHeights.current = { ...heights }
+        dragStartHeights.current = getContentHeights()
       }
 
       const start = dragStartHeights.current
       const available = getAvailableContentHeight()
       const tasksH = tasksOpen ? (tasksHeight ?? available / 4) : 0
       const filesH = filesOpen ? (filesHeight ?? available / 4) : 0
-      const maxForAgentsAndMounts = available - tasksH - filesH
+
+      // Determine which panel is being resized against
+      const nextOpenKey =
+        dockerEnabled && mountsOpen ? "mounts" : isRalphMode && ralphOpen ? "ralph" : null
+      if (!nextOpenKey) return
+
+      const otherStart = start[nextOpenKey]
 
       let newAgentsHeight = start.agents + totalDelta
-      let newMountsHeight = start.mounts - totalDelta
+      let newNextHeight = otherStart - totalDelta
 
       if (newAgentsHeight < MIN_CONTENT_HEIGHT) {
         newAgentsHeight = MIN_CONTENT_HEIGHT
-        newMountsHeight = start.mounts + (start.agents - MIN_CONTENT_HEIGHT)
+        newNextHeight = otherStart + (start.agents - MIN_CONTENT_HEIGHT)
       }
-      if (newMountsHeight < MIN_CONTENT_HEIGHT) {
-        newMountsHeight = MIN_CONTENT_HEIGHT
-        newAgentsHeight = start.agents + (start.mounts - MIN_CONTENT_HEIGHT)
+      if (newNextHeight < MIN_CONTENT_HEIGHT) {
+        newNextHeight = MIN_CONTENT_HEIGHT
+        newAgentsHeight = start.agents + (otherStart - MIN_CONTENT_HEIGHT)
       }
 
-      if (newAgentsHeight + newMountsHeight > maxForAgentsAndMounts) {
-        const excess = newAgentsHeight + newMountsHeight - maxForAgentsAndMounts
+      const remainingSectionsTotal =
+        tasksH +
+        filesH +
+        (dockerEnabled && mountsOpen && nextOpenKey !== "mounts"
+          ? (mountsHeight ?? available / 4)
+          : 0) +
+        (isRalphMode && ralphOpen && nextOpenKey !== "ralph" ? (ralphHeight ?? available / 4) : 0)
+
+      const maxForTwo = available - remainingSectionsTotal
+      if (newAgentsHeight + newNextHeight > maxForTwo) {
+        const excess = newAgentsHeight + newNextHeight - maxForTwo
         if (totalDelta > 0) {
-          newMountsHeight = Math.max(MIN_CONTENT_HEIGHT, newMountsHeight - excess)
+          newNextHeight = Math.max(MIN_CONTENT_HEIGHT, newNextHeight - excess)
         } else {
           newAgentsHeight = Math.max(MIN_CONTENT_HEIGHT, newAgentsHeight - excess)
         }
       }
 
       setAgentsHeight(newAgentsHeight)
-      setMountsHeight(newMountsHeight)
+      if (nextOpenKey === "mounts") setMountsHeight(newNextHeight)
+      else if (nextOpenKey === "ralph") setRalphHeight(newNextHeight)
 
-      if (newAgentsHeight < COLLAPSE_THRESHOLD) {
-        setAgentsOpen(false)
-      }
-      if (newMountsHeight < COLLAPSE_THRESHOLD) {
-        setMountsOpen(false)
+      if (newAgentsHeight < COLLAPSE_THRESHOLD) setAgentsOpen(false)
+      if (newNextHeight < COLLAPSE_THRESHOLD) {
+        if (nextOpenKey === "mounts") setMountsOpen(false)
+        else if (nextOpenKey === "ralph") setRalphOpen(false)
       }
     },
     [
@@ -405,7 +466,76 @@ export function RightPanel(): React.JSX.Element {
       tasksOpen,
       tasksHeight,
       filesOpen,
-      filesHeight
+      filesHeight,
+      mountsOpen,
+      mountsHeight,
+      dockerEnabled,
+      isRalphMode,
+      ralphOpen,
+      ralphHeight
+    ]
+  )
+
+  const handleMountsResize = useCallback(
+    (totalDelta: number) => {
+      if (!dragStartHeights.current) {
+        dragStartHeights.current = getContentHeights()
+      }
+
+      const start = dragStartHeights.current
+      const available = getAvailableContentHeight()
+      const tasksH = tasksOpen ? (tasksHeight ?? available / 4) : 0
+      const filesH = filesOpen ? (filesHeight ?? available / 4) : 0
+      const agentsH = agentsOpen ? (agentsHeight ?? available / 4) : 0
+
+      // Determine which panel is being resized against (only RALPH left)
+      const nextOpenKey = isRalphMode && ralphOpen ? "ralph" : null
+      if (!nextOpenKey) return
+
+      const otherStart = start[nextOpenKey]
+
+      let newMountsHeight = start.mounts + totalDelta
+      let newNextHeight = otherStart - totalDelta
+
+      if (newMountsHeight < MIN_CONTENT_HEIGHT) {
+        newMountsHeight = MIN_CONTENT_HEIGHT
+        newNextHeight = otherStart + (start.mounts - MIN_CONTENT_HEIGHT)
+      }
+      if (newNextHeight < MIN_CONTENT_HEIGHT) {
+        newNextHeight = MIN_CONTENT_HEIGHT
+        newMountsHeight = start.mounts + (otherStart - MIN_CONTENT_HEIGHT)
+      }
+
+      const remainingSectionsTotal = tasksH + filesH + agentsH
+
+      const maxForTwo = available - remainingSectionsTotal
+      if (newMountsHeight + newNextHeight > maxForTwo) {
+        const excess = newMountsHeight + newNextHeight - maxForTwo
+        if (totalDelta > 0) {
+          newNextHeight = Math.max(MIN_CONTENT_HEIGHT, newNextHeight - excess)
+        } else {
+          newMountsHeight = Math.max(MIN_CONTENT_HEIGHT, newMountsHeight - excess)
+        }
+      }
+
+      setMountsHeight(newMountsHeight)
+      setRalphHeight(newNextHeight)
+
+      if (newMountsHeight < COLLAPSE_THRESHOLD) setMountsOpen(false)
+      if (newNextHeight < COLLAPSE_THRESHOLD) setRalphOpen(false)
+    },
+    [
+      getContentHeights,
+      getAvailableContentHeight,
+      tasksOpen,
+      tasksHeight,
+      filesOpen,
+      filesHeight,
+      agentsOpen,
+      agentsHeight,
+      isRalphMode,
+      ralphOpen,
+      ralphHeight
     ]
   )
 
@@ -424,10 +554,11 @@ export function RightPanel(): React.JSX.Element {
     setFilesHeight(null)
     setAgentsHeight(null)
     setMountsHeight(null)
-  }, [tasksOpen, filesOpen, agentsOpen, mountsOpen, dockerEnabled])
+    setRalphHeight(null)
+  }, [tasksOpen, filesOpen, agentsOpen, mountsOpen, ralphOpen, dockerEnabled, isRalphMode])
 
   // Calculate heights in an effect (refs can't be accessed during render)
-  const [heights, setHeights] = useState({ tasks: 0, files: 0, agents: 0, mounts: 0 })
+  const [heights, setHeights] = useState({ tasks: 0, files: 0, agents: 0, mounts: 0, ralph: 0 })
   useEffect(() => {
     setHeights(getContentHeights())
   }, [getContentHeights])
@@ -454,7 +585,7 @@ export function RightPanel(): React.JSX.Element {
       </div>
 
       {/* Resize handle after TASKS */}
-      {tasksOpen && (filesOpen || agentsOpen || (dockerEnabled && mountsOpen)) && (
+      {tasksOpen && (filesOpen || agentsOpen || (dockerEnabled && mountsOpen) || (isRalphMode && ralphOpen)) && (
         <ResizeHandle onDrag={handleTasksResize} />
       )}
 
@@ -475,7 +606,7 @@ export function RightPanel(): React.JSX.Element {
       </div>
 
       {/* Resize handle after FILES */}
-      {filesOpen && (agentsOpen || (dockerEnabled && mountsOpen)) && (
+      {filesOpen && (agentsOpen || (dockerEnabled && mountsOpen) || (isRalphMode && ralphOpen)) && (
         <ResizeHandle onDrag={handleFilesResize} />
       )}
 
@@ -496,13 +627,13 @@ export function RightPanel(): React.JSX.Element {
       </div>
 
       {/* Resize handle after AGENTS */}
-      {dockerEnabled && agentsOpen && mountsOpen && (
+      {agentsOpen && ((dockerEnabled && mountsOpen) || (isRalphMode && ralphOpen)) && (
         <ResizeHandle onDrag={handleAgentsResize} />
       )}
 
       {/* MOUNTS */}
       {dockerEnabled && (
-        <div className="flex flex-col shrink-0">
+        <div className="flex flex-col shrink-0 border-b border-border">
           <SectionHeader
             title={t("panel.mounts")}
             icon={Boxes}
@@ -512,6 +643,28 @@ export function RightPanel(): React.JSX.Element {
           {mountsOpen && (
             <div className="overflow-auto" style={{ minHeight: heights.mounts }}>
               <MountsContent />
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Resize handle after MOUNTS */}
+      {dockerEnabled && mountsOpen && isRalphMode && ralphOpen && (
+        <ResizeHandle onDrag={handleMountsResize} />
+      )}
+
+      {/* RALPH Progress */}
+      {isRalphMode && (
+        <div className="flex flex-col shrink-0">
+          <SectionHeader
+            title={t("ralph.progress.title")}
+            icon={ListTodo} // Using a similar icon
+            isOpen={ralphOpen}
+            onToggle={() => setRalphOpen((prev) => !prev)}
+          />
+          {ralphOpen && (
+            <div className="overflow-auto" style={{ minHeight: heights.ralph }}>
+              <RalphProgress />
             </div>
           )}
         </div>

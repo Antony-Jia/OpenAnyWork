@@ -310,7 +310,9 @@ export function registerAgentHandlers(ipcMain: IpcMain): void {
               "- 以文件系统作为唯一的真实来源。",
               "- 实现下一个最高优先级的用户故事。",
               "- 使用规定的模板追加到 progress.txt（不要覆盖）。",
-              "- 如果工作完成，创建一个 .ralph_done 文件并写入简短总结。"
+              "- 如果工作完成，创建一个 .ralph_done 文件并写入简短总结。",
+              "- 如果工作未完成，创建一个 .ralph_ongoing 文件。",
+              "- 工作过程的重要信息你需要写入在工作路径中，并写在 progress.txt 中，提示下一轮迭代读取或者最终总结。"
             ].join("\n")
 
             await streamAgentRun({

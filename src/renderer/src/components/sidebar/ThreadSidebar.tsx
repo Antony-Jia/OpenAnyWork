@@ -15,7 +15,6 @@ import {
 } from "@/components/ui/context-menu"
 import { useLanguage } from "@/lib/i18n"
 import type { Thread, ThreadMode } from "@/types"
-import { RalphProgress } from "./RalphProgress"
 
 // Thread loading indicator that subscribes to the stream context
 function ThreadLoadingIcon({ threadId }: { threadId: string }): React.JSX.Element {
@@ -250,9 +249,6 @@ export function ThreadSidebar(): React.JSX.Element {
           )}
         </div>
       </ScrollArea>
-
-      {/* Ralph Progress Panel */}
-      <RalphProgress />
     </aside>
   )
 }

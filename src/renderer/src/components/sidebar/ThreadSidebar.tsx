@@ -54,10 +54,10 @@ function ThreadListItem({
   const mode = (thread.metadata?.mode as ThreadMode) || "default"
   const modeAccent =
     mode === "ralph"
-      ? "border-l-2 border-emerald-400/60"
+      ? "border-l-2 border-emerald-400/60 bg-emerald-50/30 dark:bg-emerald-950/20"
       : mode === "email"
-        ? "border-l-2 border-amber-400/60"
-        : "border-l-2 border-transparent"
+        ? "border-l-2 border-violet-400/60 bg-violet-50/30 dark:bg-violet-950/20"
+        : "border-l-2 border-blue-400/40 bg-blue-50/30 dark:bg-blue-950/20"
   return (
     <ContextMenu>
       <ContextMenuTrigger asChild>

@@ -12,7 +12,7 @@ import { ContextUsageIndicator } from "./ContextUsageIndicator"
 import { cn } from "@/lib/utils"
 import { useLanguage } from "@/lib/i18n"
 import { useDockerState } from "@/lib/docker-state"
-import type { Message, ThreadMode } from "@/types"
+import type { Message, ThreadMode, RalphLogEntry } from "@/types"
 
 interface AgentStreamValues {
   todos?: Array<{ id?: string; content?: string; status?: string }>
@@ -53,6 +53,7 @@ export function ChatContainer({ threadId }: ChatContainerProps): React.JSX.Eleme
   // Get persisted thread state and actions from context
   const {
     messages: threadMessages,
+    ralphLog,
     pendingApproval,
     todos,
     error: threadError,
@@ -138,7 +139,100 @@ export function ChatContainer({ threadId }: ChatContainerProps): React.JSX.Eleme
     prevLoadingRef.current = isLoading
   }, [isLoading, streamData.messages, loadThreads, appendMessage])
 
+  const ralphMessages = useMemo(() => {
+    if (threadMode !== "ralph") return []
+    const messages: Message[] = []
+
+    const parseToolArgs = (entry: RalphLogEntry): Record<string, unknown> => {
+      if (entry.toolArgs && typeof entry.toolArgs === "object") {
+        return entry.toolArgs
+      }
+      const content = entry.content || ""
+      const openIdx = content.indexOf("(")
+      const closeIdx = content.lastIndexOf(")")
+      if (openIdx >= 0 && closeIdx > openIdx) {
+        const raw = content.slice(openIdx + 1, closeIdx)
+        try {
+          return JSON.parse(raw) as Record<string, unknown>
+        } catch {
+          return {}
+        }
+      }
+      return {}
+    }
+
+    const logMessages = (ralphLog || []).flatMap((entry: RalphLogEntry) => {
+      if (!entry) return []
+      const createdAt = entry.ts ? new Date(entry.ts) : new Date()
+
+      if (entry.role === "user") {
+        return [
+          {
+            id: entry.id,
+            role: "user",
+            content: entry.content,
+            created_at: createdAt
+          } as Message
+        ]
+      }
+
+      if (entry.role === "ai") {
+        if (!entry.content || !entry.content.trim()) return []
+        return [
+          {
+            id: entry.id,
+            role: "assistant",
+            content: entry.content,
+            created_at: createdAt
+          } as Message
+        ]
+      }
+
+      if (entry.role === "tool_call") {
+        const toolCallId = entry.toolCallId || entry.id
+        const toolName = entry.toolName || "tool"
+        return [
+          {
+            id: `tool-call-${toolCallId}`,
+            role: "assistant",
+            content: "",
+            tool_calls: [
+              {
+                id: toolCallId,
+                name: toolName,
+                args: parseToolArgs(entry)
+              }
+            ],
+            created_at: createdAt
+          } as Message
+        ]
+      }
+
+      if (entry.role === "tool") {
+        if (!entry.toolCallId) return []
+        return [
+          {
+            id: entry.id,
+            role: "tool",
+            content: entry.content,
+            tool_call_id: entry.toolCallId,
+            name: entry.toolName,
+            created_at: createdAt
+          } as Message
+        ]
+      }
+
+      return []
+    })
+
+    return [...messages, ...logMessages]
+  }, [ralphLog, threadId, threadMode])
+
   const displayMessages = useMemo(() => {
+    if (threadMode === "ralph") {
+      return ralphMessages
+    }
+
     const threadMessageIds = new Set(threadMessages.map((m) => m.id))
 
     const streamingMsgs: Message[] = ((streamData.messages || []) as StreamMessage[])
@@ -162,7 +256,7 @@ export function ChatContainer({ threadId }: ChatContainerProps): React.JSX.Eleme
       })
 
     return [...threadMessages, ...streamingMsgs]
-  }, [threadMessages, streamData.messages])
+  }, [ralphMessages, streamData.messages, threadMessages, threadMode])
 
   // Build tool results map from tool messages
   const toolResults = useMemo(() => {

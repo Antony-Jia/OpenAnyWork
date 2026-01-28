@@ -13,6 +13,7 @@ import { generateTitle } from "../services/title-generator"
 import { getSettings } from "../settings"
 import { buildEmailSubject, sendEmail } from "../email/service"
 import { broadcastThreadsChanged } from "./events"
+import { readRalphLogTail } from "../ralph-log"
 import type { Thread, ThreadUpdateParams } from "../types"
 
 export function registerThreadHandlers(ipcMain: IpcMain): void {
@@ -161,6 +162,10 @@ export function registerThreadHandlers(ipcMain: IpcMain): void {
       console.warn("Failed to get thread history:", e)
       return []
     }
+  })
+
+  ipcMain.handle("threads:ralphLogTail", async (_event, threadId: string, limit?: number) => {
+    return readRalphLogTail(threadId, typeof limit === "number" ? limit : 200)
   })
 
   // Generate a title from a message

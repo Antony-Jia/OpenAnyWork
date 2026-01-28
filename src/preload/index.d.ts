@@ -19,7 +19,8 @@ import type {
   AppSettings,
   SettingsUpdateParams,
   DockerConfig,
-  DockerSessionStatus
+  DockerSessionStatus,
+  RalphLogEntry
 } from "../main/types"
 
 interface ElectronAPI {
@@ -64,6 +65,7 @@ interface CustomAPI {
     update: (threadId: string, updates: Partial<Thread>) => Promise<Thread>
     delete: (threadId: string) => Promise<void>
     getHistory: (threadId: string) => Promise<unknown[]>
+    getRalphLogTail: (threadId: string, limit?: number) => Promise<RalphLogEntry[]>
     generateTitle: (message: string) => Promise<string>
   }
   models: {

@@ -259,6 +259,13 @@ export class ElectronIPCTransport implements UseStreamTransport {
         break
       }
 
+      case "custom":
+        events.push({
+          event: "custom",
+          data: event.data
+        })
+        break
+
       // Legacy: Token streaming for real-time typing effect
       case "token":
         events.push({

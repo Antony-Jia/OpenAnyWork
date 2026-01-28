@@ -13,7 +13,7 @@ import {
 /* eslint-disable react-refresh/only-export-components */
 import { useStream } from "@langchain/langgraph-sdk/react"
 import { ElectronIPCTransport } from "./electron-transport"
-import type { Message, Todo, FileInfo, Subagent, HITLRequest, DockerConfig } from "@/types"
+import type { Message, Todo, FileInfo, Subagent, HITLRequest, DockerConfig, RalphLogEntry } from "@/types"
 import type { DeepAgent } from "../../../main/agent/types"
 
 // Open file tab type
@@ -48,6 +48,7 @@ export interface ThreadState {
   tokenUsage: TokenUsage | null
   dockerConfig: DockerConfig | null
   dockerEnabled: boolean
+  ralphLog: RalphLogEntry[]
 }
 
 // Stream instance type
@@ -77,6 +78,8 @@ export interface ThreadActions {
   closeFile: (path: string) => void
   setActiveTab: (tab: "agent" | string) => void
   setFileContents: (path: string, content: string) => void
+  setRalphLog: (entries: RalphLogEntry[]) => void
+  appendRalphLog: (entry: RalphLogEntry) => void
 }
 
 // Context value
@@ -105,7 +108,8 @@ const createDefaultThreadState = (): ThreadState => ({
   fileContents: {},
   tokenUsage: null,
   dockerConfig: null,
-  dockerEnabled: false
+  dockerEnabled: false,
+  ralphLog: []
 })
 
 const defaultStreamData: StreamData = {
@@ -130,6 +134,7 @@ interface CustomEventData {
     startedAt?: Date
     completedAt?: Date
   }>
+  entry?: RalphLogEntry
   usage?: {
     inputTokens?: number
     outputTokens?: number
@@ -409,6 +414,13 @@ export function ThreadProvider({ children }: { children: ReactNode }) {
             })
           }
           break
+        case "ralph_log":
+          if (data.entry) {
+            updateThreadState(threadId, (prev) => ({
+              ralphLog: [...prev.ralphLog, data.entry as RalphLogEntry].slice(-500)
+            }))
+          }
+          break
       }
     },
     [updateThreadState]
@@ -508,6 +520,14 @@ export function ThreadProvider({ children }: { children: ReactNode }) {
           updateThreadState(threadId, (state) => ({
             fileContents: { ...state.fileContents, [path]: content }
           }))
+        },
+        setRalphLog: (entries: RalphLogEntry[]) => {
+          updateThreadState(threadId, () => ({ ralphLog: entries }))
+        },
+        appendRalphLog: (entry: RalphLogEntry) => {
+          updateThreadState(threadId, (state) => ({
+            ralphLog: [...state.ralphLog, entry].slice(-500)
+          }))
         }
       }
 
@@ -546,6 +566,15 @@ export function ThreadProvider({ children }: { children: ReactNode }) {
           if (metadata.model) {
             // Update state directly to avoid triggering persistence in setCurrentModel
             updateThreadState(threadId, () => ({ currentModel: metadata.model as string }))
+          }
+
+          const mode = (metadata.mode as string) || "default"
+          if (mode === "ralph") {
+            const logEntries = (await window.api.threads.getRalphLogTail(
+              threadId,
+              200
+            )) as RalphLogEntry[]
+            actions.setRalphLog(Array.isArray(logEntries) ? logEntries : [])
           }
         }
       } catch (error) {

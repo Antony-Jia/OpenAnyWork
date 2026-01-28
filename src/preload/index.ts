@@ -18,7 +18,8 @@ import type {
   McpServerUpdateParams,
   McpToolInfo,
   AppSettings,
-  SettingsUpdateParams
+  SettingsUpdateParams,
+  RalphLogEntry
 } from "../main/types"
 
 // Simple electron API - replaces @electron-toolkit/preload
@@ -142,6 +143,9 @@ const api = {
     },
     getHistory: (threadId: string): Promise<unknown[]> => {
       return ipcRenderer.invoke("threads:history", threadId)
+    },
+    getRalphLogTail: (threadId: string, limit?: number): Promise<RalphLogEntry[]> => {
+      return ipcRenderer.invoke("threads:ralphLogTail", threadId, limit)
     },
     generateTitle: (message: string): Promise<string> => {
       return ipcRenderer.invoke("threads:generateTitle", message)

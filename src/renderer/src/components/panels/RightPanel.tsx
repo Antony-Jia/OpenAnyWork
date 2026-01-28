@@ -655,7 +655,7 @@ export function RightPanel(): React.JSX.Element {
 
       {/* RALPH Progress */}
       {isRalphMode && (
-        <div className="flex flex-col shrink-0">
+        <div className="flex flex-col flex-1 min-h-0">
           <SectionHeader
             title={t("ralph.progress.title")}
             icon={ListTodo} // Using a similar icon

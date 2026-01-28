@@ -63,6 +63,11 @@ export interface IPCErrorEvent {
   error: string
 }
 
+export interface IPCCustomEvent {
+  type: "custom"
+  data: { type: string; [key: string]: unknown }
+}
+
 export type IPCEvent =
   | IPCValuesEvent
   | IPCTokenEvent
@@ -70,3 +75,4 @@ export type IPCEvent =
   | IPCStreamEvent
   | IPCDoneEvent
   | IPCErrorEvent
+  | IPCCustomEvent

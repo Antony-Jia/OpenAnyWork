@@ -1,6 +1,7 @@
 import { IpcMain, BrowserWindow } from "electron"
 import { appendFileSync, existsSync } from "node:fs"
 import { join } from "node:path"
+import { randomUUID } from "node:crypto"
 import { HumanMessage } from "@langchain/core/messages"
 import { Command } from "@langchain/langgraph"
 import { createAgentRuntime, closeCheckpointer } from "../agent/runtime"
@@ -10,6 +11,7 @@ import { getSettings } from "../settings"
 import { buildEmailSubject, sendEmail } from "../email/service"
 import { ensureDockerRunning, getDockerRuntimeConfig } from "../docker/session"
 import { extractAssistantChunkText } from "../agent/stream-utils"
+import { appendRalphLogEntry } from "../ralph-log"
 import type {
   AgentInvokeParams,
   AgentResumeParams,
@@ -17,6 +19,7 @@ import type {
   AgentCancelParams,
   RalphState,
   ThreadMode,
+  RalphLogEntry,
   DockerConfig
 } from "../types"
 
@@ -52,9 +55,9 @@ function appendProgressEntry(workspacePath: string, storyId = "INIT"): void {
     "- 实现内容",
     "- 修改的文件",
     "- **后续迭代的经验教训：**",
-    '  - 发现的模式（例如："这个代码库使用 X 来实现 Y"）',
-    '  - 遇到的坑（例如："修改 W 时别忘了更新 Z"）',
-    '  - 有用的上下文（例如："评估面板在组件 X 中"）',
+    "  - 发现的模式",
+    "  - 遇到的坑",
+    "  - 有用的上下文",
     "---",
     ""
   ].join("\n")
@@ -126,7 +129,8 @@ async function streamAgentRun({
   message,
   window,
   channel,
-  abortController
+  abortController,
+  ralphLog
 }: {
   threadId: string
   workspacePath: string
@@ -138,6 +142,11 @@ async function streamAgentRun({
   window: BrowserWindow
   channel: string
   abortController: AbortController
+  ralphLog?: {
+    enabled: boolean
+    iteration?: number
+    phase?: RalphState["phase"]
+  }
 }): Promise<string> {
   const agent = await createAgentRuntime({
     threadId,
@@ -160,10 +169,161 @@ async function streamAgentRun({
   )
 
   let lastAssistant = ""
+  const runId = randomUUID()
+  const seenMessageIds = new Set<string>()
+  const seenToolCallIds = new Set<string>()
+
+  let loggedAnything = false
+  const appendLog = (entry: Omit<RalphLogEntry, "id" | "ts" | "threadId" | "runId">): void => {
+    if (!ralphLog?.enabled) return
+
+    const fullEntry: RalphLogEntry = {
+      id: randomUUID(),
+      ts: new Date().toISOString(),
+      threadId,
+      runId,
+      iteration: ralphLog.iteration,
+      phase: ralphLog.phase,
+      ...entry
+    }
+
+    try {
+      appendRalphLogEntry(threadId, fullEntry)
+      loggedAnything = true
+      window.webContents.send(channel, {
+        type: "custom",
+        data: { type: "ralph_log", entry: fullEntry }
+      })
+    } catch (error) {
+      console.warn("[Agent] Failed to append ralph log entry:", error)
+    }
+  }
+
+  const extractContent = (content: unknown): string => {
+    if (typeof content === "string") return content
+    if (Array.isArray(content)) {
+      return content
+        .filter(
+          (block): block is { type: "text"; text: string } =>
+            !!block && typeof block === "object" && (block as { type?: string }).type === "text"
+        )
+        .map((block) => block.text)
+        .join("")
+    }
+    return ""
+  }
+
+  const getMessageRole = (msg: Record<string, unknown>): string => {
+    if (typeof (msg as { _getType?: () => string })._getType === "function") {
+      return (msg as { _getType: () => string })._getType()
+    }
+    if (typeof msg.type === "string") return msg.type
+    const classId = Array.isArray(msg.id) ? msg.id : []
+    const className = classId[classId.length - 1] || ""
+    if (className.includes("Human")) return "human"
+    if (className.includes("AI")) return "ai"
+    if (className.includes("Tool")) return "tool"
+    if (className.includes("System")) return "system"
+    return ""
+  }
+
+  const getMessageId = (msg: Record<string, unknown>): string | undefined => {
+    if (typeof msg.id === "string") return msg.id
+    const kwargs = msg.kwargs as { id?: string } | undefined
+    return kwargs?.id
+  }
+
+  const getMessageContent = (msg: Record<string, unknown>): string => {
+    if ("content" in msg) {
+      return extractContent(msg.content)
+    }
+    const kwargs = msg.kwargs as { content?: unknown } | undefined
+    return extractContent(kwargs?.content)
+  }
+
+  const getToolCalls = (
+    msg: Record<string, unknown>
+  ): Array<{ id?: string; name?: string; args?: Record<string, unknown> }> => {
+    if (Array.isArray((msg as { tool_calls?: unknown }).tool_calls)) {
+      return (msg as { tool_calls: Array<{ id?: string; name?: string; args?: Record<string, unknown> }> })
+        .tool_calls
+    }
+    const kwargs = msg.kwargs as { tool_calls?: Array<{ id?: string; name?: string; args?: Record<string, unknown> }> } | undefined
+    return kwargs?.tool_calls || []
+  }
+
+  const getToolMessageMeta = (msg: Record<string, unknown>): { toolCallId?: string; toolName?: string } => {
+    const toolCallId = (msg as { tool_call_id?: string }).tool_call_id
+    const toolName = (msg as { name?: string }).name
+    const kwargs = msg.kwargs as { tool_call_id?: string; name?: string } | undefined
+    return {
+      toolCallId: toolCallId || kwargs?.tool_call_id,
+      toolName: toolName || kwargs?.name
+    }
+  }
 
   for await (const chunk of stream) {
     if (abortController.signal.aborted) break
     const [mode, data] = chunk as [string, unknown]
+
+    if (mode === "values" && ralphLog?.enabled) {
+      const state = data as { messages?: unknown[] }
+      if (Array.isArray(state.messages)) {
+        for (const rawMsg of state.messages) {
+          if (!rawMsg || typeof rawMsg !== "object") continue
+          const msg = rawMsg as Record<string, unknown>
+          const role = getMessageRole(msg)
+          if (role === "human") continue
+
+          const messageId = getMessageId(msg)
+          if (messageId && seenMessageIds.has(messageId)) {
+            continue
+          }
+
+          const content = getMessageContent(msg)
+          const toolCalls = getToolCalls(msg)
+
+          if (role === "ai") {
+            if (messageId) seenMessageIds.add(messageId)
+            if (content || toolCalls.length > 0) {
+              appendLog({
+                role: "ai",
+                content,
+                messageId
+              })
+            }
+
+            for (const tc of toolCalls) {
+              if (!tc.id || seenToolCallIds.has(tc.id)) continue
+              seenToolCallIds.add(tc.id)
+              let argsText = ""
+              try {
+                argsText = tc.args ? JSON.stringify(tc.args) : ""
+              } catch {
+                argsText = ""
+              }
+              appendLog({
+                role: "tool_call",
+                content: `${tc.name || "tool"}(${argsText})`,
+                toolCallId: tc.id,
+                toolName: tc.name,
+                toolArgs: tc.args
+              })
+            }
+          } else if (role === "tool") {
+            if (messageId) seenMessageIds.add(messageId)
+            const meta = getToolMessageMeta(msg)
+            appendLog({
+              role: "tool",
+              content,
+              messageId,
+              toolCallId: meta.toolCallId,
+              toolName: meta.toolName
+            })
+          }
+        }
+      }
+    }
 
     if (mode === "messages") {
       const content = extractAssistantChunkText(data)
@@ -180,6 +340,13 @@ async function streamAgentRun({
       type: "stream",
       mode,
       data: JSON.parse(JSON.stringify(data))
+    })
+  }
+
+  if (ralphLog?.enabled && !loggedAnything && lastAssistant.trim()) {
+    appendLog({
+      role: "ai",
+      content: lastAssistant.trim()
     })
   }
 
@@ -250,8 +417,34 @@ export function registerAgentHandlers(ipcMain: IpcMain): void {
       const normalizedWorkspace = workspacePath || ""
 
       if (mode === "ralph") {
+        const emitRalphLog = (
+          entry: Omit<RalphLogEntry, "id" | "ts" | "threadId" | "runId">
+        ): void => {
+          const fullEntry: RalphLogEntry = {
+            id: randomUUID(),
+            ts: new Date().toISOString(),
+            threadId,
+            runId: randomUUID(),
+            ...entry
+          }
+          appendRalphLogEntry(threadId, fullEntry)
+          window.webContents.send(channel, {
+            type: "custom",
+            data: { type: "ralph_log", entry: fullEntry }
+          })
+        }
+
+        const trimmedMessage = message.trim()
+        if (trimmedMessage) {
+          emitRalphLog({
+            role: "user",
+            content: trimmedMessage,
+            phase: (metadata.ralph as RalphState | undefined)?.phase
+          })
+        }
+
         const ralph = (metadata.ralph as RalphState) || { phase: "init", iterations: 0 }
-        const trimmed = message.trim()
+        const trimmed = trimmedMessage
         const isConfirm = trimmed.toLowerCase() === "/confirm"
 
         if (ralph.phase === "awaiting_confirm" && !isConfirm) {
@@ -269,7 +462,8 @@ export function registerAgentHandlers(ipcMain: IpcMain): void {
             message: initPrompt,
             window,
             channel,
-            abortController
+            abortController,
+            ralphLog: { enabled: true, iteration: 0, phase: ralph.phase }
           })
           updateMetadata(threadId, { ralph: { phase: "awaiting_confirm", iterations: 0 } })
           if (!abortController.signal.aborted) {
@@ -324,7 +518,8 @@ export function registerAgentHandlers(ipcMain: IpcMain): void {
               message: iterationPrompt,
               window,
               channel,
-              abortController
+              abortController,
+              ralphLog: { enabled: true, iteration: i, phase: "running" }
             })
             updateMetadata(threadId, { ralph: { iterations: i } })
 
@@ -378,7 +573,8 @@ export function registerAgentHandlers(ipcMain: IpcMain): void {
             message: initPrompt,
             window,
             channel,
-            abortController
+            abortController,
+            ralphLog: { enabled: true, iteration: 0, phase: ralph.phase }
           })
           updateMetadata(threadId, { ralph: { phase: "awaiting_confirm", iterations: 0 } })
           if (!abortController.signal.aborted) {

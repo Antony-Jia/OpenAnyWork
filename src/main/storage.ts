@@ -41,6 +41,10 @@ export function getThreadCheckpointPath(threadId: string): string {
   return join(getThreadCheckpointDir(), `${threadId}.sqlite`)
 }
 
+export function getThreadRalphLogPath(threadId: string): string {
+  return join(getThreadCheckpointDir(), `${threadId}.ralph.jsonl`)
+}
+
 export function deleteThreadCheckpoint(threadId: string): void {
   const path = getThreadCheckpointPath(threadId)
   if (existsSync(path)) {

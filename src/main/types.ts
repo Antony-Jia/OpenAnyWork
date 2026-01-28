@@ -72,6 +72,23 @@ export interface RalphState {
   iterations?: number
 }
 
+export type RalphLogRole = "user" | "ai" | "tool" | "tool_call"
+
+export interface RalphLogEntry {
+  id: string
+  ts: string
+  threadId: string
+  runId: string
+  iteration?: number
+  phase?: RalphState["phase"]
+  role: RalphLogRole
+  content: string
+  messageId?: string
+  toolCallId?: string
+  toolName?: string
+  toolArgs?: Record<string, unknown>
+}
+
 // Run types
 export type RunStatus = "pending" | "running" | "error" | "success" | "interrupted"
 

@@ -154,61 +154,77 @@ export async function fetchUnreadEmailTasks(threadId?: string): Promise<EmailTas
     auth: {
       user: settings.imap.user,
       pass: settings.imap.pass
-    }
+    },
+    socketTimeout: 30000 // 30 seconds timeout instead of default 5 minutes
   })
 
   const tasks: EmailTask[] = []
+  const matchedUids: number[] = []
 
   try {
     await client.connect()
     await client.mailboxOpen("INBOX")
 
     const tag = getTaskTag()
+
+    // 163邮箱不支持 HEADER 搜索，改为拉取当天未读邮件然后本地过滤
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+
     const uids = await client.search({
       seen: false,
-      header: { subject: tag }
+      since: today
     })
 
     if (!uids || uids.length === 0) {
       return tasks
     }
 
-    for await (const message of client.fetch(uids as number[], { source: true, envelope: true })) {
-      if (!message.source) continue
-      try {
-        const parsed = await simpleParser(message.source)
-        const subject = parsed.subject ?? ""
-        if (!subject.toLowerCase().includes(tag.toLowerCase())) {
-          continue
-        }
-        if (isSelfSender(parsed, settings)) {
-          continue
-        }
-        if (threadId) {
-          const extracted = extractThreadIdFromSubject(subject)
-          if (extracted !== threadId) {
-            continue
-          }
-        }
+    // 只取最近5封未读邮件
+    const recentUids = uids.slice(-5)
 
-        const from = parsed.from?.text ?? ""
-        const text = parsed.text ?? ""
-        const extractedThreadId = extractThreadIdFromSubject(subject)
-        tasks.push({
-          id: String(message.uid),
-          subject,
-          from,
-          text,
-          threadId: extractedThreadId
-        })
-      } finally {
-        if (message.uid) {
-          try {
-            await client.messageFlagsAdd(message.uid, ["\\Seen"])
-          } catch (markError) {
-            console.warn("[EmailService] Failed to mark email as read:", markError)
-          }
+    for await (const message of client.fetch(recentUids as number[], { source: true, envelope: true })) {
+      if (!message.source) continue
+      const parsed = await simpleParser(message.source)
+      const subject = parsed.subject ?? ""
+
+      // 本地过滤：检查主题是否包含 taskTag
+      if (!subject.toLowerCase().includes(tag.toLowerCase())) {
+        continue
+      }
+      if (isSelfSender(parsed, settings)) {
+        continue
+      }
+      if (threadId) {
+        const extracted = extractThreadIdFromSubject(subject)
+        if (extracted !== threadId) {
+          continue
         }
+      }
+
+      const from = parsed.from?.text ?? ""
+      const text = parsed.text ?? ""
+      const extractedThreadId = extractThreadIdFromSubject(subject)
+      tasks.push({
+        id: String(message.uid),
+        subject,
+        from,
+        text,
+        threadId: extractedThreadId
+      })
+
+      // 记录匹配的邮件 UID，稍后标记为已读
+      if (message.uid) {
+        matchedUids.push(message.uid)
+      }
+    }
+
+    // 只对匹配 taskTag 的邮件标记为已读
+    for (const uid of matchedUids) {
+      try {
+        await client.messageFlagsAdd(uid, ["\\Seen"], { uid: true })
+      } catch (markError) {
+        console.warn("[EmailService] Failed to mark email as read:", markError)
       }
     }
   } finally {
@@ -238,13 +254,14 @@ export async function markEmailTaskRead(taskId: string): Promise<void> {
     auth: {
       user: settings.imap.user,
       pass: settings.imap.pass
-    }
+    },
+    socketTimeout: 30000 // 30 seconds timeout instead of default 5 minutes
   })
 
   try {
     await client.connect()
     await client.mailboxOpen("INBOX")
-    await client.messageFlagsAdd(uid, ["\\Seen"])
+    await client.messageFlagsAdd(uid, ["\\Seen"], { uid: true })
   } finally {
     try {
       await client.logout()

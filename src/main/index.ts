@@ -1,6 +1,15 @@
 import { app, shell, BrowserWindow, ipcMain, nativeImage } from "electron"
 import { join } from "path"
 import { registerAgentHandlers } from "./ipc/agent"
+
+// Prevent Windows error dialog boxes for unhandled errors
+process.on("uncaughtException", (error) => {
+  console.error("[Main] Uncaught exception:", error)
+})
+
+process.on("unhandledRejection", (reason) => {
+  console.error("[Main] Unhandled rejection:", reason)
+})
 import { registerThreadHandlers } from "./ipc/threads"
 import { registerModelHandlers } from "./ipc/models"
 import { registerSubagentHandlers } from "./ipc/subagents"

@@ -12,8 +12,9 @@ import { listSkills } from "deepagents"
 import type { SkillItem } from "./types"
 import { logEntry, logExit } from "./logging"
 import { isSkillEnabled, removeSkillConfig, setSkillEnabled } from "./skills/config"
+import { getOpenworkDir } from "./storage"
 
-const SKILLS_ROOT = join(process.cwd(), ".openwork", "skills")
+const SKILLS_ROOT = join(getOpenworkDir(), "skills")
 
 function ensureSkillsDir(): string {
   if (!existsSync(SKILLS_ROOT)) {

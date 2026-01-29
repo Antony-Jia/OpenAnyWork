@@ -17,19 +17,23 @@ export function TitleBar({ threadId }: TitleBarProps): React.JSX.Element {
 
   return (
     <div className="app-titlebar flex h-[40px] w-full shrink-0 items-center justify-between px-3 app-drag-region select-none z-50">
-      {/* Left: Settings */}
-      <div className="flex items-center gap-2 app-no-drag">
+      {/* Left: Title & Settings */}
+      <div className="flex items-center gap-3 app-no-drag">
+        {/* Logo / Title */}
+        <div className="flex items-center justify-center pl-1">
+          <div className="text-[13px] font-bold text-foreground tracking-[0.05em] select-none">
+            {t("app.title")}
+          </div>
+        </div>
+
+        <div className="h-4 w-[1px] bg-border mx-1" />
+
         <SettingsMenu threadId={threadId} />
         <SubagentManager />
         <SkillsManager />
         <ToolsManager />
         <McpManager />
         <ContainerManager threadId={threadId} />
-      </div>
-
-      {/* Center: Title */}
-      <div className="text-[11px] font-medium text-muted-foreground/60 tracking-[0.2em] uppercase">
-        {t("app.title")}
       </div>
 
       {/* Right: Window Controls */}

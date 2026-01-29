@@ -182,15 +182,15 @@ export function SettingsMenu(_props: SettingsMenuProps): React.JSX.Element {
           variant="ghost"
           size="icon-sm"
           className={cn(
-            "h-7 w-7 rounded-md border border-transparent",
+            "h-9 w-9 rounded-md border border-transparent transition-all duration-200",
             open
-              ? "bg-background/70 text-foreground border-border/80"
-              : "text-muted-foreground hover:text-foreground hover:bg-background/50"
+              ? "bg-background/80 text-foreground border-border/80 shadow-md"
+              : "text-muted-foreground hover:text-foreground hover:bg-background/50 hover:shadow-sm"
           )}
           title={t("settings.title")}
           aria-label="Settings"
         >
-          <Settings2 className="size-4" />
+          <Settings2 className="size-5" />
         </Button>
       </DialogTrigger>
       <DialogContent className="w-[900px] h-[640px] max-w-[90vw] max-h-[85vh] p-0 border-border/80 bg-background/95 backdrop-blur overflow-hidden flex flex-col gap-0">
@@ -223,8 +223,8 @@ export function SettingsMenu(_props: SettingsMenuProps): React.JSX.Element {
           </div>
 
           <div className="flex-1 min-h-0 overflow-y-auto">
-              {activeTab === "general" && (
-                <>
+            {activeTab === "general" && (
+              <>
                 {/* Default Workspace */}
                 <div className="px-4 py-3 border-b border-border/70 flex items-center justify-between gap-3">
                   <div className="min-w-0">
@@ -294,11 +294,11 @@ export function SettingsMenu(_props: SettingsMenuProps): React.JSX.Element {
                     </Button>
                   </div>
                 </div>
-                </>
-              )}
+              </>
+            )}
 
-              {activeTab === "provider" && (
-                <div className="px-4 py-3 border-b border-border/70">
+            {activeTab === "provider" && (
+              <div className="px-4 py-3 border-b border-border/70">
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">
                     {t("provider.title")}
@@ -403,11 +403,11 @@ export function SettingsMenu(_props: SettingsMenuProps): React.JSX.Element {
                     </div>
                   </div>
                 )}
-                </div>
-              )}
+              </div>
+            )}
 
-              {activeTab === "ralph" && (
-                <div className="px-4 py-3 border-b border-border/70">
+            {activeTab === "ralph" && (
+              <div className="px-4 py-3 border-b border-border/70">
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">
                     {t("settings.ralph.title")}
@@ -425,11 +425,11 @@ export function SettingsMenu(_props: SettingsMenuProps): React.JSX.Element {
                     className="w-full h-7 px-2 text-xs bg-muted/50 border border-border/50 rounded-md focus:outline-none focus:ring-1 focus:ring-ring"
                   />
                 </div>
-                </div>
-              )}
+              </div>
+            )}
 
-              {activeTab === "email" && (
-                <div className="px-4 py-3 pb-6 border-b border-border/70 space-y-3">
+            {activeTab === "email" && (
+              <div className="px-4 py-3 pb-6 border-b border-border/70 space-y-3">
                 <div className="flex items-center justify-between">
                   <span className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">
                     {t("settings.email.title")}
@@ -597,8 +597,8 @@ export function SettingsMenu(_props: SettingsMenuProps): React.JSX.Element {
                     {t("settings.email.poll_interval_hint")}
                   </div>
                 </div>
-                </div>
-              )}
+              </div>
+            )}
           </div>
 
           <div className="flex items-center justify-end gap-2 px-4 py-3 border-t border-border/70 bg-background/70">

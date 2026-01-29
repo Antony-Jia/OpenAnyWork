@@ -155,7 +155,8 @@ export async function fetchUnreadEmailTasks(threadId?: string): Promise<EmailTas
       user: settings.imap.user,
       pass: settings.imap.pass
     },
-    socketTimeout: 30000 // 30 seconds timeout instead of default 5 minutes
+    socketTimeout: 30000, // 30 seconds timeout instead of default 5 minutes
+    logger: false
   })
 
   const tasks: EmailTask[] = []
@@ -255,7 +256,8 @@ export async function markEmailTaskRead(taskId: string): Promise<void> {
       user: settings.imap.user,
       pass: settings.imap.pass
     },
-    socketTimeout: 30000 // 30 seconds timeout instead of default 5 minutes
+    socketTimeout: 30000, // 30 seconds timeout instead of default 5 minutes
+    logger: false
   })
 
   try {

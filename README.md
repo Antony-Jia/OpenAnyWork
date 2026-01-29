@@ -1,4 +1,4 @@
-# openwork
+# OpenWork Deep Agent Workbench
 
 [![npm][npm-badge]][npm-url] [![License: MIT][license-badge]][license-url]
 
@@ -7,115 +7,144 @@
 [license-badge]: https://img.shields.io/badge/License-MIT-yellow.svg
 [license-url]: https://opensource.org/licenses/MIT
 
-openwork 是 [deepagentsjs](https://github.com/langchain-ai/deepagentsjs) 的桌面工作台，面向“深度代理（Deep Agent）”工作流，集成了配置中心、技能与子智能体管理、MCP 工具接入、Docker 隔离模式、RALPH 迭代模式、邮件模式等完整能力。
+**OpenWork** 是 [deepagentsjs](https://github.com/langchain-ai/deepagentsjs) 的桌面端旗舰工作台。它不仅仅是一个聊天窗口，而是一个面向“深度代理（Deep Agent）”的生产力工具。通过集成文件系统访问、Docker 隔离环境、MCP 协议、以及强大的子智能体体系，OpenWork 让 AI 能够真正地**在你的电脑上通过工具完成复杂任务**。
 
 ![openwork screenshot](docs/screenshot.png)
 
 > [!CAUTION]
-> openwork 会让 AI 代理直接访问本地文件系统并执行命令。请只在可信工作区运行，并审慎审批工具调用。
+> **安全提示**：OpenWork 设计为让 AI 直接操作本地文件系统并执行 Shell 命令。尽管我们提供了 Docker 隔离模式，但在非隔离环境下运行命令时，请务必仔细审查每一个操作。请仅在可信的工作区（Workspace）运行。
 
-## 本次大规模功能更新（重点）
+---
 
-- **设置中心升级**：新增 Provider 简化配置（Ollama / OpenAI-Compatible）、RALPH 迭代次数、邮件 SMTP/IMAP 与 IMAP 拉取间隔等设置项，统一保存至本地配置文件。@src/main/settings.ts#1-90 @src/main/storage.ts#1-153 @src/renderer/src/components/titlebar/SettingsMenu.tsx#17-158
-- **Skills 技能管理**：支持在 `.openwork/skills` 下创建、导入、编辑技能包（SKILL.md），并提供 UI 管理。@src/main/skills.ts#1-201 @src/renderer/src/components/titlebar/SkillsManager.tsx#1-258
-- **MCP 集成**：支持本地/远程 MCP Server，自动发现工具并注入到 Agent 与 Subagent 中，提供启动、停止与自动启动配置。@src/main/mcp/service.ts#1-356 @src/renderer/src/components/titlebar/McpManager.tsx#1-427
-- **Subagent 子智能体体系**：可配置 System Prompt、工具集合、MCP 工具、Middleware，并支持执行前打断（interruptOn）。@src/main/subagents.ts#1-123 @src/renderer/src/components/titlebar/SubagentManager.tsx#1-472
-- **Tools 工具中心**：统一管理工具的启用状态与密钥，支持环境变量回退；内置 `internet_search`（Tavily）。@src/main/tools/service.ts#1-89 @src/main/tools/internet-search.ts#1-76 @src/renderer/src/components/titlebar/ToolsManager.tsx#1-225
-- **Docker 模式**：为单线程配置容器镜像、挂载、资源与端口，提供容器执行与文件工具；仅 Windows 可用。@src/main/tools/docker-tools.ts#1-289 @src/renderer/src/components/titlebar/ContainerManager.tsx#1-338
-- **RALPH 模式**：基于 `ralph_plan.json` 的迭代执行流，/confirm 触发迭代，自动维护 progress.txt 与 `.ralph_done`。@src/main/ipc/agent.ts#105-372
-- **邮件模式**：SMTP 发件 + IMAP 任务拉取，仅回传最终摘要并标记已读；按 `<OpenworkTask>` 标签筛选。@src/main/ipc/agent.ts#410-497 @src/main/email/service.ts#1-164
+## 核心交互模式
+
+OpenWork 的设计哲学围绕着**“对话即执行”**与**“配置即能力”**展开。
+
+### 1. 核心对话模式 (Core Conversation Mode)
+这是你的主工作区。在这里，你不仅是与 AI 对话，更是在**编排任务**。
+- **上下文感知**：直接读取工作区文件，理解项目结构。
+- **实时执行**：AI 生成的命令、代码修改、文件操作会实时在你的机器（或 Docker 容器）中执行。
+- **透明反馈**：通过流式日志看到 AI 的思考过程（Thinking）、工具调用（Tool Calls）以及执行结果。
+- **多模式切换**：支持普通对话、Ralph 迭代模式、邮件助理模式等多种工作流。
+
+### 2. 左上角设置模式 (Settings & Control Center)
+点击左上角的设置图标，你将进入 Agent 的“大脑”控制中心。这里决定了 AI 的能力边界：
+- **Provider 配置**：自由切换 Ollama（本地隐私模型）或 OpenAI-Compatible（DeepSeek, GPT-4, Claude 等）后端。
+- **Skills (技能包)**：管理 AI 的长期记忆与专业能力。
+- **MCP (Model Context Protocol)**：连接外部世界的标准接口。
+- **Subagents (子智能体)**：定义和组装专精于特定领域的数字员工。
+
+---
+
+## 核心功能特色
+
+### 🛡️ Docker 隔离沙箱
+为了安全地运行 AI 生成的代码和脚本，OpenWork 内置了 Docker 支持（目前主要支持 Windows）。
+- **线程级容器**：每个任务线程可以拥有独立的容器环境。
+- **安全挂载**：仅将当前工作区挂载到容器内，隔离宿主机敏感数据。
+- **资源限制**：可配置 CPU 和内存限制，防止失控。
+
+### 🔌 MCP (Model Context Protocol) 集成
+全面支持 MCP 协议，让 Agent 的工具库无限扩展。
+- **自动发现**：支持本地和远程 MCP Server。
+- **即插即用**：配置好 Server 后，Agent 即可自动获得新的工具（如数据库访问、API 操作等）。
+- **状态监控**：实时查看 MCP 服务的运行状态。
+
+### 🤖 Subagent 子智能体体系
+不再是一个通用的 AI 做所有事。你可以定义“子智能体”：
+- **角色定制**：为不同的任务（如“前端专家”、“运维工程师”）设定专属 System Prompt。
+- **工具授权**：仅赋予子智能体完成任务所需的特定工具或 MCP 能力。
+- **Middleware**：支持中间件扩展，实现更复杂的逻辑控制。
+
+### 🧠 Skills 技能系统
+通过 Markdown (`SKILL.md`) 定义技能，让 AI 能够“学会”新的流程。
+- **本地管理**：在 `.openwork/skills` 目录下直接编辑技能文件。
+- **动态加载**：Agent 可以根据任务需求动态检索和加载相关技能。
+
+### 🔄 RALPH 迭代模式
+这是 OpenWork 的一种高级自主模式，专为解决复杂长程任务设计。
+1. **计划生成**：Agent 首先生成 `ralph_plan.json`，规划任务步骤。
+2. **人机确认**：用户输入 `/confirm` 批准计划。
+3. **循环执行**：Agent 自主循环执行任务，更新 `progress.txt`，直到完成目标。适合代码重构、大型文档撰写等任务。
+
+### 📧 邮件助理模式
+将 Agent 接入你的通信流。
+- **双向同步**：通过 IMAP 监听特定标签（如 `<OpenworkTask>`）的邮件任务。
+- **自动处理**：Agent 自动拉取任务，执行后回复处理摘要。
+- **异步协作**：你可以在手机上发邮件给 Agent 布置任务，回家直接看结果。
+
+---
+
+## 未来计划 (Roadmap)
+
+OpenWork 正在快速演进，我们致力于打造最强大的本地 AI 工作台：
+
+### 👁️ 接入多模态 (Multi-modal Support)
+- **视觉能力**：让 Agent 能够“看”到你的屏幕截图、设计稿或报错图片，并据此编写代码或提供建议。
+- **语音交互**：支持语音输入指令，甚至让 Agent 语音汇报工作进度。
+
+### 🌐 接入浏览器操作工具 (Browser Automation)
+- **Headless & GUI**：集成 Puppeteer/Playwright，让 Agent 能够自动控制浏览器进行网页测试、数据抓取、表单填写等操作。
+- **网页理解**：将网页内容转化为 Agent 易于理解的结构化数据。
+
+### 📄 更多文档解析工具 (Advanced Document Parsing)
+- **办公文档**：原生支持 PDF, Word, Excel, PowerPoint 等格式的深度解析与生成。
+- **知识库构建**：从本地文档目录自动构建向量索引，让 Agent 拥有私有知识库。
+
+### 🚀 更多开放特性 (Free to Play)
+- **插件市场**：建立社区驱动的 Skills 和 Subagents 市场，一键安装他人的最佳实践。
+- **本地模型优化**：针对 Ollama 等本地运行环境进行深度适配，让普通电脑也能跑出高质量 Agent。
+- **跨设备同步**：通过 P2P 或云端同步你的 Agent 配置与记忆。
+
+---
 
 ## 快速开始
 
+### 安装
+
+需要 Node.js 18+ 环境。
+
 ```bash
-# 直接运行
+# 方式一：直接运行（推荐临时体验）
 npx openwork
 
-# 或全局安装
+# 方式二：全局安装
 npm install -g openwork
 openwork
 ```
 
-需要 Node.js 18+。
+### 源码开发
 
-### 从源码运行
+如果你想参与贡献或进行二次开发：
 
 ```bash
 git clone https://github.com/langchain-ai/openwork.git
 cd openwork
 npm install
+
+# 启动开发模式
 npm run dev
 ```
 
-## 核心使用指南
+---
 
-### 1) 设置中心（模型与系统配置）
+## 配置说明
 
-- **Provider 配置**：支持 Ollama 和 OpenAI-Compatible API（如 DeepSeek / OpenAI 兼容端点）。@src/renderer/src/components/titlebar/SettingsMenu.tsx#17-158
-- **RALPH 迭代次数**：控制每次执行的最大迭代轮次。@src/main/settings.ts#8-29
-- **邮件配置**：SMTP + IMAP、发件人与收件人列表、IMAP 拉取间隔。@src/main/types.ts#193-220
+OpenWork 的所有用户配置数据存储在用户主目录下的 `.openwork` 文件夹中：
 
-### 2) Skills（技能包）
+- `provider-config.json`: 模型连接配置。
+- `settings.json`: 全局应用设置（RALPH, 邮件等）。
+- `subagents.json`: 子智能体定义。
+- `mcp.json`: MCP 服务器配置。
+- `skills/`: 自定义技能包目录。
 
-- 在 `.openwork/skills` 目录中管理技能（SKILL.md）。
-- 支持 **创建 / 导入 / 编辑 / 删除**。
-- 技能描述取自 SKILL.md Frontmatter。@src/main/skills.ts#118-154
+---
 
-### 3) MCP（Model Context Protocol）
+## 贡献
 
-- **本地模式**：配置 command / args / env / cwd。
-- **远程模式**：配置 URL / Headers。
-- 自动发现 MCP 工具并注入，工具名格式：`mcp.<serverId>.<toolName>`。
-- 支持自动启动与状态监控。@src/main/mcp/service.ts#199-356
-
-### 4) Subagent（子智能体）
-
-- 自定义子智能体：名称、描述、System Prompt。
-- 可选择工具、MCP 工具、Middleware，并可启用执行前打断。
-- 子智能体配置会持久化到 `subagents.json`。@src/main/subagents.ts#1-123
-
-### 5) Tools（工具中心）
-
-- 启用/禁用工具、配置密钥（支持环境变量回退）。
-- 当前内置工具：`internet_search`（Tavily）。@src/main/tools/internet-search.ts#8-74
-
-### 6) Docker 模式（线程级容器）
-
-- 每个线程可独立配置镜像、挂载、资源与端口。
-- 启用后，Agent 会优先使用容器工具执行命令与文件操作。
-- Windows 专用。@src/renderer/src/components/titlebar/ContainerManager.tsx#29-329
-
-### 7) RALPH 模式
-
-1. 新建 Ralph 线程。
-2. Agent 根据用户需求生成 `ralph_plan.json`。
-3. 用户回复 `/confirm` 开启迭代执行。
-4. 每轮执行都会读写 `progress.txt`，完成后写入 `.ralph_done`。
-
-### 8) 邮件模式
-
-- 新建邮件线程后，Agent 会：
-  - 选择工作目录后发送一封 Workspace Linked 邮件（包含 Work ID）。
-  - 处理后发送摘要邮件。
-  - 通过 IMAP 拉取 `<OpenworkTask>` 主题邮件，处理后回传并标记已读。
-
-## 应用数据目录（.openwork）
-
-openwork 会在用户目录下创建 `.openwork`，保存如下数据：
-
-- `provider-config.json`：模型 Provider 配置。
-- `settings.json`：RALPH / 邮件配置。
-- `tools.json`：工具启用与密钥。
-- `subagents.json`：子智能体配置。
-- `mcp.json`：MCP Server 配置。
-- `skills/`：自定义技能包。
-
-## 贡献与反馈
-
-欢迎贡献！请先阅读 [CONTRIBUTING.md](CONTRIBUTING.md)。
-
-问题反馈请提交 [GitHub Issues](https://github.com/langchain-ai/openwork/issues)。
+欢迎提交 Issue 和 Pull Request！让 OpenWork 变得更好。
+请参阅 [CONTRIBUTING.md](CONTRIBUTING.md) 了解详情。
 
 ## 许可证
 
-MIT，详见 [LICENSE](LICENSE)。
+[MIT](LICENSE) © LangChain

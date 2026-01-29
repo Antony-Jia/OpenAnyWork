@@ -156,11 +156,11 @@ function getModelInstance(modelId?: string): ChatOpenAI {
     )
   }
 
-  // 优先使用传入的 modelId，否则使用配置中的 model
-  const effectiveModel = modelId || config.model
+  // 使用 Provider 配置中的 model（简化配置模式下忽略传入的 modelId）
+  const effectiveModel = config.model
   console.log("[Runtime] Using provider config:", config.type)
-  console.log("[Runtime] Requested model:", modelId)
-  console.log("[Runtime] Effective model:", effectiveModel)
+  console.log("[Runtime] Configured model:", config.model)
+  console.log("[Runtime] Ignored modelId:", modelId)
 
   if (config.type === "ollama") {
     // Ollama uses OpenAI-compatible API at /v1 endpoint

@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react"
-import { Settings2, Check } from "lucide-react"
+import { Settings2, Check, Circle, CheckCircle2 } from "lucide-react"
 import { useLanguage } from "@/lib/i18n"
 import {
   Dialog,
@@ -9,6 +9,7 @@ import {
   DialogTrigger
 } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { cn } from "@/lib/utils"
 import type { AppSettings, ProviderConfig, SimpleProviderId } from "@/types"
 
@@ -108,6 +109,20 @@ export function SettingsMenu(_props: SettingsMenuProps): React.JSX.Element {
       .filter(Boolean)
 
     try {
+      // Save provider config
+      const providerConfig: ProviderConfig =
+        providerType === "ollama"
+          ? { type: "ollama", url: ollamaUrl.trim(), model: ollamaModel.trim() }
+          : {
+              type: "openai-compatible",
+              url: openaiUrl.trim(),
+              apiKey: openaiKey,
+              model: openaiModel.trim()
+            }
+      await window.api.provider.setConfig(providerConfig)
+      setHasConfig(true)
+
+      // Save other settings
       await window.api.settings.update({
         updates: {
           ralphIterations:
@@ -145,6 +160,12 @@ export function SettingsMenu(_props: SettingsMenuProps): React.JSX.Element {
       console.error("Failed to save settings:", e)
     }
   }, [
+    providerType,
+    ollamaUrl,
+    ollamaModel,
+    openaiUrl,
+    openaiKey,
+    openaiModel,
     ralphIterations,
     defaultWorkspacePath,
     emailEnabled,
@@ -299,7 +320,7 @@ export function SettingsMenu(_props: SettingsMenuProps): React.JSX.Element {
 
             {activeTab === "provider" && (
               <div className="px-4 py-3 border-b border-border/70">
-                <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center justify-between mb-3">
                   <span className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">
                     {t("provider.title")}
                   </span>
@@ -312,97 +333,142 @@ export function SettingsMenu(_props: SettingsMenuProps): React.JSX.Element {
                   )}
                 </div>
 
-                {/* Provider Type Selection */}
-                <div className="flex gap-2 mb-3">
-                  <Button
-                    variant={providerType === "ollama" ? "secondary" : "ghost"}
-                    size="sm"
-                    onClick={() => setProviderType("ollama")}
-                    className="h-7 text-xs flex-1"
-                  >
-                    {t("provider.ollama")}
-                  </Button>
-                  <Button
-                    variant={providerType === "openai-compatible" ? "secondary" : "ghost"}
-                    size="sm"
-                    onClick={() => setProviderType("openai-compatible")}
-                    className="h-7 text-xs flex-1"
-                  >
-                    {t("provider.openai_compatible")}
-                  </Button>
+                <div className="text-[10px] text-muted-foreground/70 mb-3">
+                  {t("provider.select_hint")}
                 </div>
 
-                {/* Ollama Configuration */}
-                {providerType === "ollama" && (
-                  <div className="space-y-2">
-                    <div>
-                      <label className="text-[10px] text-muted-foreground block mb-1">
-                        {t("provider.url")}
-                      </label>
-                      <input
-                        type="text"
-                        value={ollamaUrl}
-                        onChange={(e) => setOllamaUrl(e.target.value)}
-                        placeholder={t("provider.url_placeholder_ollama")}
-                        className="w-full h-7 px-2 text-xs bg-muted/50 border border-border/50 rounded-md focus:outline-none focus:ring-1 focus:ring-ring"
-                      />
-                    </div>
-                    <div>
-                      <label className="text-[10px] text-muted-foreground block mb-1">
-                        {t("provider.model")}
-                      </label>
-                      <input
-                        type="text"
-                        value={ollamaModel}
-                        onChange={(e) => setOllamaModel(e.target.value)}
-                        placeholder={t("provider.model_placeholder")}
-                        className="w-full h-7 px-2 text-xs bg-muted/50 border border-border/50 rounded-md focus:outline-none focus:ring-1 focus:ring-ring"
-                      />
-                    </div>
-                  </div>
-                )}
+                {/* Provider Cards - Vertical Layout */}
+                <div className="space-y-3">
+                  {/* Ollama Card */}
+                  <Card
+                    className={cn(
+                      "cursor-pointer transition-all duration-200",
+                      providerType === "ollama"
+                        ? "border-primary/50 bg-primary/5"
+                        : "border-border/50 hover:border-border"
+                    )}
+                    onClick={() => setProviderType("ollama")}
+                  >
+                    <CardHeader className="p-3 pb-2">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          {providerType === "ollama" ? (
+                            <CheckCircle2 className="size-4 text-primary" />
+                          ) : (
+                            <Circle className="size-4 text-muted-foreground/50" />
+                          )}
+                          <CardTitle className="text-xs font-medium">
+                            {t("provider.ollama")}
+                          </CardTitle>
+                        </div>
+                        {providerType === "ollama" && (
+                          <span className="text-[10px] text-primary font-medium">
+                            {t("provider.active")}
+                          </span>
+                        )}
+                      </div>
+                    </CardHeader>
+                    <CardContent className="p-3 pt-0" onClick={(e) => e.stopPropagation()}>
+                      <div className="space-y-2">
+                        <div>
+                          <label className="text-[10px] text-muted-foreground block mb-1">
+                            {t("provider.url")}
+                          </label>
+                          <input
+                            type="text"
+                            value={ollamaUrl}
+                            onChange={(e) => setOllamaUrl(e.target.value)}
+                            placeholder={t("provider.url_placeholder_ollama")}
+                            className="w-full h-7 px-2 text-xs bg-muted/50 border border-border/50 rounded-md focus:outline-none focus:ring-1 focus:ring-ring"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-[10px] text-muted-foreground block mb-1">
+                            {t("provider.model")}
+                          </label>
+                          <input
+                            type="text"
+                            value={ollamaModel}
+                            onChange={(e) => setOllamaModel(e.target.value)}
+                            placeholder={t("provider.model_placeholder_ollama")}
+                            className="w-full h-7 px-2 text-xs bg-muted/50 border border-border/50 rounded-md focus:outline-none focus:ring-1 focus:ring-ring"
+                          />
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
 
-                {/* OpenAI Compatible Configuration */}
-                {providerType === "openai-compatible" && (
-                  <div className="space-y-2">
-                    <div>
-                      <label className="text-[10px] text-muted-foreground block mb-1">
-                        {t("provider.url")}
-                      </label>
-                      <input
-                        type="text"
-                        value={openaiUrl}
-                        onChange={(e) => setOpenaiUrl(e.target.value)}
-                        placeholder={t("provider.url_placeholder_openai")}
-                        className="w-full h-7 px-2 text-xs bg-muted/50 border border-border/50 rounded-md focus:outline-none focus:ring-1 focus:ring-ring"
-                      />
-                    </div>
-                    <div>
-                      <label className="text-[10px] text-muted-foreground block mb-1">
-                        {t("provider.api_key")}
-                      </label>
-                      <input
-                        type="password"
-                        value={openaiKey}
-                        onChange={(e) => setOpenaiKey(e.target.value)}
-                        placeholder={t("provider.key_placeholder")}
-                        className="w-full h-7 px-2 text-xs bg-muted/50 border border-border/50 rounded-md focus:outline-none focus:ring-1 focus:ring-ring"
-                      />
-                    </div>
-                    <div>
-                      <label className="text-[10px] text-muted-foreground block mb-1">
-                        {t("provider.model")}
-                      </label>
-                      <input
-                        type="text"
-                        value={openaiModel}
-                        onChange={(e) => setOpenaiModel(e.target.value)}
-                        placeholder={t("provider.model_placeholder")}
-                        className="w-full h-7 px-2 text-xs bg-muted/50 border border-border/50 rounded-md focus:outline-none focus:ring-1 focus:ring-ring"
-                      />
-                    </div>
-                  </div>
-                )}
+                  {/* OpenAI Compatible Card */}
+                  <Card
+                    className={cn(
+                      "cursor-pointer transition-all duration-200",
+                      providerType === "openai-compatible"
+                        ? "border-primary/50 bg-primary/5"
+                        : "border-border/50 hover:border-border"
+                    )}
+                    onClick={() => setProviderType("openai-compatible")}
+                  >
+                    <CardHeader className="p-3 pb-2">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          {providerType === "openai-compatible" ? (
+                            <CheckCircle2 className="size-4 text-primary" />
+                          ) : (
+                            <Circle className="size-4 text-muted-foreground/50" />
+                          )}
+                          <CardTitle className="text-xs font-medium">
+                            {t("provider.openai_compatible")}
+                          </CardTitle>
+                        </div>
+                        {providerType === "openai-compatible" && (
+                          <span className="text-[10px] text-primary font-medium">
+                            {t("provider.active")}
+                          </span>
+                        )}
+                      </div>
+                    </CardHeader>
+                    <CardContent className="p-3 pt-0" onClick={(e) => e.stopPropagation()}>
+                      <div className="space-y-2">
+                        <div>
+                          <label className="text-[10px] text-muted-foreground block mb-1">
+                            {t("provider.url")}
+                          </label>
+                          <input
+                            type="text"
+                            value={openaiUrl}
+                            onChange={(e) => setOpenaiUrl(e.target.value)}
+                            placeholder={t("provider.url_placeholder_openai")}
+                            className="w-full h-7 px-2 text-xs bg-muted/50 border border-border/50 rounded-md focus:outline-none focus:ring-1 focus:ring-ring"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-[10px] text-muted-foreground block mb-1">
+                            {t("provider.api_key")}
+                          </label>
+                          <input
+                            type="password"
+                            value={openaiKey}
+                            onChange={(e) => setOpenaiKey(e.target.value)}
+                            placeholder={t("provider.key_placeholder")}
+                            className="w-full h-7 px-2 text-xs bg-muted/50 border border-border/50 rounded-md focus:outline-none focus:ring-1 focus:ring-ring"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-[10px] text-muted-foreground block mb-1">
+                            {t("provider.model")}
+                          </label>
+                          <input
+                            type="text"
+                            value={openaiModel}
+                            onChange={(e) => setOpenaiModel(e.target.value)}
+                            placeholder={t("provider.model_placeholder_openai")}
+                            className="w-full h-7 px-2 text-xs bg-muted/50 border border-border/50 rounded-md focus:outline-none focus:ring-1 focus:ring-ring"
+                          />
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
               </div>
             )}
 

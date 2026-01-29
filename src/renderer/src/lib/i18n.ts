@@ -67,7 +67,11 @@ const translations = {
     "provider.url_placeholder_ollama": "http://localhost:11434",
     "provider.url_placeholder_openai": "https://api.openai.com/v1",
     "provider.model_placeholder": "e.g. qwen2.5:7b or gpt-4o",
+    "provider.model_placeholder_ollama": "e.g. qwen2.5:7b",
+    "provider.model_placeholder_openai": "e.g. gpt-4o or deepseek-chat",
     "provider.key_placeholder": "sk-...",
+    "provider.active": "Active",
+    "provider.select_hint": "Select a provider and configure it. Click on a card to activate it.",
 
     // Window Controls
     "window.minimize": "Minimize",
@@ -329,7 +333,11 @@ const translations = {
     "provider.url_placeholder_ollama": "http://localhost:11434",
     "provider.url_placeholder_openai": "https://api.openai.com/v1",
     "provider.model_placeholder": "如 qwen2.5:7b 或 gpt-4o",
+    "provider.model_placeholder_ollama": "如 qwen2.5:7b",
+    "provider.model_placeholder_openai": "如 gpt-4o 或 deepseek-chat",
     "provider.key_placeholder": "sk-...",
+    "provider.active": "已激活",
+    "provider.select_hint": "选择一个提供者并配置。点击卡片激活该提供者。",
 
     // Window Controls
     "window.minimize": "最小化",

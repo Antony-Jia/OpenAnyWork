@@ -1,14 +1,19 @@
 import { app, shell, BrowserWindow, ipcMain, nativeImage } from "electron"
 import { join } from "path"
 import { registerAgentHandlers } from "./ipc/agent"
+import { broadcastToast } from "./ipc/events"
 
 // Prevent Windows error dialog boxes for unhandled errors
 process.on("uncaughtException", (error) => {
   console.error("[Main] Uncaught exception:", error)
+  const message = error instanceof Error ? error.message : String(error)
+  broadcastToast("error", `Uncaught error: ${message}`)
 })
 
 process.on("unhandledRejection", (reason) => {
   console.error("[Main] Unhandled rejection:", reason)
+  const message = reason instanceof Error ? reason.message : String(reason)
+  broadcastToast("error", `Unhandled error: ${message}`)
 })
 import { registerThreadHandlers } from "./ipc/threads"
 import { registerModelHandlers } from "./ipc/models"

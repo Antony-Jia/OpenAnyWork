@@ -3,6 +3,7 @@ import { ThreadSidebar } from "@/components/sidebar/ThreadSidebar"
 import { TabbedPanel, TabBar } from "@/components/tabs"
 import { RightPanel } from "@/components/panels/RightPanel"
 import { ResizeHandle } from "@/components/ui/resizable"
+import { ToastContainer, ToastMessage } from "@/components/ui/toast"
 import { useAppStore } from "@/lib/store"
 import { ThreadProvider } from "@/lib/thread-context"
 import { TitleBar } from "@/components/titlebar/TitleBar"
@@ -21,6 +22,16 @@ function App(): React.JSX.Element {
   const [leftWidth, setLeftWidth] = useState(LEFT_DEFAULT)
   const [rightWidth, setRightWidth] = useState(RIGHT_DEFAULT)
   const [zoomLevel, setZoomLevel] = useState(1)
+  const [toasts, setToasts] = useState<ToastMessage[]>([])
+
+  const addToast = useCallback((type: ToastMessage["type"], message: string) => {
+    const id = `${Date.now()}-${Math.random().toString(36).slice(2)}`
+    setToasts((prev) => [...prev, { id, type, message }])
+  }, [])
+
+  const removeToast = useCallback((id: string) => {
+    setToasts((prev) => prev.filter((t) => t.id !== id))
+  }, [])
 
   // Track drag start widths
   const dragStartWidths = useRef<{ left: number; right: number } | null>(null)
@@ -120,6 +131,19 @@ function App(): React.JSX.Element {
     }
   }, [loadThreads])
 
+  // Listen for toast messages from main process
+  useEffect(() => {
+    const cleanup = window.electron.ipcRenderer.on("app:toast", (...args: unknown[]) => {
+      const data = args[0] as { type: ToastMessage["type"]; message: string }
+      if (data && data.type && data.message) {
+        addToast(data.type, data.message)
+      }
+    })
+    return () => {
+      if (typeof cleanup === "function") cleanup()
+    }
+  }, [addToast])
+
   if (isLoading) {
     return (
       <div className="flex h-screen items-center justify-center bg-background">
@@ -130,6 +154,7 @@ function App(): React.JSX.Element {
 
   return (
     <ThreadProvider>
+      <ToastContainer toasts={toasts} onClose={removeToast} />
       <div className="flex h-screen w-screen flex-col overflow-hidden bg-background text-foreground">
         {/* Global Window Title Bar */}
         <TitleBar threadId={currentThreadId} />

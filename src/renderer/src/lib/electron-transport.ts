@@ -1,7 +1,7 @@
 import type { UseStreamTransport } from "@langchain/langgraph-sdk/react"
 import type { ToolCall, ToolCallChunk } from "@langchain/core/messages"
 import type { StreamPayload, StreamEvent, IPCEvent, IPCStreamEvent } from "../../../types"
-import type { Subagent } from "../types"
+import type { ContentBlock, Subagent } from "../types"
 
 /**
  * Usage metadata from LangChain model responses.
@@ -36,7 +36,7 @@ interface SerializedMessageChunk {
   /** Actual message data is in kwargs */
   kwargs?: {
     id?: string
-    content?: string | Array<{ type: string; text?: string }>
+    content?: string | Array<{ type: string; text?: string; image_url?: { url: string } }>
     tool_calls?: ToolCall[]
     tool_call_chunks?: ToolCallChunk[]
     tool_call_id?: string
@@ -114,7 +114,7 @@ export class ElectronIPCTransport implements UseStreamTransport {
 
     // Extract the message content from input
     const input = payload.input as
-      | { messages?: Array<{ content: string; type: string }> }
+      | { messages?: Array<{ content: string | ContentBlock[]; type: string }> }
       | null
       | undefined
     const messages = input?.messages ?? []
@@ -122,7 +122,13 @@ export class ElectronIPCTransport implements UseStreamTransport {
     const messageContent = lastHumanMessage?.content ?? ""
 
     // Only require message content if not resuming
-    if (!messageContent && !hasResumeCommand) {
+    const hasContent =
+      typeof messageContent === "string"
+        ? !!messageContent
+        : Array.isArray(messageContent)
+          ? messageContent.some((block) => block.type === "text" ? Boolean(block.text?.trim()) : true)
+          : false
+    if (!hasContent && !hasResumeCommand) {
       return this.createErrorGenerator("MISSING_MESSAGE", "Message content is required")
     }
 
@@ -145,7 +151,7 @@ export class ElectronIPCTransport implements UseStreamTransport {
 
   private async *createStreamGenerator(
     threadId: string,
-    message: string,
+    message: string | ContentBlock[],
     command: unknown,
     signal: AbortSignal,
     modelId?: string
@@ -721,7 +727,7 @@ export class ElectronIPCTransport implements UseStreamTransport {
    * Extract text content from message content (string or content blocks)
    */
   private extractContent(
-    content: string | Array<{ type: string; text?: string }> | undefined
+    content: string | Array<{ type: string; text?: string; image_url?: { url: string } }> | undefined
   ): string {
     if (typeof content === "string") {
       return content

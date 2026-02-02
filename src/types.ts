@@ -12,7 +12,7 @@ export type StreamEvent = {
 export interface IPCMessage {
   id: string
   type: "human" | "ai" | "tool" | "system"
-  content: string
+  content: string | Array<{ type: string; text?: string; image_url?: { url: string } }>
   tool_calls?: { id: string; name: string; args: Record<string, unknown> }[]
 }
 

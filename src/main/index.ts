@@ -22,6 +22,7 @@ import { registerSkillHandlers } from "./ipc/skills"
 import { registerToolHandlers } from "./ipc/tools"
 import { registerMiddlewareHandlers } from "./ipc/middleware"
 import { registerDockerHandlers } from "./ipc/docker"
+import { registerAttachmentHandlers } from "./ipc/attachments"
 import { initializeDatabase } from "./db"
 import { registerMcpHandlers } from "./ipc/mcp"
 import { startAutoMcpServers } from "./mcp/service"
@@ -135,6 +136,7 @@ app.whenReady().then(async () => {
   registerToolHandlers(ipcMain)
   registerMiddlewareHandlers(ipcMain)
   registerDockerHandlers(ipcMain)
+  registerAttachmentHandlers(ipcMain)
   registerMcpHandlers(ipcMain)
   registerSettingsHandlers(ipcMain)
 

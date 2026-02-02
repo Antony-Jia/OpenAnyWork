@@ -65,7 +65,7 @@ export interface ModelConfig {
 }
 
 // New simplified provider configuration types
-export type SimpleProviderId = "ollama" | "openai-compatible"
+export type SimpleProviderId = "ollama" | "openai-compatible" | "multimodal"
 
 export interface DockerMount {
   hostPath: string
@@ -113,7 +113,19 @@ export interface OpenAICompatibleConfig {
   model: string // e.g., "deepseek-chat"
 }
 
-export type ProviderConfig = OllamaConfig | OpenAICompatibleConfig
+export interface MultimodalConfig {
+  type: "multimodal"
+  url: string // e.g., "https://api.openai.com/v1"
+  apiKey: string
+  model: string // e.g., "gpt-4o"
+}
+
+export type ProviderConfig = OllamaConfig | OpenAICompatibleConfig | MultimodalConfig
+
+export interface ProviderState {
+  active: SimpleProviderId
+  configs: Partial<Record<SimpleProviderId, ProviderConfig>>
+}
 
 // Custom subagent configuration
 export interface SubagentConfig {
@@ -121,6 +133,7 @@ export interface SubagentConfig {
   name: string
   description: string
   systemPrompt: string
+  provider?: SimpleProviderId
   model?: string
   tools?: string[]
   middleware?: string[]
@@ -287,13 +300,18 @@ export interface Message {
 }
 
 export interface ContentBlock {
-  type: "text" | "image" | "tool_use" | "tool_result"
+  type: "text" | "image" | "image_url" | "tool_use" | "tool_result"
   text?: string
+  image_url?: { url: string }
   tool_use_id?: string
   name?: string
   input?: unknown
   content?: string
 }
+
+export type Attachment =
+  | { kind: "image"; name: string; mimeType: string; dataUrl: string; size: number }
+  | { kind: "file"; name: string; mimeType: string; size: number; dataUrl?: string }
 
 export interface ToolCall {
   id: string

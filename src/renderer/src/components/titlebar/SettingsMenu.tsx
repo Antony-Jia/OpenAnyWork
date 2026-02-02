@@ -11,7 +11,7 @@ import {
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { cn } from "@/lib/utils"
-import type { AppSettings, ProviderConfig, SimpleProviderId } from "@/types"
+import type { AppSettings, ProviderConfig, ProviderState, SimpleProviderId } from "@/types"
 
 interface SettingsMenuProps {
   threadId: string | null
@@ -30,6 +30,9 @@ export function SettingsMenu(_props: SettingsMenuProps): React.JSX.Element {
   const [openaiUrl, setOpenaiUrl] = useState("https://api.openai.com/v1")
   const [openaiKey, setOpenaiKey] = useState("")
   const [openaiModel, setOpenaiModel] = useState("")
+  const [multimodalUrl, setMultimodalUrl] = useState("https://api.openai.com/v1")
+  const [multimodalKey, setMultimodalKey] = useState("")
+  const [multimodalModel, setMultimodalModel] = useState("")
   const [hasConfig, setHasConfig] = useState(false)
   const [settingsSaved, setSettingsSaved] = useState(false)
 
@@ -58,17 +61,26 @@ export function SettingsMenu(_props: SettingsMenuProps): React.JSX.Element {
   useEffect(() => {
     async function loadConfig() {
       try {
-        const config = (await window.api.provider.getConfig()) as ProviderConfig | null
-        if (config) {
-          setHasConfig(true)
-          setProviderType(config.type === "ollama" ? "ollama" : "openai-compatible")
-          if (config.type === "ollama") {
-            setOllamaUrl(config.url)
-            setOllamaModel(config.model)
-          } else {
-            setOpenaiUrl(config.url)
-            setOpenaiKey(config.apiKey)
-            setOpenaiModel(config.model)
+        const state = (await window.api.provider.getConfig()) as ProviderState | null
+        if (state) {
+          setHasConfig(Boolean(state.configs[state.active]))
+          setProviderType(state.active)
+          const ollamaConfig = state.configs.ollama as ProviderConfig | undefined
+          if (ollamaConfig && ollamaConfig.type === "ollama") {
+            setOllamaUrl(ollamaConfig.url)
+            setOllamaModel(ollamaConfig.model)
+          }
+          const openaiConfig = state.configs["openai-compatible"] as ProviderConfig | undefined
+          if (openaiConfig && openaiConfig.type === "openai-compatible") {
+            setOpenaiUrl(openaiConfig.url)
+            setOpenaiKey(openaiConfig.apiKey)
+            setOpenaiModel(openaiConfig.model)
+          }
+          const multimodalConfig = state.configs.multimodal as ProviderConfig | undefined
+          if (multimodalConfig && multimodalConfig.type === "multimodal") {
+            setMultimodalUrl(multimodalConfig.url)
+            setMultimodalKey(multimodalConfig.apiKey)
+            setMultimodalModel(multimodalConfig.model)
           }
         }
         const settings = (await window.api.settings.get()) as AppSettings
@@ -109,18 +121,39 @@ export function SettingsMenu(_props: SettingsMenuProps): React.JSX.Element {
       .filter(Boolean)
 
     try {
-      // Save provider config
-      const providerConfig: ProviderConfig =
-        providerType === "ollama"
-          ? { type: "ollama", url: ollamaUrl.trim(), model: ollamaModel.trim() }
-          : {
-              type: "openai-compatible",
-              url: openaiUrl.trim(),
-              apiKey: openaiKey,
-              model: openaiModel.trim()
-            }
-      await window.api.provider.setConfig(providerConfig)
-      setHasConfig(true)
+      const configs: ProviderState["configs"] = {}
+      const trimmedOllamaUrl = ollamaUrl.trim()
+      const trimmedOllamaModel = ollamaModel.trim()
+      if (trimmedOllamaUrl && trimmedOllamaModel) {
+        configs.ollama = { type: "ollama", url: trimmedOllamaUrl, model: trimmedOllamaModel }
+      }
+      const trimmedOpenaiUrl = openaiUrl.trim()
+      const trimmedOpenaiModel = openaiModel.trim()
+      if (trimmedOpenaiUrl && trimmedOpenaiModel && openaiKey.trim()) {
+        configs["openai-compatible"] = {
+          type: "openai-compatible",
+          url: trimmedOpenaiUrl,
+          apiKey: openaiKey.trim(),
+          model: trimmedOpenaiModel
+        }
+      }
+      const trimmedMultimodalUrl = multimodalUrl.trim()
+      const trimmedMultimodalModel = multimodalModel.trim()
+      if (trimmedMultimodalUrl && trimmedMultimodalModel && multimodalKey.trim()) {
+        configs.multimodal = {
+          type: "multimodal",
+          url: trimmedMultimodalUrl,
+          apiKey: multimodalKey.trim(),
+          model: trimmedMultimodalModel
+        }
+      }
+
+      const providerState: ProviderState = {
+        active: providerType,
+        configs
+      }
+      await window.api.provider.setConfig(providerState)
+      setHasConfig(Boolean(configs[providerType]))
 
       // Save other settings
       await window.api.settings.update({
@@ -166,6 +199,9 @@ export function SettingsMenu(_props: SettingsMenuProps): React.JSX.Element {
     openaiUrl,
     openaiKey,
     openaiModel,
+    multimodalUrl,
+    multimodalKey,
+    multimodalModel,
     ralphIterations,
     defaultWorkspacePath,
     emailEnabled,
@@ -462,6 +498,77 @@ export function SettingsMenu(_props: SettingsMenuProps): React.JSX.Element {
                             value={openaiModel}
                             onChange={(e) => setOpenaiModel(e.target.value)}
                             placeholder={t("provider.model_placeholder_openai")}
+                            className="w-full h-7 px-2 text-xs bg-muted/50 border border-border/50 rounded-md focus:outline-none focus:ring-1 focus:ring-ring"
+                          />
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  {/* Multimodal Card */}
+                  <Card
+                    className={cn(
+                      "cursor-pointer transition-all duration-200",
+                      providerType === "multimodal"
+                        ? "border-primary/50 bg-primary/5"
+                        : "border-border/50 hover:border-border"
+                    )}
+                    onClick={() => setProviderType("multimodal")}
+                  >
+                    <CardHeader className="p-3 pb-2">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          {providerType === "multimodal" ? (
+                            <CheckCircle2 className="size-4 text-primary" />
+                          ) : (
+                            <Circle className="size-4 text-muted-foreground/50" />
+                          )}
+                          <CardTitle className="text-xs font-medium">
+                            {t("provider.multimodal")}
+                          </CardTitle>
+                        </div>
+                        {providerType === "multimodal" && (
+                          <span className="text-[10px] text-primary font-medium">
+                            {t("provider.active")}
+                          </span>
+                        )}
+                      </div>
+                    </CardHeader>
+                    <CardContent className="p-3 pt-0" onClick={(e) => e.stopPropagation()}>
+                      <div className="space-y-2">
+                        <div>
+                          <label className="text-[10px] text-muted-foreground block mb-1">
+                            {t("provider.url")}
+                          </label>
+                          <input
+                            type="text"
+                            value={multimodalUrl}
+                            onChange={(e) => setMultimodalUrl(e.target.value)}
+                            placeholder={t("provider.url_placeholder_multimodal")}
+                            className="w-full h-7 px-2 text-xs bg-muted/50 border border-border/50 rounded-md focus:outline-none focus:ring-1 focus:ring-ring"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-[10px] text-muted-foreground block mb-1">
+                            {t("provider.api_key")}
+                          </label>
+                          <input
+                            type="password"
+                            value={multimodalKey}
+                            onChange={(e) => setMultimodalKey(e.target.value)}
+                            placeholder={t("provider.key_placeholder")}
+                            className="w-full h-7 px-2 text-xs bg-muted/50 border border-border/50 rounded-md focus:outline-none focus:ring-1 focus:ring-ring"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-[10px] text-muted-foreground block mb-1">
+                            {t("provider.model")}
+                          </label>
+                          <input
+                            type="text"
+                            value={multimodalModel}
+                            onChange={(e) => setMultimodalModel(e.target.value)}
+                            placeholder={t("provider.model_placeholder_multimodal")}
                             className="w-full h-7 px-2 text-xs bg-muted/50 border border-border/50 rounded-md focus:outline-none focus:ring-1 focus:ring-ring"
                           />
                         </div>

@@ -29,6 +29,7 @@ export function listSubagents(): SubagentConfig[] {
       name: String(row.name),
       description: String(row.description),
       systemPrompt: String(row.system_prompt),
+      provider: (row.model_provider as string | null) ?? undefined,
       model: (row.model as string | null) ?? undefined,
       tools: parseJson<string[]>(row.tools),
       middleware: parseJson<string[]>(row.middleware),
@@ -69,6 +70,7 @@ export function createSubagent(input: Omit<SubagentConfig, "id">): SubagentConfi
     name: input.name.trim(),
     description: input.description.trim(),
     systemPrompt: appendCurrentTime(input.systemPrompt.trim()),
+    provider: input.provider,
     model: input.model,
     tools: input.tools,
     middleware: input.middleware,
@@ -79,14 +81,15 @@ export function createSubagent(input: Omit<SubagentConfig, "id">): SubagentConfi
   const database = getDb()
   database.run(
     `INSERT OR REPLACE INTO subagents
-     (id, name, description, system_prompt, model, tools, middleware, interrupt_on, enabled)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+     (id, name, description, system_prompt, model, model_provider, tools, middleware, interrupt_on, enabled)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       created.id,
       created.name,
       created.description,
       created.systemPrompt,
       created.model ?? null,
+      created.provider ?? null,
       created.tools ? JSON.stringify(created.tools) : null,
       created.middleware ? JSON.stringify(created.middleware) : null,
       created.interruptOn === undefined ? null : created.interruptOn ? 1 : 0,
@@ -135,14 +138,15 @@ export function updateSubagent(
   const database = getDb()
   database.run(
     `INSERT OR REPLACE INTO subagents
-     (id, name, description, system_prompt, model, tools, middleware, interrupt_on, enabled)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+     (id, name, description, system_prompt, model, model_provider, tools, middleware, interrupt_on, enabled)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       updated.id,
       updated.name,
       updated.description,
       updated.systemPrompt,
       updated.model ?? null,
+      updated.provider ?? null,
       updated.tools ? JSON.stringify(updated.tools) : null,
       updated.middleware ? JSON.stringify(updated.middleware) : null,
       updated.interruptOn === undefined ? null : updated.interruptOn ? 1 : 0,

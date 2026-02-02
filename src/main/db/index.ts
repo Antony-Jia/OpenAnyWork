@@ -164,6 +164,7 @@ export async function initializeDatabase(): Promise<SqlJsDatabase> {
       description TEXT NOT NULL,
       system_prompt TEXT NOT NULL,
       model TEXT,
+      model_provider TEXT,
       tools TEXT,
       middleware TEXT,
       interrupt_on INTEGER,
@@ -174,6 +175,10 @@ export async function initializeDatabase(): Promise<SqlJsDatabase> {
   db.run(`CREATE INDEX IF NOT EXISTS idx_threads_updated_at ON threads(updated_at)`)
   db.run(`CREATE INDEX IF NOT EXISTS idx_runs_thread_id ON runs(thread_id)`)
   db.run(`CREATE INDEX IF NOT EXISTS idx_runs_status ON runs(status)`)
+
+  if (!tableHasColumn(db, "subagents", "model_provider")) {
+    db.run(`ALTER TABLE subagents ADD COLUMN model_provider TEXT`)
+  }
 
   migrateConfigFromJson(db)
   saveToDisk()
@@ -216,6 +221,20 @@ function tableHasRows(database: SqlJsDatabase, tableName: string): boolean {
   const has = stmt.step()
   stmt.free()
   return has
+}
+
+function tableHasColumn(database: SqlJsDatabase, tableName: string, columnName: string): boolean {
+  const stmt = database.prepare(`PRAGMA table_info(${tableName})`)
+  let found = false
+  while (stmt.step()) {
+    const row = stmt.getAsObject() as { name?: string }
+    if (row.name === columnName) {
+      found = true
+      break
+    }
+  }
+  stmt.free()
+  return found
 }
 
 function getMetaValue(database: SqlJsDatabase, key: string): string | null {

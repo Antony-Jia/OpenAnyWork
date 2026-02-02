@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useMemo, useCallback } from "react"
-import { Send, Square, Loader2, AlertCircle, X } from "lucide-react"
+import { Send, Square, Loader2, AlertCircle, X, ImagePlus } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { useAppStore } from "@/lib/store"
 import { useCurrentThread, useThreadStream } from "@/lib/thread-context"
@@ -12,7 +12,7 @@ import { ContextUsageIndicator } from "./ContextUsageIndicator"
 import { cn } from "@/lib/utils"
 import { useLanguage } from "@/lib/i18n"
 import { useDockerState } from "@/lib/docker-state"
-import type { Message, ThreadMode, RalphLogEntry } from "@/types"
+import type { Attachment, ContentBlock, Message, ThreadMode, RalphLogEntry } from "@/types"
 
 interface AgentStreamValues {
   todos?: Array<{ id?: string; content?: string; status?: string }>
@@ -21,7 +21,7 @@ interface AgentStreamValues {
 interface StreamMessage {
   id?: string
   type?: string
-  content?: string | unknown[]
+  content?: string | ContentBlock[]
   tool_calls?: Message["tool_calls"]
   tool_call_id?: string
   name?: string
@@ -34,6 +34,7 @@ interface ChatContainerProps {
 export function ChatContainer({ threadId }: ChatContainerProps): React.JSX.Element {
   const { t } = useLanguage()
   const [input, setInput] = useState("")
+  const [attachments, setAttachments] = useState<Attachment[]>([])
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
   const isAtBottomRef = useRef(true)
@@ -124,7 +125,10 @@ export function ChatContainer({ threadId }: ChatContainerProps): React.JSX.Eleme
           const storeMsg: Message = {
             id: streamMsg.id,
             role,
-            content: typeof streamMsg.content === "string" ? streamMsg.content : "",
+            content:
+              typeof streamMsg.content === "string" || Array.isArray(streamMsg.content)
+                ? (streamMsg.content as Message["content"])
+                : "",
             tool_calls: streamMsg.tool_calls,
             ...(role === "tool" &&
               streamMsg.tool_call_id && { tool_call_id: streamMsg.tool_call_id }),
@@ -246,7 +250,10 @@ export function ChatContainer({ threadId }: ChatContainerProps): React.JSX.Eleme
         return {
           id: streamMsg.id,
           role,
-          content: typeof streamMsg.content === "string" ? streamMsg.content : "",
+        content:
+          typeof streamMsg.content === "string" || Array.isArray(streamMsg.content)
+            ? (streamMsg.content as Message["content"])
+            : "",
           tool_calls: streamMsg.tool_calls,
           ...(role === "tool" &&
             streamMsg.tool_call_id && { tool_call_id: streamMsg.tool_call_id }),
@@ -319,13 +326,33 @@ export function ChatContainer({ threadId }: ChatContainerProps): React.JSX.Eleme
     inputRef.current?.focus()
   }, [threadId])
 
+  useEffect(() => {
+    setAttachments([])
+  }, [threadId])
+
   const handleDismissError = (): void => {
     clearError()
   }
 
+  const handlePickImages = async (): Promise<void> => {
+    try {
+      const picked = await window.api.attachments.pick({ kind: "image" })
+      if (picked && picked.length > 0) {
+        setAttachments((prev) => [...prev, ...picked].slice(0, 6))
+      }
+    } catch (e) {
+      const message = e instanceof Error ? e.message : "Failed to load image."
+      setError(message)
+    }
+  }
+
+  const handleRemoveAttachment = (index: number): void => {
+    setAttachments((prev) => prev.filter((_, i) => i !== index))
+  }
+
   const handleSubmit = async (e: React.FormEvent): Promise<void> => {
     e.preventDefault()
-    if (!input.trim() || isLoading || !stream) return
+    if ((!input.trim() && attachments.length === 0) || isLoading || !stream) return
 
     if (!workspacePath) {
       setError("Please select a workspace folder before sending messages.")
@@ -346,24 +373,41 @@ export function ChatContainer({ threadId }: ChatContainerProps): React.JSX.Eleme
 
     const message = input.trim()
     setInput("")
+    const messageBlocks: ContentBlock[] = []
+    if (message) {
+      messageBlocks.push({ type: "text", text: message })
+    }
+    if (attachments.length > 0) {
+      for (const attachment of attachments) {
+        if (attachment.kind === "image") {
+          messageBlocks.push({
+            type: "image_url",
+            image_url: { url: attachment.dataUrl }
+          })
+        }
+      }
+    }
+    const messageContent: Message["content"] =
+      attachments.length > 0 ? messageBlocks : message
+    setAttachments([])
 
     const isFirstMessage = threadMessages.length === 0
 
     const userMessage: Message = {
       id: crypto.randomUUID(),
       role: "user",
-      content: message,
+      content: messageContent,
       created_at: new Date()
     }
     appendMessage(userMessage)
 
     if (isFirstMessage) {
-      generateTitleForFirstMessage(threadId, message)
+      generateTitleForFirstMessage(threadId, message || t("chat.image_message_title"))
     }
 
     await stream.submit(
       {
-        messages: [{ type: "human", content: message }]
+        messages: [{ type: "human", content: messageContent }]
       },
       {
         config: {
@@ -490,6 +534,30 @@ export function ChatContainer({ threadId }: ChatContainerProps): React.JSX.Eleme
       <div className="flex-shrink-0 px-4 pb-4 pt-2 border-t border-border/30">
         <form onSubmit={handleSubmit} className="max-w-3xl mx-auto relative">
           <div className="relative flex flex-col gap-2 rounded-xl border border-border bg-background shadow-sm focus-within:shadow-md focus-within:border-ring/30 transition-all duration-200 p-2">
+            {attachments.length > 0 && (
+              <div className="flex flex-wrap gap-2 px-2 pt-2">
+                {attachments.map((attachment, index) => (
+                  <div
+                    key={`${attachment.name}-${index}`}
+                    className="relative h-16 w-16 rounded-md overflow-hidden border border-border bg-muted/30"
+                  >
+                    <img
+                      src={attachment.dataUrl}
+                      alt={attachment.name}
+                      className="h-full w-full object-cover"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveAttachment(index)}
+                      className="absolute top-1 right-1 rounded-full bg-background/80 p-0.5 text-muted-foreground hover:text-foreground hover:bg-background"
+                      aria-label="Remove attachment"
+                    >
+                      <X className="size-3" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
             <textarea
               ref={inputRef}
               value={input}
@@ -504,6 +572,18 @@ export function ChatContainer({ threadId }: ChatContainerProps): React.JSX.Eleme
             <div className="flex items-center justify-between px-2 pb-1">
               <div className="flex items-center gap-2">
                 <WorkspacePicker threadId={threadId} />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  onClick={handlePickImages}
+                  disabled={isLoading}
+                  title={t("chat.attach_image")}
+                  aria-label={t("chat.attach_image")}
+                  className="h-7 w-7"
+                >
+                  <ImagePlus className="size-3.5" />
+                </Button>
               </div>
               <div className="flex items-center">
                 {isLoading ? (
@@ -521,10 +601,10 @@ export function ChatContainer({ threadId }: ChatContainerProps): React.JSX.Eleme
                     type="submit"
                     variant="ghost"
                     size="icon-sm"
-                    disabled={!input.trim()}
+                    disabled={!input.trim() && attachments.length === 0}
                     className={cn(
                       "h-7 w-7 transition-all duration-200",
-                      input.trim()
+                      input.trim() || attachments.length > 0
                         ? "bg-primary text-primary-foreground hover:bg-primary/90"
                         : "text-muted-foreground"
                     )}

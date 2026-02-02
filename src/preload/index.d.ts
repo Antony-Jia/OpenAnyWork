@@ -2,6 +2,7 @@ import type {
   Thread,
   ModelConfig,
   Provider,
+  ProviderState,
   StreamEvent,
   HITLDecision,
   SubagentConfig,
@@ -20,7 +21,9 @@ import type {
   SettingsUpdateParams,
   DockerConfig,
   DockerSessionStatus,
-  RalphLogEntry
+  RalphLogEntry,
+  ContentBlock,
+  Attachment
 } from "../main/types"
 
 interface ElectronAPI {
@@ -40,13 +43,13 @@ interface CustomAPI {
   agent: {
     invoke: (
       threadId: string,
-      message: string,
+      message: string | ContentBlock[],
       onEvent: (event: StreamEvent) => void,
       modelId?: string
     ) => () => void
     streamAgent: (
       threadId: string,
-      message: string,
+      message: string | ContentBlock[],
       command: unknown,
       onEvent: (event: StreamEvent) => void,
       modelId?: string
@@ -78,8 +81,11 @@ interface CustomAPI {
     getApiKey: (provider: string) => Promise<string | null>
   }
   provider: {
-    getConfig: () => Promise<unknown>
-    setConfig: (config: unknown) => Promise<void>
+    getConfig: () => Promise<ProviderState | null>
+    setConfig: (config: ProviderState) => Promise<void>
+  }
+  attachments: {
+    pick: (input: { kind: "image" }) => Promise<Attachment[] | null>
   }
   subagents: {
     list: () => Promise<SubagentConfig[]>

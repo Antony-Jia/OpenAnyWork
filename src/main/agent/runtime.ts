@@ -2,7 +2,7 @@
 import { createDeepAgent } from "deepagents"
 import { toolRetryMiddleware, createMiddleware } from "langchain"
 import { getThreadCheckpointPath } from "../storage"
-import { getProviderConfig } from "../provider-config"
+import { getProviderState } from "../provider-config"
 import { ChatOpenAI } from "@langchain/openai"
 import { ToolMessage } from "@langchain/core/messages"
 import { SqlJsSaver } from "../checkpointer/sqljs-saver"
@@ -17,7 +17,13 @@ import {
 import { getRunningMcpToolInstances, listRunningMcpTools } from "../mcp/service"
 import { resolveMiddlewareById } from "../middleware/registry"
 import { createDockerTools } from "../tools/docker-tools"
-import type { DockerConfig } from "../types"
+import type {
+  ContentBlock,
+  DockerConfig,
+  ProviderConfig,
+  ProviderState,
+  SimpleProviderId
+} from "../types"
 import { logEntry, logExit, summarizeList } from "../logging"
 
 import type * as _lcTypes from "langchain"
@@ -146,21 +152,56 @@ export async function closeCheckpointer(threadId: string): Promise<void> {
   }
 }
 
-// Get the appropriate model instance based on new simplified provider configuration
-function getModelInstance(modelId?: string): ChatOpenAI {
-  const config = getProviderConfig()
+function hasImageBlocks(content?: string | ContentBlock[]): boolean {
+  if (!Array.isArray(content)) return false
+  return content.some((block) => block?.type === "image" || block?.type === "image_url")
+}
 
-  if (!config) {
+function requireProviderState(): ProviderState {
+  const state = getProviderState()
+  if (!state) {
     throw new Error(
-      "Provider not configured. Please configure Ollama or OpenAI-compatible provider in Settings."
+      "Provider not configured. Please configure Ollama, OpenAI-compatible, or Multimodal provider in Settings."
     )
   }
+  return state
+}
+
+function resolveProviderConfig(
+  state: ProviderState,
+  providerId: SimpleProviderId
+): ProviderConfig {
+  const config = state.configs[providerId]
+  if (!config) {
+    throw new Error(`Provider "${providerId}" not configured. Please configure it in Settings.`)
+  }
+  return config
+}
+
+// Get the appropriate model instance based on new simplified provider configuration
+function getModelInstance(
+  providerOverride?: SimpleProviderId,
+  modelOverride?: string,
+  messageContent?: string | ContentBlock[]
+): ChatOpenAI {
+  const state = requireProviderState()
+  const requestedProvider = providerOverride ?? state.active
+  const config = resolveProviderConfig(state, requestedProvider)
 
   // 使用 Provider 配置中的 model（简化配置模式下忽略传入的 modelId）
-  const effectiveModel = config.model
-  console.log("[Runtime] Using provider config:", config.type)
+  const effectiveModel = modelOverride?.trim() || config.model
+  if (!effectiveModel) {
+    throw new Error(`Provider "${requestedProvider}" has no model configured.`)
+  }
+
+  console.log("[Runtime] Using provider:", requestedProvider)
   console.log("[Runtime] Configured model:", config.model)
-  console.log("[Runtime] Ignored modelId:", modelId)
+  if (modelOverride) {
+    console.log("[Runtime] Model override:", modelOverride)
+  }
+  if (hasImageBlocks(messageContent)) {
+    console.log("[Runtime] Detected image content in message")
+  }
 
   if (config.type === "ollama") {
     // Ollama uses OpenAI-compatible API at /v1 endpoint
@@ -176,18 +217,22 @@ function getModelInstance(modelId?: string): ChatOpenAI {
       // Use a placeholder value
       apiKey: "ollama"
     })
-  } else {
-    // OpenAI-compatible provider
-    console.log("[Runtime] OpenAI-compatible baseURL:", config.url)
-
-    return new ChatOpenAI({
-      model: effectiveModel,
-      apiKey: config.apiKey,
-      configuration: {
-        baseURL: config.url
-      }
-    })
   }
+
+  if (!config.apiKey) {
+    throw new Error(`Provider "${requestedProvider}" is missing an API key.`)
+  }
+
+  // OpenAI-compatible / Multimodal provider
+  console.log("[Runtime] OpenAI-compatible baseURL:", config.url)
+
+  return new ChatOpenAI({
+    model: effectiveModel,
+    apiKey: config.apiKey,
+    configuration: {
+      baseURL: config.url
+    }
+  })
 }
 
 // ============================================================================
@@ -248,6 +293,8 @@ export interface CreateAgentRuntimeOptions {
   threadId: string
   /** Model ID to use (defaults to configured default model) */
   modelId?: string
+  /** Optional message content for multimodal detection */
+  messageContent?: string | ContentBlock[]
   /** Workspace path - REQUIRED for agent to operate on files */
   workspacePath: string
   /** Optional docker configuration for container mode */
@@ -269,6 +316,7 @@ export async function createAgentRuntime(options: CreateAgentRuntimeOptions) {
   const {
     threadId,
     modelId,
+    messageContent,
     workspacePath,
     dockerConfig,
     dockerContainerId,
@@ -300,7 +348,8 @@ export async function createAgentRuntime(options: CreateAgentRuntimeOptions) {
     console.log("[Runtime] Docker mode enabled with image:", dockerConfig.image)
   }
 
-  const model = getModelInstance(modelId)
+  const requiresMultimodal = hasImageBlocks(messageContent)
+  const model = getModelInstance(requiresMultimodal ? "multimodal" : undefined, undefined, messageContent)
   console.log("[Runtime] Model instance created:", typeof model)
 
   const checkpointer = await getCheckpointer(threadId)
@@ -336,11 +385,12 @@ export async function createAgentRuntime(options: CreateAgentRuntimeOptions) {
         name: agent.name,
         resolvedCount: resolvedTools.length
       })
+      const subagentModel = getModelInstance(agent.provider, agent.model, undefined)
       return {
         name: agent.name,
         description: agent.description,
         systemPrompt: `${agent.systemPrompt}\n\n${currentTimePrompt}`,
-        model: agent.model,
+        model: subagentModel,
         tools: resolvedTools,
         middleware: resolveMiddlewareById(agent.middleware),
         interruptOn: disableApprovals

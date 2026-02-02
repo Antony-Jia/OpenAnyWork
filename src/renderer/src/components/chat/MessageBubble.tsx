@@ -74,6 +74,17 @@ export function MessageBubble({
             </StreamingMarkdown>
           )
         }
+        if (block.type === "image_url" && block.image_url?.url) {
+          return (
+            <div key={index} className="mt-2">
+              <img
+                src={block.image_url.url}
+                alt="attachment"
+                className="max-h-64 rounded-md border border-border object-contain"
+              />
+            </div>
+          )
+        }
         return null
       })
       .filter(Boolean)

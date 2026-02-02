@@ -15,6 +15,7 @@ import type {
   McpServerListItem,
   McpToolInfo,
   MiddlewareDefinition,
+  SimpleProviderId,
   SubagentConfig,
   ToolInfo
 } from "@/types"
@@ -23,6 +24,8 @@ interface SubagentFormState {
   name: string
   description: string
   systemPrompt: string
+  provider: SimpleProviderId | "inherit"
+  model: string
   interruptOn: boolean
   tools: string[]
   middleware: string[]
@@ -32,6 +35,8 @@ const emptyForm: SubagentFormState = {
   name: "",
   description: "",
   systemPrompt: "",
+  provider: "inherit",
+  model: "",
   interruptOn: false,
   tools: [],
   middleware: []
@@ -105,6 +110,8 @@ export function SubagentManager(): React.JSX.Element {
       name: agent.name,
       description: agent.description,
       systemPrompt: agent.systemPrompt,
+      provider: agent.provider ?? "inherit",
+      model: agent.model ?? "",
       interruptOn: agent.interruptOn ?? false,
       tools: agent.tools ?? [],
       middleware: agent.middleware ?? []
@@ -158,6 +165,8 @@ export function SubagentManager(): React.JSX.Element {
           name: form.name,
           description: form.description,
           systemPrompt: form.systemPrompt,
+          provider: form.provider === "inherit" ? undefined : form.provider,
+          model: form.model.trim() ? form.model.trim() : undefined,
           tools: form.tools,
           middleware: form.middleware,
           interruptOn: form.interruptOn
@@ -167,6 +176,8 @@ export function SubagentManager(): React.JSX.Element {
           name: form.name,
           description: form.description,
           systemPrompt: form.systemPrompt,
+          provider: form.provider === "inherit" ? undefined : form.provider,
+          model: form.model.trim() ? form.model.trim() : undefined,
           tools: form.tools,
           middleware: form.middleware,
           interruptOn: form.interruptOn
@@ -316,6 +327,38 @@ export function SubagentManager(): React.JSX.Element {
                     onChange={(e) => setForm((prev) => ({ ...prev, systemPrompt: e.target.value }))}
                     className="w-full min-h-[120px] rounded-sm border border-input bg-background px-3 py-2 text-sm text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
                   />
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <label className="text-xs text-muted-foreground">
+                      {t("subagents.provider")}
+                    </label>
+                    <select
+                      value={form.provider}
+                      onChange={(e) =>
+                        setForm((prev) => ({
+                          ...prev,
+                          provider: e.target.value as SimpleProviderId | "inherit"
+                        }))
+                      }
+                      className="w-full rounded-sm border border-input bg-background px-3 py-2 text-sm text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                    >
+                      <option value="inherit">{t("subagents.provider_inherit")}</option>
+                      <option value="ollama">{t("provider.ollama")}</option>
+                      <option value="openai-compatible">{t("provider.openai_compatible")}</option>
+                      <option value="multimodal">{t("provider.multimodal")}</option>
+                    </select>
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-xs text-muted-foreground">
+                      {t("subagents.model")}
+                    </label>
+                    <Input
+                      value={form.model}
+                      onChange={(e) => setForm((prev) => ({ ...prev, model: e.target.value }))}
+                      placeholder={t("subagents.model_placeholder")}
+                    />
+                  </div>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div className="space-y-2">

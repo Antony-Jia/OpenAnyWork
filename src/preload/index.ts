@@ -3,6 +3,7 @@ import type {
   Thread,
   ModelConfig,
   Provider,
+  ProviderState,
   StreamEvent,
   HITLDecision,
   SubagentConfig,
@@ -19,7 +20,9 @@ import type {
   McpToolInfo,
   AppSettings,
   SettingsUpdateParams,
-  RalphLogEntry
+  RalphLogEntry,
+  Attachment,
+  ContentBlock
 } from "../main/types"
 
 // Simple electron API - replaces @electron-toolkit/preload
@@ -47,7 +50,7 @@ const api = {
     // Send message and receive events via callback
     invoke: (
       threadId: string,
-      message: string,
+      message: string | ContentBlock[],
       onEvent: (event: StreamEvent) => void,
       modelId?: string
     ): (() => void) => {
@@ -71,7 +74,7 @@ const api = {
     // Stream agent events for useStream transport
     streamAgent: (
       threadId: string,
-      message: string,
+      message: string | ContentBlock[],
       command: unknown,
       onEvent: (event: StreamEvent) => void,
       modelId?: string
@@ -175,11 +178,16 @@ const api = {
     }
   },
   provider: {
-    getConfig: (): Promise<unknown> => {
+    getConfig: (): Promise<ProviderState | null> => {
       return ipcRenderer.invoke("provider:getConfig")
     },
-    setConfig: (config: unknown): Promise<void> => {
+    setConfig: (config: ProviderState): Promise<void> => {
       return ipcRenderer.invoke("provider:setConfig", config)
+    }
+  },
+  attachments: {
+    pick: (input: { kind: "image" }): Promise<Attachment[] | null> => {
+      return ipcRenderer.invoke("attachments:pick", input)
     }
   },
   subagents: {

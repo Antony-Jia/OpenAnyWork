@@ -5,7 +5,7 @@ import * as path from "path"
 import type {
   ModelConfig,
   Provider,
-  ProviderConfig,
+  ProviderState,
   SetApiKeyParams,
   WorkspaceSetParams,
   WorkspaceLoadParams,
@@ -14,7 +14,7 @@ import type {
 } from "../types"
 import { startWatching, stopWatching } from "../services/workspace-watcher"
 import { getOpenworkDir, getApiKey, setApiKey, deleteApiKey, hasApiKey } from "../storage"
-import { getProviderConfig, setProviderConfig } from "../provider-config"
+import { getProviderState, setProviderState } from "../provider-config"
 import { buildEmailSubject, sendEmail } from "../email/service"
 
 // Store for non-sensitive settings only (no encryption needed)
@@ -310,12 +310,12 @@ export function registerModelHandlers(ipcMain: IpcMain): void {
 
   // Get current provider configuration
   ipcMain.handle("provider:getConfig", async () => {
-    return getProviderConfig()
+    return getProviderState()
   })
 
   // Set provider configuration
-  ipcMain.handle("provider:setConfig", async (_event, config: ProviderConfig) => {
-    setProviderConfig(config)
+  ipcMain.handle("provider:setConfig", async (_event, config: ProviderState) => {
+    setProviderState(config)
   })
 
   // Sync version info

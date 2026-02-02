@@ -17,6 +17,7 @@ import type {
   AgentResumeParams,
   AgentInterruptParams,
   AgentCancelParams,
+  ContentBlock,
   RalphState,
   ThreadMode,
   RalphLogEntry,
@@ -119,6 +120,14 @@ function buildRalphInitPrompt(userMessage: string): string {
   ].join("\n")
 }
 
+function extractTextFromContent(content: string | ContentBlock[]): string {
+  if (typeof content === "string") return content
+  if (!Array.isArray(content)) return ""
+  return content
+    .map((block) => (block.type === "text" && block.text ? block.text : ""))
+    .join("")
+}
+
 async function streamAgentRun({
   threadId,
   workspacePath,
@@ -142,7 +151,7 @@ async function streamAgentRun({
   disableApprovals?: boolean
   extraSystemPrompt?: string
   forceToolNames?: string[]
-  message: string
+  message: string | ContentBlock[]
   window: BrowserWindow
   channel: string
   abortController: AbortController
@@ -156,6 +165,7 @@ async function streamAgentRun({
     threadId,
     workspacePath,
     modelId,
+    messageContent: message,
     dockerConfig,
     dockerContainerId,
     disableApprovals,
@@ -163,7 +173,9 @@ async function streamAgentRun({
     forceToolNames
   })
 
-  const humanMessage = new HumanMessage(message)
+  const humanMessage = Array.isArray(message)
+    ? new HumanMessage({ content: message })
+    : new HumanMessage(message)
   const stream = await agent.stream(
     { messages: [humanMessage] },
     {
@@ -366,10 +378,11 @@ export function registerAgentHandlers(ipcMain: IpcMain): void {
   ipcMain.on("agent:invoke", async (event, { threadId, message, modelId }: AgentInvokeParams) => {
     const channel = `agent:stream:${threadId}`
     const window = BrowserWindow.fromWebContents(event.sender)
+    const messageText = extractTextFromContent(message)
 
     console.log("[Agent] Received invoke request:", {
       threadId,
-      message: message.substring(0, 50),
+      message: messageText.substring(0, 50),
       modelId
     })
 
@@ -440,7 +453,7 @@ export function registerAgentHandlers(ipcMain: IpcMain): void {
           })
         }
 
-        const trimmedMessage = message.trim()
+        const trimmedMessage = messageText.trim()
         if (trimmedMessage) {
           emitRalphLog({
             role: "user",
@@ -567,7 +580,7 @@ export function registerAgentHandlers(ipcMain: IpcMain): void {
 
         if (ralph.phase === "init" || ralph.phase === "done") {
           await resetRalphCheckpoint(threadId)
-          const initPrompt = buildRalphInitPrompt(message)
+          const initPrompt = buildRalphInitPrompt(messageText)
 
           await streamAgentRun({
             threadId,

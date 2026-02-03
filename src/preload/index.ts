@@ -20,6 +20,10 @@ import type {
   McpToolInfo,
   AppSettings,
   SettingsUpdateParams,
+  SpeechSttRequest,
+  SpeechSttResponse,
+  SpeechTtsRequest,
+  SpeechTtsResponse,
   RalphLogEntry,
   Attachment,
   ContentBlock,
@@ -303,6 +307,14 @@ const api = {
     },
     update: (input: SettingsUpdateParams): Promise<AppSettings> => {
       return ipcRenderer.invoke("settings:update", input)
+    }
+  },
+  speech: {
+    stt: (input: SpeechSttRequest): Promise<SpeechSttResponse> => {
+      return ipcRenderer.invoke("speech:stt", input)
+    },
+    tts: (input: SpeechTtsRequest): Promise<SpeechTtsResponse> => {
+      return ipcRenderer.invoke("speech:tts", input)
     }
   },
   mcp: {

@@ -24,6 +24,18 @@ const defaultSettings: AppSettings = {
     taskTag: "<OpenworkTask>",
     pollIntervalSec: 60
   },
+  speech: {
+    stt: {
+      url: "",
+      headers: {},
+      language: ""
+    },
+    tts: {
+      url: "",
+      headers: {},
+      voice: ""
+    }
+  },
   defaultWorkspacePath: "",
   dockerConfig: {
     enabled: false,
@@ -51,26 +63,38 @@ function readSettings(): AppSettings {
   const row = stmt.getAsObject() as { data?: string }
   stmt.free()
 
-  try {
-    const parsed = JSON.parse(row.data ?? "{}") as AppSettings
-    return {
-      ...defaultSettings,
-      ...parsed,
-      email: {
-        ...defaultSettings.email,
-        ...(parsed?.email ?? {}),
-        smtp: {
-          ...defaultSettings.email.smtp,
-          ...(parsed?.email?.smtp ?? {})
+    try {
+      const parsed = JSON.parse(row.data ?? "{}") as AppSettings
+      return {
+        ...defaultSettings,
+        ...parsed,
+        email: {
+          ...defaultSettings.email,
+          ...(parsed?.email ?? {}),
+          smtp: {
+            ...defaultSettings.email.smtp,
+            ...(parsed?.email?.smtp ?? {})
+          },
+          imap: {
+            ...defaultSettings.email.imap,
+            ...(parsed?.email?.imap ?? {})
+          }
         },
-        imap: {
-          ...defaultSettings.email.imap,
-          ...(parsed?.email?.imap ?? {})
+        speech: {
+          ...defaultSettings.speech,
+          ...(parsed?.speech ?? {}),
+          stt: {
+            ...defaultSettings.speech.stt,
+            ...(parsed?.speech?.stt ?? {})
+          },
+          tts: {
+            ...defaultSettings.speech.tts,
+            ...(parsed?.speech?.tts ?? {})
+          }
         }
       }
-    }
-  } catch {
-    return defaultSettings
+    } catch {
+      return defaultSettings
   }
 }
 
@@ -100,6 +124,18 @@ export function updateSettings(updates: Partial<AppSettings>): AppSettings {
       imap: {
         ...current.email.imap,
         ...(updates.email?.imap ?? {})
+      }
+    },
+    speech: {
+      ...current.speech,
+      ...(updates.speech ?? {}),
+      stt: {
+        ...current.speech.stt,
+        ...(updates.speech?.stt ?? {})
+      },
+      tts: {
+        ...current.speech.tts,
+        ...(updates.speech?.tts ?? {})
       }
     },
     defaultWorkspacePath:

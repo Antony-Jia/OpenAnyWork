@@ -17,10 +17,38 @@ interface SettingsMenuProps {
   threadId: string | null
 }
 
+function serializeKeyValue(record?: Record<string, string>): string {
+  if (!record) return ""
+  return Object.entries(record)
+    .map(([key, value]) => `${key}=${value}`)
+    .join("\n")
+}
+
+function parseKeyValue(text: string): Record<string, string> | undefined {
+  const entries = text
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean)
+
+  if (entries.length === 0) return undefined
+
+  const result: Record<string, string> = {}
+  for (const entry of entries) {
+    const [rawKey, ...rest] = entry.split("=")
+    const key = rawKey?.trim()
+    if (!key) continue
+    result[key] = rest.join("=").trim()
+  }
+
+  return Object.keys(result).length > 0 ? result : undefined
+}
+
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 export function SettingsMenu(_props: SettingsMenuProps): React.JSX.Element {
   const [open, setOpen] = useState(false)
-  const [activeTab, setActiveTab] = useState<"general" | "provider" | "ralph" | "email">("general")
+  const [activeTab, setActiveTab] = useState<
+    "general" | "provider" | "ralph" | "email" | "speech"
+  >("general")
   const { language, setLanguage, theme, setTheme, t } = useLanguage()
 
   // Provider configuration state
@@ -56,6 +84,14 @@ export function SettingsMenu(_props: SettingsMenuProps): React.JSX.Element {
   const [imapPollIntervalSec, setImapPollIntervalSec] = useState("60")
   const [taskTag, setTaskTag] = useState("<OpenworkTask>")
   const [defaultWorkspacePath, setDefaultWorkspacePath] = useState("")
+
+  // Speech settings
+  const [sttUrl, setSttUrl] = useState("")
+  const [sttHeaders, setSttHeaders] = useState("")
+  const [sttLanguage, setSttLanguage] = useState("")
+  const [ttsUrl, setTtsUrl] = useState("")
+  const [ttsHeaders, setTtsHeaders] = useState("")
+  const [ttsVoice, setTtsVoice] = useState("")
 
   // Load current config on mount
   useEffect(() => {
@@ -102,6 +138,12 @@ export function SettingsMenu(_props: SettingsMenuProps): React.JSX.Element {
           setImapPass(settings.email?.imap?.pass || "")
           setTaskTag(settings.email?.taskTag || "<OpenworkTask>")
           setImapPollIntervalSec(String(settings.email?.pollIntervalSec ?? 60))
+          setSttUrl(settings.speech?.stt?.url || "")
+          setSttHeaders(serializeKeyValue(settings.speech?.stt?.headers))
+          setSttLanguage(settings.speech?.stt?.language || "")
+          setTtsUrl(settings.speech?.tts?.url || "")
+          setTtsHeaders(serializeKeyValue(settings.speech?.tts?.headers))
+          setTtsVoice(settings.speech?.tts?.voice || "")
         }
       } catch (e) {
         console.error("Failed to load provider config:", e)
@@ -184,6 +226,18 @@ export function SettingsMenu(_props: SettingsMenuProps): React.JSX.Element {
               Number.isFinite(imapPollIntervalValue) && imapPollIntervalValue > 0
                 ? imapPollIntervalValue
                 : 60
+          },
+          speech: {
+            stt: {
+              url: sttUrl.trim(),
+              headers: parseKeyValue(sttHeaders),
+              language: sttLanguage.trim()
+            },
+            tts: {
+              url: ttsUrl.trim(),
+              headers: parseKeyValue(ttsHeaders),
+              voice: ttsVoice.trim()
+            }
           }
         }
       })
@@ -218,7 +272,13 @@ export function SettingsMenu(_props: SettingsMenuProps): React.JSX.Element {
     imapUser,
     imapPass,
     imapPollIntervalSec,
-    taskTag
+    taskTag,
+    sttUrl,
+    sttHeaders,
+    sttLanguage,
+    ttsUrl,
+    ttsHeaders,
+    ttsVoice
   ])
 
   const handleSelectDefaultWorkspace = useCallback(async () => {
@@ -264,7 +324,8 @@ export function SettingsMenu(_props: SettingsMenuProps): React.JSX.Element {
                 { id: "general", label: t("settings.tabs.general") },
                 { id: "provider", label: t("settings.tabs.provider") },
                 { id: "ralph", label: t("settings.tabs.ralph") },
-                { id: "email", label: t("settings.tabs.email") }
+                { id: "email", label: t("settings.tabs.email") },
+                { id: "speech", label: t("settings.tabs.speech") }
               ] as const
             ).map((tab) => (
               <Button
@@ -768,6 +829,93 @@ export function SettingsMenu(_props: SettingsMenuProps): React.JSX.Element {
                   />
                   <div className="text-[10px] text-muted-foreground/70">
                     {t("settings.email.poll_interval_hint")}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {activeTab === "speech" && (
+              <div className="px-4 py-3 pb-6 border-b border-border/70 space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">
+                    {t("settings.speech.title")}
+                  </span>
+                  {settingsSaved ? (
+                    <span className="text-[10px] text-green-500">{t("settings.saved")}</span>
+                  ) : null}
+                </div>
+
+                <div className="space-y-2">
+                  <div className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">
+                    {t("settings.speech.stt_title")}
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-[10px] text-muted-foreground block mb-1">
+                      {t("settings.speech.stt_url")}
+                    </label>
+                    <input
+                      type="text"
+                      value={sttUrl}
+                      onChange={(e) => setSttUrl(e.target.value)}
+                      placeholder="https://example.com/stt"
+                      className="w-full h-7 px-2 text-xs bg-muted/50 border border-border/50 rounded-md focus:outline-none focus:ring-1 focus:ring-ring"
+                    />
+                    <label className="text-[10px] text-muted-foreground block mb-1">
+                      {t("settings.speech.headers")}
+                    </label>
+                    <textarea
+                      value={sttHeaders}
+                      onChange={(e) => setSttHeaders(e.target.value)}
+                      placeholder={t("settings.speech.headers_placeholder")}
+                      className="w-full min-h-[70px] px-2 py-2 text-xs bg-muted/50 border border-border/50 rounded-md focus:outline-none focus:ring-1 focus:ring-ring"
+                    />
+                    <label className="text-[10px] text-muted-foreground block mb-1">
+                      {t("settings.speech.stt_language_label")}
+                    </label>
+                    <input
+                      type="text"
+                      value={sttLanguage}
+                      onChange={(e) => setSttLanguage(e.target.value)}
+                      placeholder={t("settings.speech.stt_language")}
+                      className="w-full h-7 px-2 text-xs bg-muted/50 border border-border/50 rounded-md focus:outline-none focus:ring-1 focus:ring-ring"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <div className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">
+                    {t("settings.speech.tts_title")}
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-[10px] text-muted-foreground block mb-1">
+                      {t("settings.speech.tts_url")}
+                    </label>
+                    <input
+                      type="text"
+                      value={ttsUrl}
+                      onChange={(e) => setTtsUrl(e.target.value)}
+                      placeholder="https://example.com/tts"
+                      className="w-full h-7 px-2 text-xs bg-muted/50 border border-border/50 rounded-md focus:outline-none focus:ring-1 focus:ring-ring"
+                    />
+                    <label className="text-[10px] text-muted-foreground block mb-1">
+                      {t("settings.speech.headers")}
+                    </label>
+                    <textarea
+                      value={ttsHeaders}
+                      onChange={(e) => setTtsHeaders(e.target.value)}
+                      placeholder={t("settings.speech.headers_placeholder")}
+                      className="w-full min-h-[70px] px-2 py-2 text-xs bg-muted/50 border border-border/50 rounded-md focus:outline-none focus:ring-1 focus:ring-ring"
+                    />
+                    <label className="text-[10px] text-muted-foreground block mb-1">
+                      {t("settings.speech.tts_voice_label")}
+                    </label>
+                    <input
+                      type="text"
+                      value={ttsVoice}
+                      onChange={(e) => setTtsVoice(e.target.value)}
+                      placeholder={t("settings.speech.tts_voice")}
+                      className="w-full h-7 px-2 text-xs bg-muted/50 border border-border/50 rounded-md focus:outline-none focus:ring-1 focus:ring-ring"
+                    />
                   </div>
                 </div>
               </div>

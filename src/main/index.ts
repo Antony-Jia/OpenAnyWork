@@ -28,6 +28,7 @@ import { registerMcpHandlers } from "./ipc/mcp"
 import { registerLoopHandlers } from "./ipc/loop"
 import { startAutoMcpServers } from "./mcp/service"
 import { registerSettingsHandlers } from "./ipc/settings"
+import { registerSpeechHandlers } from "./ipc/speech"
 import { startEmailPolling, stopEmailPolling } from "./email/worker"
 import { loopManager } from "./loop/manager"
 
@@ -142,6 +143,7 @@ app.whenReady().then(async () => {
   registerAttachmentHandlers(ipcMain)
   registerMcpHandlers(ipcMain)
   registerSettingsHandlers(ipcMain)
+  registerSpeechHandlers(ipcMain)
   registerLoopHandlers(ipcMain)
 
   await startAutoMcpServers()

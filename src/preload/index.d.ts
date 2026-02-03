@@ -19,6 +19,10 @@ import type {
   McpToolInfo,
   AppSettings,
   SettingsUpdateParams,
+  SpeechSttRequest,
+  SpeechSttResponse,
+  SpeechTtsRequest,
+  SpeechTtsResponse,
   DockerConfig,
   DockerSessionStatus,
   RalphLogEntry,
@@ -147,6 +151,10 @@ interface CustomAPI {
   settings: {
     get: () => Promise<AppSettings>
     update: (input: SettingsUpdateParams) => Promise<AppSettings>
+  }
+  speech: {
+    stt: (input: SpeechSttRequest) => Promise<SpeechSttResponse>
+    tts: (input: SpeechTtsRequest) => Promise<SpeechTtsResponse>
   }
   mcp: {
     list: () => Promise<McpServerListItem[]>

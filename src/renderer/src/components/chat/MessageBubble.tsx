@@ -1,5 +1,7 @@
-import { User, Bot } from "lucide-react"
+import { useCallback, useEffect, useRef, useState } from "react"
+import { User, Bot, Volume2, Square, Loader2 } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { useLanguage } from "@/lib/i18n"
 import type { Message, HITLRequest } from "@/types"
 import { ToolCallRenderer } from "./ToolCallRenderer"
 import { StreamingMarkdown } from "./StreamingMarkdown"
@@ -17,6 +19,23 @@ interface MessageBubbleProps {
   onApprovalDecision?: (decision: "approve" | "reject" | "edit") => void
 }
 
+function extractTextFromContent(content: Message["content"]): string {
+  if (typeof content === "string") return content
+  return content
+    .map((block) => (block.type === "text" && block.text ? block.text : ""))
+    .filter(Boolean)
+    .join("\n")
+}
+
+function base64ToUint8Array(base64: string): Uint8Array {
+  const binary = atob(base64)
+  const bytes = new Uint8Array(binary.length)
+  for (let i = 0; i < binary.length; i += 1) {
+    bytes[i] = binary.charCodeAt(i)
+  }
+  return bytes
+}
+
 export function MessageBubble({
   message,
   isStreaming,
@@ -24,8 +43,68 @@ export function MessageBubble({
   pendingApproval,
   onApprovalDecision
 }: MessageBubbleProps): React.JSX.Element | null {
+  const { t } = useLanguage()
   const isUser = message.role === "user"
   const isTool = message.role === "tool"
+  const ttsText = extractTextFromContent(message.content).trim()
+  const canPlayAudio = !isUser && !isTool && Boolean(ttsText)
+  const [isPlaying, setIsPlaying] = useState(false)
+  const [isTtsBusy, setIsTtsBusy] = useState(false)
+  const audioRef = useRef<HTMLAudioElement | null>(null)
+  const objectUrlRef = useRef<string | null>(null)
+
+  const stopPlayback = useCallback(() => {
+    if (audioRef.current) {
+      audioRef.current.pause()
+      audioRef.current.currentTime = 0
+      audioRef.current = null
+    }
+    if (objectUrlRef.current) {
+      URL.revokeObjectURL(objectUrlRef.current)
+      objectUrlRef.current = null
+    }
+    setIsPlaying(false)
+  }, [])
+
+  const handleTogglePlayback = useCallback(async () => {
+    if (isPlaying) {
+      stopPlayback()
+      return
+    }
+    if (!ttsText) return
+
+    setIsTtsBusy(true)
+    try {
+      const result = await window.api.speech.tts({ text: ttsText })
+      const bytes = base64ToUint8Array(result.audioBase64)
+      const blob = new Blob([bytes], { type: result.mimeType || "audio/mpeg" })
+      const url = URL.createObjectURL(blob)
+      objectUrlRef.current = url
+      const audio = new Audio(url)
+      audioRef.current = audio
+
+      audio.onended = stopPlayback
+      audio.onerror = () => {
+        console.error(t("chat.voice_play_failed"))
+        stopPlayback()
+      }
+
+      setIsPlaying(true)
+      await audio.play()
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err)
+      console.error(`${t("chat.voice_play_failed")}: ${message}`)
+      stopPlayback()
+    } finally {
+      setIsTtsBusy(false)
+    }
+  }, [isPlaying, stopPlayback, t, ttsText])
+
+  useEffect(() => {
+    return () => {
+      stopPlayback()
+    }
+  }, [stopPlayback])
 
   // Hide tool result messages - they're shown inline with tool calls
   if (isTool) {
@@ -117,8 +196,33 @@ export function MessageBubble({
 
         {content && (
           <div
-            className={cn("rounded-sm p-3 overflow-hidden", isUser ? "bg-primary/10" : "bg-card")}
+            className={cn(
+              "rounded-sm p-3 overflow-hidden relative",
+              isUser ? "bg-primary/10" : "bg-card",
+              canPlayAudio && "pr-10"
+            )}
           >
+            {canPlayAudio && (
+              <button
+                type="button"
+                onClick={handleTogglePlayback}
+                disabled={isTtsBusy}
+                title={isPlaying ? t("chat.voice_stop_playback") : t("chat.voice_play")}
+                aria-label={isPlaying ? t("chat.voice_stop_playback") : t("chat.voice_play")}
+                className={cn(
+                  "absolute top-2 right-2 rounded p-1 text-muted-foreground hover:text-foreground hover:bg-background/60 transition-colors",
+                  isTtsBusy && "opacity-60 cursor-not-allowed"
+                )}
+              >
+                {isTtsBusy ? (
+                  <Loader2 className="size-3.5 animate-spin" />
+                ) : isPlaying ? (
+                  <Square className="size-3.5 fill-current" />
+                ) : (
+                  <Volume2 className="size-3.5" />
+                )}
+              </button>
+            )}
             {content}
           </div>
         )}

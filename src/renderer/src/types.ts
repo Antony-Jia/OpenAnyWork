@@ -247,15 +247,53 @@ export interface EmailSettings {
   pollIntervalSec: number
 }
 
+export interface SpeechSttSettings {
+  url: string
+  headers?: Record<string, string>
+  language?: string
+}
+
+export interface SpeechTtsSettings {
+  url: string
+  headers?: Record<string, string>
+  voice?: string
+}
+
+export interface SpeechSettings {
+  stt: SpeechSttSettings
+  tts: SpeechTtsSettings
+}
+
 export interface AppSettings {
   ralphIterations: number
   email: EmailSettings
+  speech: SpeechSettings
   defaultWorkspacePath?: string | null
   dockerConfig?: DockerConfig
 }
 
 export interface SettingsUpdateParams {
   updates: Partial<AppSettings>
+}
+
+export interface SpeechSttRequest {
+  audioBase64: string
+  mimeType: string
+  language?: string
+}
+
+export interface SpeechSttResponse {
+  text: string
+}
+
+export interface SpeechTtsRequest {
+  text: string
+  voice?: string
+}
+
+export interface SpeechTtsResponse {
+  audioBase64: string
+  mimeType: string
 }
 
 // MCP configuration

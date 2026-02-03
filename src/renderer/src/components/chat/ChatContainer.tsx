@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useMemo, useCallback } from "react"
-import { Send, Square, Loader2, AlertCircle, X, ImagePlus } from "lucide-react"
+import { Send, Square, Loader2, AlertCircle, X, ImagePlus, Mic, MicOff } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { useAppStore } from "@/lib/store"
 import { useCurrentThread, useThreadStream } from "@/lib/thread-context"
@@ -32,6 +32,27 @@ type StreamContentBlock =
   | { type: "text"; text: string }
   | { type: "image_url"; image_url: { url: string } }
 
+function arrayBufferToBase64(buffer: ArrayBuffer): string {
+  const bytes = new Uint8Array(buffer)
+  const chunkSize = 0x8000
+  let binary = ""
+  for (let i = 0; i < bytes.length; i += chunkSize) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + chunkSize))
+  }
+  return btoa(binary)
+}
+
+function pickRecorderMimeType(): string | undefined {
+  if (typeof MediaRecorder === "undefined") return undefined
+  const candidates = ["audio/webm;codecs=opus", "audio/webm", "audio/ogg;codecs=opus", "audio/ogg"]
+  for (const mimeType of candidates) {
+    if (MediaRecorder.isTypeSupported(mimeType)) {
+      return mimeType
+    }
+  }
+  return undefined
+}
+
 interface ChatContainerProps {
   threadId: string
 }
@@ -40,9 +61,14 @@ export function ChatContainer({ threadId }: ChatContainerProps): React.JSX.Eleme
   const { t } = useLanguage()
   const [input, setInput] = useState("")
   const [attachments, setAttachments] = useState<Attachment[]>([])
+  const [isRecording, setIsRecording] = useState(false)
+  const [isTranscribing, setIsTranscribing] = useState(false)
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
   const isAtBottomRef = useRef(true)
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null)
+  const mediaStreamRef = useRef<MediaStream | null>(null)
+  const audioChunksRef = useRef<Blob[]>([])
 
   const { loadThreads, generateTitleForFirstMessage, threads } = useAppStore()
   const currentThread = threads.find((t) => t.thread_id === threadId)
@@ -78,6 +104,95 @@ export function ChatContainer({ threadId }: ChatContainerProps): React.JSX.Eleme
   } = useCurrentThread(threadId)
   const { status: dockerStatus } = useDockerState()
   const dockerEnabled = dockerStatus.enabled
+
+  const stopMediaStream = useCallback(() => {
+    if (mediaStreamRef.current) {
+      for (const track of mediaStreamRef.current.getTracks()) {
+        track.stop()
+      }
+      mediaStreamRef.current = null
+    }
+  }, [])
+
+  const handleStartRecording = useCallback(async () => {
+    if (isRecording || isTranscribing) return
+    try {
+      if (!navigator.mediaDevices?.getUserMedia) {
+        throw new Error("Microphone access is not supported.")
+      }
+      if (typeof MediaRecorder === "undefined") {
+        throw new Error("MediaRecorder is not supported.")
+      }
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      mediaStreamRef.current = stream
+      const mimeType = pickRecorderMimeType()
+      const recorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined)
+      mediaRecorderRef.current = recorder
+      audioChunksRef.current = []
+
+      recorder.addEventListener("dataavailable", (event) => {
+        if (event.data && event.data.size > 0) {
+          audioChunksRef.current.push(event.data)
+        }
+      })
+
+      recorder.addEventListener("stop", async () => {
+        setIsRecording(false)
+        stopMediaStream()
+        mediaRecorderRef.current = null
+
+        const chunks = audioChunksRef.current
+        audioChunksRef.current = []
+        if (chunks.length === 0) return
+
+        const blob = new Blob(chunks, { type: recorder.mimeType || "audio/webm" })
+        const mimeType = blob.type || "audio/webm"
+
+        try {
+          setIsTranscribing(true)
+          const base64 = arrayBufferToBase64(await blob.arrayBuffer())
+          const result = await window.api.speech.stt({ audioBase64: base64, mimeType })
+          const text = result?.text?.trim()
+          if (text) {
+            setInput((prev) => (prev.trim() ? `${prev.trimEnd()} ${text}` : text))
+            inputRef.current?.focus()
+          }
+        } catch (err) {
+          const message = err instanceof Error ? err.message : String(err)
+          setError(`${t("chat.voice_input_failed")}: ${message}`)
+        } finally {
+          setIsTranscribing(false)
+        }
+      })
+
+      recorder.start()
+      setIsRecording(true)
+    } catch (err) {
+      stopMediaStream()
+      const message = err instanceof Error ? err.message : String(err)
+      setError(`${t("chat.voice_input_failed")}: ${message}`)
+    }
+  }, [isRecording, isTranscribing, setError, stopMediaStream, t])
+
+  const handleStopRecording = useCallback(() => {
+    const recorder = mediaRecorderRef.current
+    if (recorder && recorder.state !== "inactive") {
+      recorder.stop()
+    } else {
+      setIsRecording(false)
+      stopMediaStream()
+    }
+  }, [stopMediaStream])
+
+  useEffect(() => {
+    return () => {
+      const recorder = mediaRecorderRef.current
+      if (recorder && recorder.state !== "inactive") {
+        recorder.stop()
+      }
+      stopMediaStream()
+    }
+  }, [stopMediaStream])
 
   // Get the stream data via subscription - reactive updates without re-rendering provider
   const streamData = useThreadStream(threadId)
@@ -595,6 +710,18 @@ export function ChatContainer({ threadId }: ChatContainerProps): React.JSX.Eleme
             <div className="flex items-center justify-between px-2 pb-1">
               <div className="flex items-center gap-2">
                 <WorkspacePicker threadId={threadId} />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  onClick={isRecording ? handleStopRecording : handleStartRecording}
+                  disabled={isLoading || isTranscribing}
+                  title={isRecording ? t("chat.voice_stop") : t("chat.voice_input")}
+                  aria-label={isRecording ? t("chat.voice_stop") : t("chat.voice_input")}
+                  className={cn("h-7 w-7", isRecording && "bg-destructive/20 text-destructive")}
+                >
+                  {isRecording ? <MicOff className="size-3.5" /> : <Mic className="size-3.5" />}
+                </Button>
                 <Button
                   type="button"
                   variant="ghost"

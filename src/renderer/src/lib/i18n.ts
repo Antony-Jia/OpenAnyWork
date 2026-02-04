@@ -93,6 +93,16 @@ const translations = {
     "window.maximize": "Maximize",
     "window.close": "Close",
 
+    // Quick Input
+    "quick_input.title": "Quick Input",
+    "quick_input.placeholder": "Type to start a new conversation...",
+    "quick_input.submitting": "Sending...",
+    "quick_input.submit_failed": "Failed to send message.",
+    "quick_input.no_default_workspace":
+      "Please set a default workspace in Settings → General.",
+    "quick_input.open_settings": "Open Settings",
+    "quick_input.hint": "Press Enter to send",
+
     // Sidebar
     "sidebar.new_thread": "New Thread",
     "sidebar.new_thread.default": "New Thread (Default)",
@@ -421,6 +431,15 @@ const translations = {
     "window.minimize": "最小化",
     "window.maximize": "最大化",
     "window.close": "关闭",
+
+    // Quick Input
+    "quick_input.title": "快速输入",
+    "quick_input.placeholder": "输入内容以新建对话...",
+    "quick_input.submitting": "正在发送...",
+    "quick_input.submit_failed": "消息发送失败。",
+    "quick_input.no_default_workspace": "请在设置 → 通用中设置默认工作目录。",
+    "quick_input.open_settings": "打开设置",
+    "quick_input.hint": "回车发送",
 
     // Sidebar
     "sidebar.new_thread": "新建对话",

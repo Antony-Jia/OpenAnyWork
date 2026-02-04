@@ -25,6 +25,10 @@ import type {
 // Track active runs for cancellation
 const activeRuns = new Map<string, AbortController>()
 
+export function getActiveRunCount(): number {
+  return activeRuns.size
+}
+
 function parseMetadata(threadId: string): Record<string, unknown> {
   const row = getThread(threadId)
   return row?.metadata ? (JSON.parse(row.metadata) as Record<string, unknown>) : {}

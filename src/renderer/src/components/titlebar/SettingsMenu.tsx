@@ -152,6 +152,16 @@ export function SettingsMenu(_props: SettingsMenuProps): React.JSX.Element {
     loadConfig()
   }, [])
 
+  useEffect(() => {
+    const cleanup = window.electron.ipcRenderer.on("app:open-settings", () => {
+      setActiveTab("general")
+      setOpen(true)
+    })
+    return () => {
+      if (typeof cleanup === "function") cleanup()
+    }
+  }, [])
+
   const handleSaveSettings = useCallback(async () => {
     const iterationsValue = Number.parseInt(ralphIterations, 10)
     const smtpPortValue = Number.parseInt(smtpPort, 10)

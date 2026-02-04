@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useRef, useLayoutEffect } from "react"
+import { useEffect, useState, useCallback, useRef, useLayoutEffect, useMemo } from "react"
 import { ThreadSidebar } from "@/components/sidebar/ThreadSidebar"
 import { TabbedPanel, TabBar } from "@/components/tabs"
 import { RightPanel } from "@/components/panels/RightPanel"
@@ -7,6 +7,7 @@ import { ToastContainer, ToastMessage } from "@/components/ui/toast"
 import { useAppStore } from "@/lib/store"
 import { ThreadProvider } from "@/lib/thread-context"
 import { TitleBar } from "@/components/titlebar/TitleBar"
+import { QuickInput } from "@/components/quick-input/QuickInput"
 
 // Badge customization - unused in new titlebar but kept if logic needs reference
 const BADGE_MIN_SCREEN_WIDTH = 270
@@ -16,7 +17,7 @@ const RIGHT_MIN = 250
 const RIGHT_MAX = 450
 const RIGHT_DEFAULT = 320
 
-function App(): React.JSX.Element {
+function MainApp(): React.JSX.Element {
   const { currentThreadId, loadThreads, createThread } = useAppStore()
   const [isLoading, setIsLoading] = useState(true)
   const [leftWidth, setLeftWidth] = useState(LEFT_DEFAULT)
@@ -131,6 +132,18 @@ function App(): React.JSX.Element {
     }
   }, [loadThreads])
 
+  useEffect(() => {
+    const cleanup = window.electron.ipcRenderer.on("threads:activate", (...args: unknown[]) => {
+      const threadId = args[0]
+      if (typeof threadId === "string") {
+        useAppStore.getState().selectThread(threadId)
+      }
+    })
+    return () => {
+      if (typeof cleanup === "function") cleanup()
+    }
+  }, [])
+
   // Listen for toast messages from main process
   useEffect(() => {
     const cleanup = window.electron.ipcRenderer.on("app:toast", (...args: unknown[]) => {
@@ -206,4 +219,18 @@ function App(): React.JSX.Element {
   )
 }
 
-export default App
+function QuickInputApp(): React.JSX.Element {
+  return (
+    <div className="min-h-screen w-screen bg-background text-foreground flex items-center justify-center">
+      <QuickInput />
+    </div>
+  )
+}
+
+export default function App(): React.JSX.Element {
+  const isQuickInput = useMemo(() => {
+    return new URLSearchParams(window.location.search).get("quickInput") === "1"
+  }, [])
+
+  return isQuickInput ? <QuickInputApp /> : <MainApp />
+}

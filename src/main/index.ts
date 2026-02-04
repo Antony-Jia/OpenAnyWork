@@ -1,6 +1,16 @@
-import { app, shell, BrowserWindow, ipcMain, nativeImage } from "electron"
+import {
+  app,
+  shell,
+  BrowserWindow,
+  ipcMain,
+  nativeImage,
+  Tray,
+  Menu,
+  globalShortcut,
+  screen
+} from "electron"
 import { join } from "path"
-import { registerAgentHandlers } from "./ipc/agent"
+import { registerAgentHandlers, getActiveRunCount } from "./ipc/agent"
 import { broadcastToast } from "./ipc/events"
 
 // Prevent Windows error dialog boxes for unhandled errors
@@ -33,6 +43,9 @@ import { startEmailPolling, stopEmailPolling } from "./email/worker"
 import { loopManager } from "./loop/manager"
 
 let mainWindow: BrowserWindow | null = null
+let quickInputWindow: BrowserWindow | null = null
+let tray: Tray | null = null
+let isQuitting = false
 
 // Simple dev check - replaces @electron-toolkit/utils is.dev
 const isDev = !app.isPackaged
@@ -84,6 +97,24 @@ function createWindow(): void {
     mainWindow?.close()
   })
 
+  mainWindow.on("close", (event) => {
+    if (isQuitting) return
+    event.preventDefault()
+    hideMainWindowToTray()
+  })
+
+  mainWindow.on("show", () => {
+    if (mainWindow?.isMinimized()) {
+      mainWindow.restore()
+    }
+    mainWindow?.setSkipTaskbar(false)
+    updateTrayMenu()
+  })
+
+  mainWindow.on("hide", () => {
+    updateTrayMenu()
+  })
+
   // HMR for renderer based on electron-vite cli
   if (isDev && process.env["ELECTRON_RENDERER_URL"]) {
     mainWindow.loadURL(process.env["ELECTRON_RENDERER_URL"])
@@ -94,6 +125,132 @@ function createWindow(): void {
   mainWindow.on("closed", () => {
     mainWindow = null
   })
+}
+
+function hideMainWindowToTray(): void {
+  if (!mainWindow) return
+  mainWindow.setSkipTaskbar(true)
+  mainWindow.hide()
+  updateTrayMenu()
+}
+
+function showMainWindow(): void {
+  if (!mainWindow) return
+  if (mainWindow.isMinimized()) {
+    mainWindow.restore()
+  }
+  mainWindow.show()
+  mainWindow.focus()
+  mainWindow.setSkipTaskbar(false)
+  updateTrayMenu()
+}
+
+function createQuickInputWindow(): void {
+  if (quickInputWindow) return
+  const { width, height } = screen.getPrimaryDisplay().workAreaSize
+  const windowWidth = 680
+  const windowHeight = 120
+  const x = Math.round((width - windowWidth) / 2)
+  const y = Math.round((height - windowHeight) / 4)
+
+  quickInputWindow = new BrowserWindow({
+    width: windowWidth,
+    height: windowHeight,
+    x,
+    y,
+    show: false,
+    frame: false,
+    resizable: false,
+    movable: true,
+    alwaysOnTop: true,
+    skipTaskbar: true,
+    backgroundColor: "#0D0D0F",
+    webPreferences: {
+      preload: join(__dirname, "../preload/index.js"),
+      sandbox: false
+    }
+  })
+
+  quickInputWindow.on("closed", () => {
+    quickInputWindow = null
+  })
+
+  if (isDev && process.env["ELECTRON_RENDERER_URL"]) {
+    const url = new URL(process.env["ELECTRON_RENDERER_URL"])
+    url.searchParams.set("quickInput", "1")
+    quickInputWindow.loadURL(url.toString())
+  } else {
+    quickInputWindow.loadFile(join(__dirname, "../renderer/index.html"), {
+      query: { quickInput: "1" }
+    })
+  }
+}
+
+function toggleQuickInput(): void {
+  if (!quickInputWindow) {
+    createQuickInputWindow()
+  }
+  if (!quickInputWindow) return
+
+  if (quickInputWindow.isVisible()) {
+    quickInputWindow.hide()
+    return
+  }
+
+  quickInputWindow.show()
+  quickInputWindow.focus()
+}
+
+function updateTrayMenu(): void {
+  if (!tray) return
+  const isVisible = !!mainWindow && mainWindow.isVisible()
+  const activeRuns = getActiveRunCount()
+  const menu = Menu.buildFromTemplate([
+    {
+      label: `Active conversations: ${activeRuns}`,
+      enabled: false
+    },
+    {
+      label: isVisible ? "Hide Window" : "Show Window",
+      click: () => {
+        if (isVisible) {
+          hideMainWindowToTray()
+        } else {
+          showMainWindow()
+        }
+      }
+    },
+    { type: "separator" },
+    {
+      label: "Exit",
+      click: () => {
+        isQuitting = true
+        app.quit()
+      }
+    }
+  ])
+  tray.setContextMenu(menu)
+}
+
+function createTray(): void {
+  const iconPath = join(__dirname, "../../resources/icon.png")
+  let icon = nativeImage.createFromPath(iconPath)
+  if (icon.isEmpty()) {
+    icon = nativeImage.createEmpty()
+  }
+
+  tray = new Tray(icon)
+  tray.setToolTip("Openwork")
+  tray.on("click", () => {
+    if (!mainWindow) return
+    if (mainWindow.isVisible()) {
+      hideMainWindowToTray()
+    } else {
+      showMainWindow()
+    }
+  })
+
+  updateTrayMenu()
 }
 
 app.whenReady().then(async () => {
@@ -149,6 +306,29 @@ app.whenReady().then(async () => {
   await startAutoMcpServers()
 
   createWindow()
+  createTray()
+
+  ipcMain.on("app:show-main", () => {
+    showMainWindow()
+  })
+
+  ipcMain.on("app:activate-thread", (_event, threadId: string) => {
+    showMainWindow()
+    if (threadId && mainWindow) {
+      mainWindow.webContents.send("threads:activate", threadId)
+    }
+  })
+
+  ipcMain.on("app:open-settings", () => {
+    showMainWindow()
+    if (mainWindow) {
+      mainWindow.webContents.send("app:open-settings")
+    }
+  })
+
+  ipcMain.on("quick-input:hide", () => {
+    quickInputWindow?.hide()
+  })
 
   startEmailPolling()
 
@@ -157,6 +337,13 @@ app.whenReady().then(async () => {
       createWindow()
     }
   })
+
+  const shortcutRegistered = globalShortcut.register("Control+Alt+Space", () => {
+    toggleQuickInput()
+  })
+  if (!shortcutRegistered) {
+    console.warn("[Main] Failed to register global shortcut Control+Alt+Space")
+  }
 })
 
 app.on("window-all-closed", () => {
@@ -166,6 +353,8 @@ app.on("window-all-closed", () => {
 })
 
 app.on("before-quit", () => {
+  isQuitting = true
+  globalShortcut.unregisterAll()
   stopEmailPolling()
   loopManager.stopAll()
 })

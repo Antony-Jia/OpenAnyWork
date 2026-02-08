@@ -1,6 +1,6 @@
 // Re-export types from electron for use in renderer
 export type ThreadStatus = "idle" | "busy" | "interrupted" | "error"
-export type ThreadMode = "default" | "ralph" | "email" | "loop"
+export type ThreadMode = "default" | "ralph" | "email" | "loop" | "butler"
 
 export type LoopTriggerType = "schedule" | "api" | "file"
 export type LoopConditionOp = "equals" | "contains" | "truthy"
@@ -56,6 +56,16 @@ export interface Thread {
   status: ThreadStatus
   thread_values?: Record<string, unknown>
   title?: string
+}
+
+export interface ThreadMetadata {
+  mode?: ThreadMode
+  createdBy?: "user" | "quick-input" | "butler"
+  workspacePath?: string
+  butlerMain?: boolean
+  butlerTaskId?: string
+  nonInterruptible?: boolean
+  disableApprovals?: boolean
 }
 
 export interface RalphState {
@@ -271,10 +281,100 @@ export interface AppSettings {
   speech: SpeechSettings
   defaultWorkspacePath?: string | null
   dockerConfig?: DockerConfig
+  butler: ButlerSettings
+}
+
+export interface ButlerSettings {
+  rootPath: string
+  maxConcurrent: number
+  recentRounds: number
 }
 
 export interface SettingsUpdateParams {
   updates: Partial<AppSettings>
+}
+
+export type ButlerTaskStatus =
+  | "queued"
+  | "running"
+  | "completed"
+  | "failed"
+  | "cancelled"
+
+export interface ButlerTaskHandoff {
+  method: "context" | "filesystem" | "both"
+  note?: string
+  requiredArtifacts?: string[]
+}
+
+export interface ButlerTask {
+  id: string
+  threadId: string
+  mode: Exclude<ThreadMode, "butler">
+  title: string
+  prompt: string
+  workspacePath: string
+  createdAt: string
+  startedAt?: string
+  completedAt?: string
+  status: ButlerTaskStatus
+  resultBrief?: string
+  resultDetail?: string
+  requester: "user" | "system"
+  loopConfig?: LoopConfig
+  groupId?: string
+  taskKey?: string
+  dependsOnTaskIds?: string[]
+  handoff?: ButlerTaskHandoff
+  sourceTurnId?: string
+}
+
+export interface ButlerRound {
+  id: string
+  user: string
+  assistant: string
+  ts: string
+}
+
+export interface ButlerState {
+  mainThreadId: string
+  recentRounds: ButlerRound[]
+  totalMessageCount: number
+  activeTaskCount: number
+}
+
+export interface TaskCompletionNotice {
+  id: string
+  threadId: string
+  title: string
+  resultBrief: string
+  resultDetail: string
+  completedAt: string
+  mode: ThreadMode
+  source: "agent" | "loop" | "email" | "butler"
+}
+
+export interface MemorySummary {
+  id: string
+  threadId: string
+  createdAt: string
+  mode: ThreadMode
+  title?: string
+  summaryBrief: string
+  summaryDetail: string
+  taskDirection?: string
+  usageHabits?: string
+  hobbies?: string
+  researchProcess?: string
+  reportPreference?: string
+}
+
+export interface DailyProfile {
+  day: string
+  createdAt: string
+  profileText: string
+  comparisonText: string
+  previousProfileDay?: string
 }
 
 export interface SpeechSttRequest {

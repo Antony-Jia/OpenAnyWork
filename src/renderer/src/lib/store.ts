@@ -1,6 +1,9 @@
 import { create } from "zustand"
 import type { Thread, ModelConfig, Provider } from "@/types"
 
+export type AppMode = "classic" | "butler"
+export type ThreadOriginFilter = "all" | "manual" | "butler"
+
 interface AppState {
   // Threads
   threads: Thread[]
@@ -18,6 +21,10 @@ interface AppState {
 
   // Sidebar state
   sidebarCollapsed: boolean
+  threadOriginFilter: ThreadOriginFilter
+
+  // App mode
+  appMode: AppMode
 
   // Thread actions
   loadThreads: () => Promise<void>
@@ -42,6 +49,10 @@ interface AppState {
   // Sidebar actions
   toggleSidebar: () => void
   setSidebarCollapsed: (collapsed: boolean) => void
+  setThreadOriginFilter: (filter: ThreadOriginFilter) => void
+
+  // App mode actions
+  setAppMode: (mode: AppMode) => void
 }
 
 export const useAppStore = create<AppState>((set, get) => ({
@@ -53,6 +64,8 @@ export const useAppStore = create<AppState>((set, get) => ({
   rightPanelTab: "todos",
   settingsOpen: false,
   sidebarCollapsed: false,
+  threadOriginFilter: "all",
+  appMode: "classic",
 
   // Thread actions
   loadThreads: async () => {
@@ -61,7 +74,8 @@ export const useAppStore = create<AppState>((set, get) => ({
 
     // Select first thread if none selected
     if (!get().currentThreadId && threads.length > 0) {
-      await get().selectThread(threads[0].thread_id)
+      const preferred = threads.find((thread) => thread.metadata?.butlerMain !== true) || threads[0]
+      await get().selectThread(preferred.thread_id)
     }
   },
 
@@ -178,5 +192,13 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   setSidebarCollapsed: (collapsed: boolean) => {
     set({ sidebarCollapsed: collapsed })
+  },
+
+  setThreadOriginFilter: (filter: ThreadOriginFilter) => {
+    set({ threadOriginFilter: filter })
+  },
+
+  setAppMode: (mode: AppMode) => {
+    set({ appMode: mode })
   }
 }))

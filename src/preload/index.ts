@@ -27,7 +27,10 @@ import type {
   RalphLogEntry,
   Attachment,
   ContentBlock,
-  LoopConfig
+  LoopConfig,
+  ButlerState,
+  ButlerTask,
+  TaskCompletionNotice
 } from "../main/types"
 
 // Simple electron API - replaces @electron-toolkit/preload
@@ -176,6 +179,29 @@ const api = {
     },
     status: (threadId: string): Promise<{ running: boolean; queueLength: number }> => {
       return ipcRenderer.invoke("loop:status", threadId)
+    }
+  },
+  butler: {
+    getState: (): Promise<ButlerState> => {
+      return ipcRenderer.invoke("butler:getState")
+    },
+    send: (message: string): Promise<ButlerState> => {
+      return ipcRenderer.invoke("butler:send", message)
+    },
+    listTasks: (): Promise<ButlerTask[]> => {
+      return ipcRenderer.invoke("butler:listTasks")
+    },
+    onTaskUpdate: (callback: (tasks: ButlerTask[]) => void): (() => void) => {
+      const handler = (_: unknown, tasks: ButlerTask[]): void => callback(tasks)
+      ipcRenderer.on("butler:tasks-changed", handler)
+      return () => ipcRenderer.removeListener("butler:tasks-changed", handler)
+    },
+    onTaskCompleted: (
+      callback: (card: TaskCompletionNotice) => void
+    ): (() => void) => {
+      const handler = (_: unknown, card: TaskCompletionNotice): void => callback(card)
+      ipcRenderer.on("app:task-card", handler)
+      return () => ipcRenderer.removeListener("app:task-card", handler)
     }
   },
   models: {

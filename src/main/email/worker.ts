@@ -16,6 +16,7 @@ import {
 } from "./service"
 import { buildEmailModePrompt } from "./prompt"
 import { generateTitle } from "../services/title-generator"
+import { emitTaskCompleted } from "../tasks/lifecycle"
 import type { EmailTask } from "./service"
 
 let pollInterval: NodeJS.Timeout | null = null
@@ -117,12 +118,17 @@ async function processStartWorkTask(task: EmailTask, defaultWorkspacePath: strin
     title
   })
   broadcastThreadsChanged()
-  await runAgentToSummary({
+  const summary = await runAgentToSummary({
     threadId,
     workspacePath: defaultWorkspacePath,
     message: taskPrompt
   })
   broadcastThreadHistoryUpdated(threadId)
+  emitTaskCompleted({
+    threadId,
+    result: summary,
+    source: "email"
+  })
 }
 
 async function processReplyTask(task: EmailTask, defaultWorkspacePath: string | null): Promise<void> {
@@ -149,12 +155,17 @@ async function processReplyTask(task: EmailTask, defaultWorkspacePath: string | 
   }
 
   const taskPrompt = buildTaskPrompt(task)
-  await runAgentToSummary({
+  const summary = await runAgentToSummary({
     threadId,
     workspacePath,
     message: taskPrompt
   })
   broadcastThreadHistoryUpdated(threadId)
+  emitTaskCompleted({
+    threadId,
+    result: summary,
+    source: "email"
+  })
 }
 
 async function processEmailTask(task: EmailTask, defaultWorkspacePath: string | null): Promise<void> {
@@ -179,6 +190,13 @@ async function processEmailTask(task: EmailTask, defaultWorkspacePath: string | 
     }
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown error"
+    if (task.threadId?.trim()) {
+      emitTaskCompleted({
+        threadId: task.threadId.trim(),
+        error: message,
+        source: "email"
+      })
+    }
     try {
       const threadId = task.threadId?.trim() || "NEW"
       await sendEmail({

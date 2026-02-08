@@ -11,7 +11,7 @@ import {
 } from "electron"
 import { join } from "path"
 import { registerAgentHandlers, getActiveRunCount } from "./ipc/agent"
-import { broadcastToast } from "./ipc/events"
+import { broadcastTaskCard, broadcastToast } from "./ipc/events"
 
 // Prevent Windows error dialog boxes for unhandled errors
 process.on("uncaughtException", (error) => {
@@ -36,15 +36,27 @@ import { registerAttachmentHandlers } from "./ipc/attachments"
 import { initializeDatabase } from "./db"
 import { registerMcpHandlers } from "./ipc/mcp"
 import { registerLoopHandlers } from "./ipc/loop"
+import { registerButlerHandlers } from "./ipc/butler"
 import { startAutoMcpServers } from "./mcp/service"
 import { registerSettingsHandlers } from "./ipc/settings"
 import { registerSpeechHandlers } from "./ipc/speech"
 import { startEmailPolling, stopEmailPolling } from "./email/worker"
 import { loopManager } from "./loop/manager"
+import {
+  generateDailyProfileOnStartup,
+  initializeMemoryService,
+  stopMemoryService,
+  flushMemoryDatabase
+} from "./memory"
+import { butlerManager } from "./butler/manager"
+import { TaskPopupController } from "./notifications/popup-controller"
+import { TaskCompletionBus } from "./notifications/task-completion-bus"
 
 let mainWindow: BrowserWindow | null = null
 let quickInputWindow: BrowserWindow | null = null
 let tray: Tray | null = null
+let taskPopupController: TaskPopupController | null = null
+let taskCompletionBus: TaskCompletionBus | null = null
 let isQuitting = false
 
 // Simple dev check - replaces @electron-toolkit/utils is.dev
@@ -108,6 +120,7 @@ function createWindow(): void {
       mainWindow.restore()
     }
     mainWindow?.setSkipTaskbar(false)
+    taskPopupController?.clear()
     updateTrayMenu()
   })
 
@@ -143,6 +156,11 @@ function showMainWindow(): void {
   mainWindow.focus()
   mainWindow.setSkipTaskbar(false)
   updateTrayMenu()
+}
+
+function activateThread(threadId: string): void {
+  if (!threadId || !mainWindow) return
+  mainWindow.webContents.send("threads:activate", threadId)
 }
 
 function createQuickInputWindow(): void {
@@ -288,6 +306,9 @@ app.whenReady().then(async () => {
 
   // Initialize database
   await initializeDatabase()
+  await initializeMemoryService()
+  await generateDailyProfileOnStartup()
+  await butlerManager.initialize()
   loopManager.resetAllOnStartup()
 
   // Register IPC handlers
@@ -304,11 +325,41 @@ app.whenReady().then(async () => {
   registerSettingsHandlers(ipcMain)
   registerSpeechHandlers(ipcMain)
   registerLoopHandlers(ipcMain)
+  registerButlerHandlers(ipcMain)
 
   await startAutoMcpServers()
 
   createWindow()
   createTray()
+
+  const rendererHtmlPath = join(__dirname, "../renderer/index.html")
+  const preloadPath = join(__dirname, "../preload/index.js")
+  const rendererUrl = isDev ? process.env["ELECTRON_RENDERER_URL"] : undefined
+
+  taskPopupController = new TaskPopupController({
+    rendererUrl,
+    rendererHtmlPath,
+    preloadPath,
+    showMainWindow,
+    activateThread
+  })
+
+  taskCompletionBus = new TaskCompletionBus({
+    notifyButler: (notice) => {
+      butlerManager.notifyCompletionNotice(notice)
+    },
+    notifyInAppCard: (notice) => {
+      broadcastTaskCard(notice)
+    },
+    shouldShowDesktopPopup: () => {
+      if (!mainWindow) return false
+      return !mainWindow.isVisible()
+    },
+    enqueueDesktopPopup: (notice) => {
+      taskPopupController?.enqueue(notice)
+    }
+  })
+  taskCompletionBus.start()
 
   ipcMain.on("app:show-main", () => {
     showMainWindow()
@@ -316,9 +367,7 @@ app.whenReady().then(async () => {
 
   ipcMain.on("app:activate-thread", (_event, threadId: string) => {
     showMainWindow()
-    if (threadId && mainWindow) {
-      mainWindow.webContents.send("threads:activate", threadId)
-    }
+    activateThread(threadId)
   })
 
   ipcMain.on("app:open-settings", () => {
@@ -330,6 +379,49 @@ app.whenReady().then(async () => {
 
   ipcMain.on("quick-input:hide", () => {
     quickInputWindow?.hide()
+  })
+
+  ipcMain.on("task-popup:hover", (_event, payload: unknown) => {
+    const hovered =
+      typeof payload === "boolean"
+        ? payload
+        : !!(payload && typeof payload === "object" && (payload as { hovered?: unknown }).hovered)
+    taskPopupController?.setHover(hovered)
+  })
+
+  ipcMain.on("task-popup:open-thread", (_event, payload: unknown) => {
+    let threadId = ""
+    let noticeId: string | undefined
+
+    if (typeof payload === "string") {
+      threadId = payload
+    } else if (payload && typeof payload === "object") {
+      const parsed = payload as { threadId?: unknown; noticeId?: unknown }
+      if (typeof parsed.threadId === "string") {
+        threadId = parsed.threadId
+      }
+      if (typeof parsed.noticeId === "string") {
+        noticeId = parsed.noticeId
+      }
+    }
+
+    if (!threadId) return
+    taskPopupController?.openThread(threadId, noticeId)
+  })
+
+  ipcMain.on("task-popup:dismiss", (_event, payload: unknown) => {
+    let noticeId: string | undefined
+
+    if (typeof payload === "string") {
+      noticeId = payload
+    } else if (payload && typeof payload === "object") {
+      const parsed = payload as { noticeId?: unknown }
+      if (typeof parsed.noticeId === "string") {
+        noticeId = parsed.noticeId
+      }
+    }
+
+    taskPopupController?.dismiss(noticeId)
   })
 
   startEmailPolling()
@@ -357,6 +449,13 @@ app.on("window-all-closed", () => {
 app.on("before-quit", () => {
   isQuitting = true
   globalShortcut.unregisterAll()
+  taskCompletionBus?.stop()
+  taskCompletionBus = null
+  taskPopupController?.dispose()
+  taskPopupController = null
   stopEmailPolling()
   loopManager.stopAll()
+  butlerManager.shutdown()
+  void stopMemoryService()
+  void flushMemoryDatabase()
 })

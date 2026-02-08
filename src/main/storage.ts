@@ -29,6 +29,10 @@ export function getCheckpointDbPath(): string {
   return join(getOpenworkDir(), "langgraph.sqlite")
 }
 
+export function getMemoryDbPath(): string {
+  return join(getOpenworkDir(), "memory.sqlite")
+}
+
 export function getThreadCheckpointDir(): string {
   const dir = join(getOpenworkDir(), "threads")
   if (!existsSync(dir)) {

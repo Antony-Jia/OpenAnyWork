@@ -7,6 +7,7 @@ import { runAgentStream } from "../agent/run"
 import { getAllThreads, getThread, updateThread as dbUpdateThread } from "../db"
 import { broadcastThreadsChanged, broadcastToast } from "../ipc/events"
 import { ensureDockerRunning, getDockerRuntimeConfig } from "../docker/session"
+import { emitTaskCompleted } from "../tasks/lifecycle"
 import type {
   LoopConfig,
   LoopConditionOp,
@@ -543,7 +544,7 @@ export class LoopManager {
       const metadata = getThreadMetadata(runner.threadId)
       const modelId = metadata.model as string | undefined
 
-      await runAgentStream({
+      const output = await runAgentStream({
         threadId: runner.threadId,
         workspacePath,
         modelId,
@@ -559,9 +560,19 @@ export class LoopManager {
       runner.config.lastRunAt = new Date().toISOString()
       runner.config.lastError = null
       saveLoopConfig(runner.threadId, runner.config)
+      emitTaskCompleted({
+        threadId: runner.threadId,
+        result: output,
+        source: "loop"
+      })
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error)
       this.markError(runner, message)
+      emitTaskCompleted({
+        threadId: runner.threadId,
+        error: message,
+        source: "loop"
+      })
       broadcastToast("error", `[Loop] ${message}`)
     } finally {
       runner.running = false

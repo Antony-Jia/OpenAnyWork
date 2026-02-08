@@ -4,10 +4,13 @@ import { TabbedPanel, TabBar } from "@/components/tabs"
 import { RightPanel } from "@/components/panels/RightPanel"
 import { ResizeHandle } from "@/components/ui/resizable"
 import { ToastContainer, ToastMessage } from "@/components/ui/toast"
+import { TaskNoticeContainer, type TaskNoticeCard } from "@/components/ui/task-notice"
 import { useAppStore } from "@/lib/store"
 import { ThreadProvider } from "@/lib/thread-context"
 import { TitleBar } from "@/components/titlebar/TitleBar"
 import { QuickInput } from "@/components/quick-input/QuickInput"
+import { ButlerWorkspace } from "@/components/butler/ButlerWorkspace"
+import { DesktopTaskPopup } from "@/components/notifications/DesktopTaskPopup"
 
 // Badge customization - unused in new titlebar but kept if logic needs reference
 const BADGE_MIN_SCREEN_WIDTH = 270
@@ -18,12 +21,13 @@ const RIGHT_MAX = 450
 const RIGHT_DEFAULT = 320
 
 function MainApp(): React.JSX.Element {
-  const { currentThreadId, loadThreads, createThread } = useAppStore()
+  const { currentThreadId, loadThreads, createThread, appMode, setAppMode } = useAppStore()
   const [isLoading, setIsLoading] = useState(true)
   const [leftWidth, setLeftWidth] = useState(LEFT_DEFAULT)
   const [rightWidth, setRightWidth] = useState(RIGHT_DEFAULT)
   const [zoomLevel, setZoomLevel] = useState(1)
   const [toasts, setToasts] = useState<ToastMessage[]>([])
+  const [taskCards, setTaskCards] = useState<TaskNoticeCard[]>([])
 
   const addToast = useCallback((type: ToastMessage["type"], message: string) => {
     const id = `${Date.now()}-${Math.random().toString(36).slice(2)}`
@@ -33,6 +37,19 @@ function MainApp(): React.JSX.Element {
   const removeToast = useCallback((id: string) => {
     setToasts((prev) => prev.filter((t) => t.id !== id))
   }, [])
+
+  const removeTaskCard = useCallback((id: string) => {
+    setTaskCards((prev) => prev.filter((card) => card.id !== id))
+  }, [])
+
+  const openTaskCardThread = useCallback(
+    async (threadId: string) => {
+      setAppMode("classic")
+      await useAppStore.getState().selectThread(threadId)
+      setTaskCards((prev) => prev.filter((card) => card.threadId !== threadId))
+    },
+    [setAppMode]
+  )
 
   // Track drag start widths
   const dragStartWidths = useRef<{ left: number; right: number } | null>(null)
@@ -111,7 +128,8 @@ function MainApp(): React.JSX.Element {
         await loadThreads()
         // Create a default thread if none exist
         const threads = useAppStore.getState().threads
-        if (threads.length === 0) {
+        const nonButlerThreads = threads.filter((thread) => thread.metadata?.butlerMain !== true)
+        if (nonButlerThreads.length === 0) {
           await createThread()
         }
       } catch (error) {
@@ -157,6 +175,20 @@ function MainApp(): React.JSX.Element {
     }
   }, [addToast])
 
+  useEffect(() => {
+    const cleanup = window.electron.ipcRenderer.on("app:task-card", (...args: unknown[]) => {
+      const card = args[0] as TaskNoticeCard
+      if (!card?.id || !card.threadId) return
+      setTaskCards((prev) => {
+        const next = prev.filter((item) => item.id !== card.id)
+        return [card, ...next]
+      })
+    })
+    return () => {
+      if (typeof cleanup === "function") cleanup()
+    }
+  }, [])
+
   if (isLoading) {
     return (
       <div className="flex h-screen items-center justify-center bg-background">
@@ -168,52 +200,65 @@ function MainApp(): React.JSX.Element {
   return (
     <ThreadProvider>
       <ToastContainer toasts={toasts} onClose={removeToast} />
+      <TaskNoticeContainer
+        cards={taskCards}
+        onClose={removeTaskCard}
+        onOpenThread={(threadId) => void openTaskCardThread(threadId)}
+      />
       <div className="flex h-screen w-screen flex-col overflow-hidden bg-background text-foreground">
         {/* Global Window Title Bar */}
         <TitleBar threadId={currentThreadId} />
 
-        {/* Main Workspace Area */}
-        <div className="flex flex-1 min-h-0 overflow-hidden">
-          {/* Left + Center Layout */}
-          <div className="flex flex-1 min-w-0 min-h-0">
-            {/* Sidebar (Thread List) */}
-            <div
-              style={{ width: leftWidth }}
-              className="shrink-0 flex flex-col border-r border-border bg-sidebar/50"
-            >
-              <ThreadSidebar />
-            </div>
+        {appMode === "butler" ? (
+          <div className="flex-1 min-h-0 overflow-hidden">
+            <ButlerWorkspace />
+          </div>
+        ) : (
+          <div className="flex flex-1 min-h-0 overflow-hidden">
+            {/* Left + Center Layout */}
+            <div className="flex flex-1 min-w-0 min-h-0">
+              {/* Sidebar (Thread List) */}
+              <div
+                style={{ width: leftWidth }}
+                className="shrink-0 flex flex-col border-r border-border bg-sidebar/50"
+              >
+                <ThreadSidebar />
+              </div>
 
-            <ResizeHandle onDrag={handleLeftResize} />
+              <ResizeHandle onDrag={handleLeftResize} />
 
-            {/* Center Panel (Chat) */}
-            <main className="flex flex-1 flex-col min-w-0 min-h-0 overflow-hidden bg-background/50 relative">
-              {/* Center Header with Tabs */}
-              {currentThreadId && (
-                <div className="h-9 border-b border-border flex items-center px-1 shrink-0 bg-background/50 backdrop-blur-sm">
-                  <TabBar className="h-full border-b-0 w-full" />
-                </div>
-              )}
-
-              <div className="flex-1 flex flex-col min-h-0">
-                {currentThreadId ? (
-                  <TabbedPanel threadId={currentThreadId} showTabBar={false} />
-                ) : (
-                  <div className="flex flex-1 items-center justify-center text-muted-foreground h-full text-sm">
-                    Select or create a thread to begin
+              {/* Center Panel (Chat) */}
+              <main className="flex flex-1 flex-col min-w-0 min-h-0 overflow-hidden bg-background/50 relative">
+                {/* Center Header with Tabs */}
+                {currentThreadId && (
+                  <div className="h-9 border-b border-border flex items-center px-1 shrink-0 bg-background/50 backdrop-blur-sm">
+                    <TabBar className="h-full border-b-0 w-full" />
                   </div>
                 )}
-              </div>
-            </main>
-          </div>
 
-          <ResizeHandle onDrag={handleRightResize} />
+                <div className="flex-1 flex flex-col min-h-0">
+                  {currentThreadId ? (
+                    <TabbedPanel threadId={currentThreadId} showTabBar={false} />
+                  ) : (
+                    <div className="flex flex-1 items-center justify-center text-muted-foreground h-full text-sm">
+                      Select or create a thread to begin
+                    </div>
+                  )}
+                </div>
+              </main>
+            </div>
 
-          {/* Right Panel */}
-          <div style={{ width: rightWidth }} className="shrink-0 border-l border-border bg-sidebar">
-            <RightPanel />
+            <ResizeHandle onDrag={handleRightResize} />
+
+            {/* Right Panel */}
+            <div
+              style={{ width: rightWidth }}
+              className="shrink-0 border-l border-border bg-sidebar"
+            >
+              <RightPanel />
+            </div>
           </div>
-        </div>
+        )}
       </div>
     </ThreadProvider>
   )
@@ -236,10 +281,31 @@ function QuickInputApp(): React.JSX.Element {
   )
 }
 
+function TaskPopupApp(): React.JSX.Element {
+  useEffect(() => {
+    document.documentElement.classList.add("task-popup-mode")
+    document.body.classList.add("task-popup-mode")
+    return () => {
+      document.documentElement.classList.remove("task-popup-mode")
+      document.body.classList.remove("task-popup-mode")
+    }
+  }, [])
+
+  return <DesktopTaskPopup />
+}
+
 export default function App(): React.JSX.Element {
+  const isTaskPopup = useMemo(() => {
+    return new URLSearchParams(window.location.search).get("taskPopup") === "1"
+  }, [])
+
   const isQuickInput = useMemo(() => {
     return new URLSearchParams(window.location.search).get("quickInput") === "1"
   }, [])
+
+  if (isTaskPopup) {
+    return <TaskPopupApp />
+  }
 
   return isQuickInput ? <QuickInputApp /> : <MainApp />
 }

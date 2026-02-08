@@ -84,6 +84,9 @@ export function SettingsMenu(_props: SettingsMenuProps): React.JSX.Element {
   const [imapPollIntervalSec, setImapPollIntervalSec] = useState("60")
   const [taskTag, setTaskTag] = useState("<OpenworkTask>")
   const [defaultWorkspacePath, setDefaultWorkspacePath] = useState("")
+  const [butlerRootPath, setButlerRootPath] = useState("")
+  const [butlerMaxConcurrent, setButlerMaxConcurrent] = useState("2")
+  const [butlerRecentRounds, setButlerRecentRounds] = useState("5")
 
   // Speech settings
   const [sttUrl, setSttUrl] = useState("")
@@ -138,6 +141,9 @@ export function SettingsMenu(_props: SettingsMenuProps): React.JSX.Element {
           setImapPass(settings.email?.imap?.pass || "")
           setTaskTag(settings.email?.taskTag || "<OpenworkTask>")
           setImapPollIntervalSec(String(settings.email?.pollIntervalSec ?? 60))
+          setButlerRootPath(settings.butler?.rootPath || "")
+          setButlerMaxConcurrent(String(settings.butler?.maxConcurrent ?? 2))
+          setButlerRecentRounds(String(settings.butler?.recentRounds ?? 5))
           setSttUrl(settings.speech?.stt?.url || "")
           setSttHeaders(serializeKeyValue(settings.speech?.stt?.headers))
           setSttLanguage(settings.speech?.stt?.language || "")
@@ -167,6 +173,8 @@ export function SettingsMenu(_props: SettingsMenuProps): React.JSX.Element {
     const smtpPortValue = Number.parseInt(smtpPort, 10)
     const imapPortValue = Number.parseInt(imapPort, 10)
     const imapPollIntervalValue = Number.parseInt(imapPollIntervalSec, 10)
+    const butlerMaxConcurrentValue = Number.parseInt(butlerMaxConcurrent, 10)
+    const butlerRecentRoundsValue = Number.parseInt(butlerRecentRounds, 10)
     const toList = emailTo
       .split(/[,\n]/)
       .map((entry) => entry.trim())
@@ -213,6 +221,17 @@ export function SettingsMenu(_props: SettingsMenuProps): React.JSX.Element {
           ralphIterations:
             Number.isFinite(iterationsValue) && iterationsValue > 0 ? iterationsValue : 5,
           defaultWorkspacePath: defaultWorkspacePath.trim() || null,
+          butler: {
+            rootPath: butlerRootPath.trim(),
+            maxConcurrent:
+              Number.isFinite(butlerMaxConcurrentValue) && butlerMaxConcurrentValue > 0
+                ? butlerMaxConcurrentValue
+                : 2,
+            recentRounds:
+              Number.isFinite(butlerRecentRoundsValue) && butlerRecentRoundsValue > 0
+                ? butlerRecentRoundsValue
+                : 5
+          },
           email: {
             enabled: emailEnabled,
             from: emailFrom.trim(),
@@ -268,6 +287,9 @@ export function SettingsMenu(_props: SettingsMenuProps): React.JSX.Element {
     multimodalModel,
     ralphIterations,
     defaultWorkspacePath,
+    butlerRootPath,
+    butlerMaxConcurrent,
+    butlerRecentRounds,
     emailEnabled,
     emailFrom,
     emailTo,
@@ -299,6 +321,17 @@ export function SettingsMenu(_props: SettingsMenuProps): React.JSX.Element {
       }
     } catch (e) {
       console.error("Failed to select default workspace:", e)
+    }
+  }, [])
+
+  const handleSelectButlerRoot = useCallback(async () => {
+    try {
+      const selectedPath = await window.api.workspace.select()
+      if (selectedPath) {
+        setButlerRootPath(selectedPath)
+      }
+    } catch (e) {
+      console.error("Failed to select butler root:", e)
     }
   }, [])
 
@@ -369,6 +402,42 @@ export function SettingsMenu(_props: SettingsMenuProps): React.JSX.Element {
                   <Button variant="secondary" size="sm" onClick={handleSelectDefaultWorkspace}>
                     {t("settings.general.default_workspace_choose")}
                   </Button>
+                </div>
+
+                <div className="px-4 py-3 border-b border-border/70 flex items-center justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="text-xs text-muted-foreground">
+                      {t("settings.butler.root_path")}
+                    </div>
+                    <div className="text-[10px] text-muted-foreground truncate" title={butlerRootPath || undefined}>
+                      {butlerRootPath || t("settings.general.default_workspace_empty")}
+                    </div>
+                  </div>
+                  <Button variant="secondary" size="sm" onClick={handleSelectButlerRoot}>
+                    {t("settings.general.default_workspace_choose")}
+                  </Button>
+                </div>
+
+                <div className="px-4 py-3 border-b border-border/70 flex items-center justify-between gap-3">
+                  <div className="text-xs text-muted-foreground">{t("settings.butler.max_concurrent")}</div>
+                  <input
+                    type="number"
+                    min={1}
+                    value={butlerMaxConcurrent}
+                    onChange={(e) => setButlerMaxConcurrent(e.target.value)}
+                    className="w-24 h-7 px-2 text-xs bg-muted/50 border border-border/50 rounded-md focus:outline-none focus:ring-1 focus:ring-ring"
+                  />
+                </div>
+
+                <div className="px-4 py-3 border-b border-border/70 flex items-center justify-between gap-3">
+                  <div className="text-xs text-muted-foreground">{t("settings.butler.recent_rounds")}</div>
+                  <input
+                    type="number"
+                    min={1}
+                    value={butlerRecentRounds}
+                    onChange={(e) => setButlerRecentRounds(e.target.value)}
+                    className="w-24 h-7 px-2 text-xs bg-muted/50 border border-border/50 rounded-md focus:outline-none focus:ring-1 focus:ring-ring"
+                  />
                 </div>
 
                 {/* Language Selection */}

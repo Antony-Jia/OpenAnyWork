@@ -1,0 +1,150 @@
+import { HumanMessage } from "@langchain/core/messages"
+import { ChatOpenAI } from "@langchain/openai"
+import { createDeepAgent } from "deepagents"
+import { LocalSandbox } from "../agent/local-sandbox"
+import { getProviderState } from "../provider-config"
+import { getCheckpointer } from "../agent/runtime"
+import { getOpenworkDir } from "../storage"
+import type { ProviderConfig, ProviderState, SimpleProviderId } from "../types"
+import {
+  buildButlerSystemPrompt,
+  buildButlerUserPrompt,
+  parseButlerAssistantText,
+  type ButlerPromptContext
+} from "./prompt"
+import { createButlerDispatchTools, type ButlerDispatchIntent } from "./tools"
+
+export interface ButlerOrchestratorTurnInput {
+  threadId: string
+  promptContext: ButlerPromptContext
+}
+
+export interface ButlerOrchestratorTurnResult {
+  assistantText: string
+  dispatchIntents: ButlerDispatchIntent[]
+  clarification: boolean
+}
+
+function requireProviderState(): ProviderState {
+  const state = getProviderState()
+  if (!state) {
+    throw new Error(
+      "Provider not configured. Please configure Ollama, OpenAI-compatible, or Multimodal provider in Settings."
+    )
+  }
+  return state
+}
+
+function resolveProviderConfig(
+  state: ProviderState,
+  providerId: SimpleProviderId
+): ProviderConfig {
+  const config = state.configs[providerId]
+  if (!config) {
+    throw new Error(`Provider "${providerId}" not configured. Please configure it in Settings.`)
+  }
+  return config
+}
+
+function getModelInstance(): ChatOpenAI {
+  const state = requireProviderState()
+  const config = resolveProviderConfig(state, state.active)
+  if (!config.model) {
+    throw new Error("Active provider has no model configured.")
+  }
+
+  if (config.type === "ollama") {
+    const baseURL = config.url.endsWith("/v1") ? config.url : `${config.url}/v1`
+    return new ChatOpenAI({
+      model: config.model,
+      configuration: { baseURL },
+      apiKey: "ollama"
+    })
+  }
+
+  return new ChatOpenAI({
+    model: config.model,
+    apiKey: config.apiKey,
+    configuration: { baseURL: config.url }
+  })
+}
+
+async function createButlerRuntime(params: {
+  threadId: string
+  onIntent: (intent: ButlerDispatchIntent) => void
+}) {
+  const model = getModelInstance()
+  const checkpointer = await getCheckpointer(params.threadId)
+  const backend = new LocalSandbox({
+    rootDir: getOpenworkDir(),
+    virtualMode: false,
+    timeout: 60_000,
+    maxOutputBytes: 50_000
+  })
+
+  const tools = createButlerDispatchTools({ onIntent: params.onIntent })
+  return createDeepAgent({
+    model,
+    checkpointer,
+    backend,
+    systemPrompt: buildButlerSystemPrompt(),
+    tools,
+    subagents: [],
+    skills: []
+  } as Parameters<typeof createDeepAgent>[0])
+}
+
+export async function runButlerOrchestratorTurn(
+  input: ButlerOrchestratorTurnInput
+): Promise<ButlerOrchestratorTurnResult> {
+  const intents: ButlerDispatchIntent[] = []
+  const agent = await createButlerRuntime({
+    threadId: input.threadId,
+    onIntent: (intent) => {
+      intents.push(intent)
+    }
+  })
+  const userPrompt = buildButlerUserPrompt(input.promptContext)
+
+  const stream = await agent.stream(
+    { messages: [new HumanMessage(userPrompt)] },
+    {
+      configurable: { thread_id: input.threadId },
+      streamMode: ["messages", "values"],
+      recursionLimit: 250
+    }
+  )
+
+  let lastAssistant = ""
+  for await (const chunk of stream) {
+    const [mode, data] = chunk as [string, unknown]
+    if (mode !== "messages") continue
+    const tuple = data as [{ kwargs?: { content?: unknown } }, unknown]
+    const content = tuple?.[0]?.kwargs?.content
+    if (typeof content === "string" && content.trim()) {
+      lastAssistant = content
+    } else if (Array.isArray(content)) {
+      const text = content
+        .filter(
+          (item): item is { type?: string; text?: string } =>
+            !!item && typeof item === "object"
+        )
+        .map((item) => (item.type === "text" ? item.text ?? "" : ""))
+        .join("")
+      if (text.trim()) {
+        lastAssistant = text
+      }
+    }
+  }
+
+  const parsed = parseButlerAssistantText(lastAssistant)
+  const assistantText =
+    parsed.assistantText || (intents.length > 0 ? "已完成任务编排并开始执行。" : "已记录。")
+
+  return {
+    assistantText,
+    dispatchIntents: intents,
+    clarification: parsed.clarification
+  }
+}
+

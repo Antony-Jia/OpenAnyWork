@@ -7,6 +7,8 @@ import { ContainerManager } from "./ContainerManager"
 import { McpManager } from "./McpManager"
 import { WindowControls } from "./WindowControls"
 import { useLanguage } from "@/lib/i18n"
+import { useAppStore } from "@/lib/store"
+import { cn } from "@/lib/utils"
 
 interface TitleBarProps {
   threadId: string | null
@@ -14,6 +16,11 @@ interface TitleBarProps {
 
 export function TitleBar({ threadId }: TitleBarProps): React.JSX.Element {
   const { t } = useLanguage()
+  const { appMode, setAppMode } = useAppStore()
+
+  const toggleMode = (): void => {
+    setAppMode(appMode === "classic" ? "butler" : "classic")
+  }
 
   return (
     <div className="app-titlebar flex h-[40px] w-full shrink-0 items-center justify-between px-3 app-drag-region select-none z-50">
@@ -21,9 +28,16 @@ export function TitleBar({ threadId }: TitleBarProps): React.JSX.Element {
       <div className="flex items-center gap-3 app-no-drag">
         {/* Logo / Title */}
         <div className="flex items-center justify-center pl-1">
-          <div className="text-[13px] font-bold text-foreground tracking-[0.05em] select-none">
+          <button
+            type="button"
+            onClick={toggleMode}
+            className={cn(
+              "text-[13px] font-bold tracking-[0.05em] select-none transition-colors",
+              appMode === "butler" ? "text-blue-500" : "text-foreground"
+            )}
+          >
             {t("app.title")}
-          </div>
+          </button>
         </div>
 
         <div className="h-4 w-[1px] bg-border mx-1" />

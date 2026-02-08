@@ -49,7 +49,12 @@ export function registerThreadHandlers(ipcMain: IpcMain): void {
   ipcMain.handle("threads:create", async (_event, metadata?: Record<string, unknown>) => {
     const threadId = uuid()
     const title = (metadata?.title as string) || `Thread ${new Date().toLocaleDateString()}`
-    const mergedMetadata: Record<string, unknown> = { mode: "default", ...metadata, title }
+    const mergedMetadata: Record<string, unknown> = {
+      mode: "default",
+      createdBy: "user",
+      ...metadata,
+      title
+    }
 
     // Note: For email threads created via email (processStartWorkTask in worker.ts),
     // the workspacePath is set directly there. Manual email thread creation from UI

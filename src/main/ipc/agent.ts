@@ -11,6 +11,7 @@ import { buildEmailModePrompt } from "../email/prompt"
 import { ensureDockerRunning, getDockerRuntimeConfig } from "../docker/session"
 import { appendRalphLogEntry } from "../ralph-log"
 import { runAgentStream } from "../agent/run"
+import { emitTaskCompleted } from "../tasks/lifecycle"
 import type {
   AgentInvokeParams,
   AgentResumeParams,
@@ -233,7 +234,7 @@ export function registerAgentHandlers(ipcMain: IpcMain): void {
           // await resetRalphCheckpoint(threadId)
           const initPrompt = buildRalphInitPrompt(trimmed)
 
-          await runAgentStream({
+          const output = await runAgentStream({
             threadId,
             workspacePath: normalizedWorkspace,
             modelId,
@@ -248,6 +249,11 @@ export function registerAgentHandlers(ipcMain: IpcMain): void {
           })
           updateMetadata(threadId, { ralph: { phase: "awaiting_confirm", iterations: 0 } })
           if (!abortController.signal.aborted) {
+            emitTaskCompleted({
+              threadId,
+              result: output,
+              source: "agent"
+            })
             window.webContents.send(channel, { type: "done" })
           }
           return
@@ -267,6 +273,7 @@ export function registerAgentHandlers(ipcMain: IpcMain): void {
           appendProgressEntry(normalizedWorkspace)
           updateMetadata(threadId, { ralph: { phase: "running", iterations: 0 } })
 
+          let lastIterationOutput = ""
           const maxIterations = settings.ralphIterations || 5
           for (let i = 1; i <= maxIterations; i += 1) {
             if (abortController.signal.aborted) break
@@ -289,7 +296,7 @@ export function registerAgentHandlers(ipcMain: IpcMain): void {
               "- 工作过程的重要信息你需要写入在工作路径中，并写在 progress.txt 中，提示下一轮迭代读取或者最终总结。"
             ].join("\n")
 
-            await runAgentStream({
+            lastIterationOutput = await runAgentStream({
               threadId,
               workspacePath: normalizedWorkspace,
               modelId,
@@ -315,6 +322,11 @@ export function registerAgentHandlers(ipcMain: IpcMain): void {
           }
 
           if (!abortController.signal.aborted) {
+            emitTaskCompleted({
+              threadId,
+              result: lastIterationOutput || "Ralph iteration finished.",
+              source: "agent"
+            })
             window.webContents.send(channel, { type: "done" })
           }
           return
@@ -344,7 +356,7 @@ export function registerAgentHandlers(ipcMain: IpcMain): void {
           await resetRalphCheckpoint(threadId)
           const initPrompt = buildRalphInitPrompt(messageText)
 
-          await runAgentStream({
+          const output = await runAgentStream({
             threadId,
             workspacePath: normalizedWorkspace,
             modelId,
@@ -359,6 +371,11 @@ export function registerAgentHandlers(ipcMain: IpcMain): void {
           })
           updateMetadata(threadId, { ralph: { phase: "awaiting_confirm", iterations: 0 } })
           if (!abortController.signal.aborted) {
+            emitTaskCompleted({
+              threadId,
+              result: output,
+              source: "agent"
+            })
             window.webContents.send(channel, { type: "done" })
           }
           return
@@ -366,7 +383,7 @@ export function registerAgentHandlers(ipcMain: IpcMain): void {
       }
 
       if (mode === "email") {
-        await runAgentStream({
+        const output = await runAgentStream({
           threadId,
           workspacePath: normalizedWorkspace,
           modelId,
@@ -382,12 +399,17 @@ export function registerAgentHandlers(ipcMain: IpcMain): void {
         })
 
         if (!abortController.signal.aborted) {
+          emitTaskCompleted({
+            threadId,
+            result: output,
+            source: "agent"
+          })
           window.webContents.send(channel, { type: "done" })
         }
         return
       }
 
-      await runAgentStream({
+      const output = await runAgentStream({
         threadId,
         workspacePath: normalizedWorkspace,
         modelId,
@@ -401,6 +423,11 @@ export function registerAgentHandlers(ipcMain: IpcMain): void {
       })
 
       if (!abortController.signal.aborted) {
+        emitTaskCompleted({
+          threadId,
+          result: output,
+          source: "agent"
+        })
         window.webContents.send(channel, { type: "done" })
       }
     } catch (error) {
@@ -413,6 +440,11 @@ export function registerAgentHandlers(ipcMain: IpcMain): void {
 
       if (!isAbortError) {
         console.error("[Agent] Error:", error)
+        emitTaskCompleted({
+          threadId,
+          error: error instanceof Error ? error.message : "Unknown error",
+          source: "agent"
+        })
         window.webContents.send(channel, {
           type: "error",
           error: error instanceof Error ? error.message : "Unknown error"
@@ -615,6 +647,13 @@ export function registerAgentHandlers(ipcMain: IpcMain): void {
 
   // Handle cancellation
   ipcMain.handle("agent:cancel", async (_event, { threadId }: AgentCancelParams) => {
+    const thread = getThread(threadId)
+    const metadata = thread?.metadata ? JSON.parse(thread.metadata) : {}
+    if (metadata.nonInterruptible === true) {
+      console.log("[Agent] Cancellation ignored for non-interruptible thread:", threadId)
+      return
+    }
+
     const controller = activeRuns.get(threadId)
     if (controller) {
       controller.abort()

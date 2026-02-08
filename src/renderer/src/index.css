@@ -219,6 +219,16 @@ html.quick-input-mode #root {
   background: transparent !important;
 }
 
+html.task-popup-mode,
+body.task-popup-mode {
+  overflow: hidden !important;
+  background: transparent !important;
+}
+
+html.task-popup-mode #root {
+  background: transparent !important;
+}
+
 /* Tactical typography utilities */
 .text-section-header {
   @apply text-[10px] font-bold uppercase tracking-[0.1em] text-muted-foreground/70;

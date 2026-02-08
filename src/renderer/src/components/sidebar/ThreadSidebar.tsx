@@ -141,8 +141,16 @@ function ThreadListItem({
 }
 
 export function ThreadSidebar(): React.JSX.Element {
-  const { threads, currentThreadId, createThread, selectThread, deleteThread, updateThread } =
-    useAppStore()
+  const {
+    threads,
+    currentThreadId,
+    createThread,
+    selectThread,
+    deleteThread,
+    updateThread,
+    threadOriginFilter,
+    setThreadOriginFilter
+  } = useAppStore()
   const { t } = useLanguage()
 
   const [editingThreadId, setEditingThreadId] = useState<string | null>(null)
@@ -179,6 +187,14 @@ export function ThreadSidebar(): React.JSX.Element {
     await createThread(metadata)
     setNewThreadOpen(false)
   }
+
+  const filteredThreads = threads.filter((thread) => {
+    if (thread.metadata?.butlerMain === true) return false
+    const createdBy = thread.metadata?.createdBy as string | undefined
+    if (threadOriginFilter === "all") return true
+    if (threadOriginFilter === "butler") return createdBy === "butler"
+    return createdBy !== "butler"
+  })
 
   return (
     <aside className="flex h-full w-full flex-col border-r border-border bg-sidebar overflow-hidden">
@@ -240,10 +256,49 @@ export function ThreadSidebar(): React.JSX.Element {
         </Popover>
       </div>
 
+      <div className="px-2 pb-2 flex items-center gap-1">
+        <button
+          type="button"
+          onClick={() => setThreadOriginFilter("all")}
+          className={cn(
+            "h-6 px-2 rounded text-[10px] border",
+            threadOriginFilter === "all"
+              ? "border-blue-500 text-blue-500 bg-blue-500/10"
+              : "border-border text-muted-foreground"
+          )}
+        >
+          全部
+        </button>
+        <button
+          type="button"
+          onClick={() => setThreadOriginFilter("manual")}
+          className={cn(
+            "h-6 px-2 rounded text-[10px] border",
+            threadOriginFilter === "manual"
+              ? "border-blue-500 text-blue-500 bg-blue-500/10"
+              : "border-border text-muted-foreground"
+          )}
+        >
+          人工
+        </button>
+        <button
+          type="button"
+          onClick={() => setThreadOriginFilter("butler")}
+          className={cn(
+            "h-6 px-2 rounded text-[10px] border",
+            threadOriginFilter === "butler"
+              ? "border-blue-500 text-blue-500 bg-blue-500/10"
+              : "border-border text-muted-foreground"
+          )}
+        >
+          管家
+        </button>
+      </div>
+
       {/* Thread List */}
       <ScrollArea className="flex-1 min-h-0">
         <div className="p-2 space-y-1 overflow-hidden">
-          {threads.map((thread) => (
+          {filteredThreads.map((thread) => (
             <ThreadListItem
               key={thread.thread_id}
               thread={thread}
@@ -259,7 +314,7 @@ export function ThreadSidebar(): React.JSX.Element {
             />
           ))}
 
-          {threads.length === 0 && (
+          {filteredThreads.length === 0 && (
             <div className="px-3 py-8 text-center text-sm text-muted-foreground">
               {t("sidebar.no_threads")}
             </div>

@@ -28,7 +28,10 @@ import type {
   RalphLogEntry,
   ContentBlock,
   Attachment,
-  LoopConfig
+  LoopConfig,
+  ButlerState,
+  ButlerTask,
+  TaskCompletionNotice
 } from "../main/types"
 
 interface ElectronAPI {
@@ -82,6 +85,13 @@ interface CustomAPI {
     start: (threadId: string) => Promise<LoopConfig>
     stop: (threadId: string) => Promise<LoopConfig>
     status: (threadId: string) => Promise<{ running: boolean; queueLength: number }>
+  }
+  butler: {
+    getState: () => Promise<ButlerState>
+    send: (message: string) => Promise<ButlerState>
+    listTasks: () => Promise<ButlerTask[]>
+    onTaskUpdate: (callback: (tasks: ButlerTask[]) => void) => () => void
+    onTaskCompleted: (callback: (card: TaskCompletionNotice) => void) => () => void
   }
   models: {
     list: () => Promise<ModelConfig[]>

@@ -1,5 +1,7 @@
 import type { AppSettings } from "./types"
 import { getDb, markDbDirty } from "./db"
+import { getOpenworkDir } from "./storage"
+import { join } from "path"
 
 const defaultSettings: AppSettings = {
   ralphIterations: 5,
@@ -37,6 +39,11 @@ const defaultSettings: AppSettings = {
     }
   },
   defaultWorkspacePath: "",
+  butler: {
+    rootPath: join(getOpenworkDir(), "butler-workspaces"),
+    maxConcurrent: 2,
+    recentRounds: 5
+  },
   dockerConfig: {
     enabled: false,
     image: "python:3.13-alpine",
@@ -68,6 +75,10 @@ function readSettings(): AppSettings {
       return {
         ...defaultSettings,
         ...parsed,
+        butler: {
+          ...defaultSettings.butler,
+          ...(parsed?.butler ?? {})
+        },
         email: {
           ...defaultSettings.email,
           ...(parsed?.email ?? {}),
@@ -114,6 +125,10 @@ export function updateSettings(updates: Partial<AppSettings>): AppSettings {
   const next: AppSettings = {
     ...current,
     ...updates,
+    butler: {
+      ...current.butler,
+      ...(updates.butler ?? {})
+    },
     email: {
       ...current.email,
       ...(updates.email ?? {}),

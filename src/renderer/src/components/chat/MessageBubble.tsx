@@ -79,7 +79,8 @@ export function MessageBubble({
     try {
       const result = await window.api.speech.tts({ text: ttsText })
       const bytes = base64ToUint8Array(result.audioBase64)
-      const blob = new Blob([bytes], { type: result.mimeType || "audio/mpeg" })
+      const safeBytes = Uint8Array.from(bytes)
+      const blob = new Blob([safeBytes], { type: result.mimeType || "audio/mpeg" })
       const url = URL.createObjectURL(blob)
       objectUrlRef.current = url
       const audio = new Audio(url)

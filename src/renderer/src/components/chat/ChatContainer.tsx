@@ -73,6 +73,7 @@ export function ChatContainer({ threadId }: ChatContainerProps): React.JSX.Eleme
   const { loadThreads, generateTitleForFirstMessage, threads, updateThread } = useAppStore()
   const currentThread = threads.find((t) => t.thread_id === threadId)
   const threadMode = (currentThread?.metadata?.mode as ThreadMode) || "default"
+  const nonInterruptible = currentThread?.metadata?.nonInterruptible === true
   const autoApproveInterrupts =
     currentThread?.metadata?.autoApproveInterrupts === true ||
     currentThread?.metadata?.disableApprovals === true
@@ -574,7 +575,12 @@ export function ChatContainer({ threadId }: ChatContainerProps): React.JSX.Eleme
       streamContent = blocks
     }
 
-    await stream.submit(
+    await (stream as unknown as {
+      submit: (
+        input: { messages: Array<{ type: string; content: string | StreamContentBlock[] }> },
+        options: { config: { configurable: { thread_id: string; model_id: string } } }
+      ) => Promise<void>
+    }).submit(
       {
         messages: [{ type: "human", content: streamContent }]
       },
@@ -607,6 +613,7 @@ export function ChatContainer({ threadId }: ChatContainerProps): React.JSX.Eleme
   }, [input])
 
   const handleCancel = async (): Promise<void> => {
+    if (nonInterruptible) return
     await stream?.stop()
   }
 
@@ -776,6 +783,8 @@ export function ChatContainer({ threadId }: ChatContainerProps): React.JSX.Eleme
                     size="icon-sm"
                     onClick={handleCancel}
                     className="h-7 w-7"
+                    disabled={nonInterruptible}
+                    title={nonInterruptible ? "该任务由管家创建，不可中断" : undefined}
                   >
                     <Square className="size-3.5 fill-current" />
                   </Button>

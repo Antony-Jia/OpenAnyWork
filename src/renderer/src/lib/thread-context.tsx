@@ -13,7 +13,15 @@ import {
 /* eslint-disable react-refresh/only-export-components */
 import { useStream } from "@langchain/langgraph-sdk/react"
 import { ElectronIPCTransport } from "./electron-transport"
-import type { Message, Todo, FileInfo, Subagent, HITLRequest, DockerConfig, RalphLogEntry } from "@/types"
+import type {
+  Message,
+  Todo,
+  FileInfo,
+  Subagent,
+  HITLRequest,
+  DockerConfig,
+  RalphLogEntry
+} from "@/types"
 import type { DeepAgent } from "../../../main/agent/types"
 
 // Open file tab type
@@ -144,6 +152,121 @@ interface CustomEventData {
   }
 }
 
+interface RawIPCEvent {
+  type?: unknown
+  mode?: unknown
+  data?: unknown
+  error?: unknown
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return !!value && typeof value === "object" && !Array.isArray(value)
+}
+
+function detectMessageRole(className: string, fallbackType?: unknown): Message["role"] {
+  if (className.includes("Human")) return "user"
+  if (className.includes("Tool")) return "tool"
+  if (className.includes("System")) return "system"
+  if (className.includes("AI")) return "assistant"
+
+  if (fallbackType === "human") return "user"
+  if (fallbackType === "tool") return "tool"
+  if (fallbackType === "system") return "system"
+  return "assistant"
+}
+
+function parseStreamMessages(rawMessages: unknown[]): Message[] {
+  return rawMessages
+    .map((rawMsg, index) => {
+      if (!isRecord(rawMsg)) return null
+
+      const kwargs = isRecord(rawMsg.kwargs) ? rawMsg.kwargs : {}
+      const classId = Array.isArray(rawMsg.id) ? rawMsg.id : []
+      const className = classId.length > 0 ? String(classId[classId.length - 1]) : ""
+
+      const role = detectMessageRole(className, rawMsg.type)
+      const messageId =
+        (typeof kwargs.id === "string" && kwargs.id) ||
+        (typeof rawMsg.id === "string" && rawMsg.id) ||
+        `${role}-${index}`
+
+      let content: Message["content"] = ""
+      if (typeof kwargs.content === "string") {
+        content = kwargs.content
+      } else if (Array.isArray(kwargs.content)) {
+        content = kwargs.content as Message["content"]
+      } else if (typeof rawMsg.content === "string") {
+        content = rawMsg.content
+      } else if (Array.isArray(rawMsg.content)) {
+        content = rawMsg.content as Message["content"]
+      }
+
+      const toolCalls = Array.isArray(kwargs.tool_calls)
+        ? (kwargs.tool_calls as Message["tool_calls"])
+        : Array.isArray(rawMsg.tool_calls)
+          ? (rawMsg.tool_calls as Message["tool_calls"])
+          : undefined
+
+      const toolCallId =
+        (typeof kwargs.tool_call_id === "string" && kwargs.tool_call_id) ||
+        (typeof rawMsg.tool_call_id === "string" && rawMsg.tool_call_id) ||
+        undefined
+      const toolName =
+        (typeof kwargs.name === "string" && kwargs.name) ||
+        (typeof rawMsg.name === "string" && rawMsg.name) ||
+        undefined
+
+      const nextMessage: Message = {
+        id: messageId,
+        role,
+        content,
+        created_at: new Date(),
+        ...(role === "assistant" && toolCalls && { tool_calls: toolCalls }),
+        ...(role === "tool" && toolCallId && { tool_call_id: toolCallId }),
+        ...(role === "tool" && toolName && { name: toolName })
+      }
+
+      return nextMessage
+    })
+    .filter((msg): msg is Message => !!msg)
+}
+
+function parseWorkspaceFiles(
+  files: unknown
+): Array<{ path: string; is_dir?: boolean; size?: number }> {
+  if (Array.isArray(files)) {
+    return files
+      .filter((f) => isRecord(f) && typeof f.path === "string")
+      .map((f) => ({
+        path: f.path as string,
+        ...(typeof f.is_dir === "boolean" && { is_dir: f.is_dir }),
+        ...(typeof f.size === "number" && { size: f.size })
+      }))
+  }
+
+  if (isRecord(files)) {
+    return Object.entries(files).map(([path, data]) => ({
+      path,
+      is_dir: false,
+      size: isRecord(data) && typeof data.content === "string" ? data.content.length : undefined
+    }))
+  }
+
+  return []
+}
+
+function parseTodos(rawTodos: unknown): Todo[] | null {
+  if (!Array.isArray(rawTodos)) return null
+  return rawTodos.map((todo, index) => {
+    const item = isRecord(todo) ? todo : {}
+    return {
+      id: (typeof item.id === "string" && item.id) || `todo-${index}`,
+      content: (typeof item.content === "string" && item.content) || "",
+      status: ((typeof item.status === "string" && item.status) as Todo["status"]) || "pending"
+    }
+  })
+}
+
 // Component that holds a stream and notifies subscribers
 function ThreadStreamHolder({
   threadId,
@@ -217,6 +340,28 @@ function ThreadStreamHolder({
       stream
     })
   }, [stream])
+
+  return null
+}
+
+function ThreadAgentEventListener({
+  threadId,
+  onEvent
+}: {
+  threadId: string
+  onEvent: (threadId: string, event: RawIPCEvent) => void
+}): null {
+  useEffect(() => {
+    const channel = `agent:stream:${threadId}`
+    const cleanup = window.electron.ipcRenderer.on(channel, (...args: unknown[]) => {
+      const payload = (args[0] || {}) as RawIPCEvent
+      onEvent(threadId, payload)
+    })
+
+    return () => {
+      if (typeof cleanup === "function") cleanup()
+    }
+  }, [threadId, onEvent])
 
   return null
 }
@@ -424,6 +569,68 @@ export function ThreadProvider({ children }: { children: ReactNode }) {
       }
     },
     [updateThreadState]
+  )
+
+  const handleAgentEvent = useCallback(
+    (threadId: string, rawEvent: RawIPCEvent) => {
+      const type = rawEvent.type
+      if (typeof type !== "string") return
+
+      if (type === "custom" && isRecord(rawEvent.data)) {
+        handleCustomEvent(threadId, rawEvent.data as CustomEventData)
+        return
+      }
+
+      if (type === "error") {
+        const message =
+          typeof rawEvent.error === "string" && rawEvent.error
+            ? rawEvent.error
+            : "Unknown stream error"
+        updateThreadState(threadId, () => ({ error: parseErrorMessage(message) }))
+        return
+      }
+
+      if (type !== "stream" || rawEvent.mode !== "values" || !isRecord(rawEvent.data)) {
+        return
+      }
+
+      const state = rawEvent.data
+      const parsedMessages = Array.isArray(state.messages)
+        ? parseStreamMessages(state.messages)
+        : null
+      const parsedTodos = parseTodos(state.todos)
+      const parsedFiles = parseWorkspaceFiles(state.files)
+      const workspacePath = typeof state.workspacePath === "string" ? state.workspacePath : null
+
+      if (parsedMessages && parsedMessages.length > 0) {
+        updateThreadState(threadId, () => ({ messages: parsedMessages }))
+      }
+
+      if (parsedTodos) {
+        updateThreadState(threadId, () => ({ todos: parsedTodos }))
+      }
+
+      if (parsedFiles.length > 0 || workspacePath !== null) {
+        updateThreadState(threadId, (prev) => {
+          const next: Partial<ThreadState> = {}
+
+          if (parsedFiles.length > 0) {
+            const fileMap = new Map(prev.workspaceFiles.map((f) => [f.path, f]))
+            for (const f of parsedFiles) {
+              fileMap.set(f.path, { path: f.path, is_dir: f.is_dir, size: f.size })
+            }
+            next.workspaceFiles = Array.from(fileMap.values())
+          }
+
+          if (workspacePath !== null) {
+            next.workspacePath = workspacePath
+          }
+
+          return next
+        })
+      }
+    },
+    [handleCustomEvent, parseErrorMessage, updateThreadState]
   )
 
   const getThreadActions = useCallback(
@@ -776,11 +983,18 @@ export function ThreadProvider({ children }: { children: ReactNode }) {
       {/* Render stream holders for all active threads */}
       {Array.from(activeThreadIds).map((threadId) => (
         <ThreadStreamHolder
-          key={threadId}
+          key={`stream-${threadId}`}
           threadId={threadId}
           onStreamUpdate={(data) => handleStreamUpdate(threadId, data)}
           onCustomEvent={(data) => handleCustomEvent(threadId, data)}
           onError={(error) => handleError(threadId, error)}
+        />
+      ))}
+      {Array.from(activeThreadIds).map((threadId) => (
+        <ThreadAgentEventListener
+          key={`live-${threadId}`}
+          threadId={threadId}
+          onEvent={handleAgentEvent}
         />
       ))}
       {children}

@@ -38,21 +38,6 @@ export function ButlerMonitorBoard(): React.JSX.Element {
   const [pulling, setPulling] = useState(false)
   const [pullResult, setPullResult] = useState("")
 
-  const [calendarTitle, setCalendarTitle] = useState("")
-  const [calendarStartAt, setCalendarStartAt] = useState("")
-  const [calendarEndAt, setCalendarEndAt] = useState("")
-  const [calendarDescription, setCalendarDescription] = useState("")
-  const [calendarLocation, setCalendarLocation] = useState("")
-
-  const [countdownTitle, setCountdownTitle] = useState("")
-  const [countdownDueAt, setCountdownDueAt] = useState("")
-  const [countdownDescription, setCountdownDescription] = useState("")
-
-  const [mailRuleName, setMailRuleName] = useState("")
-  const [mailRuleFolder, setMailRuleFolder] = useState("INBOX")
-  const [mailRuleFromContains, setMailRuleFromContains] = useState("")
-  const [mailRuleSubjectContains, setMailRuleSubjectContains] = useState("")
-
   const load = useCallback(async () => {
     setLoading(true)
     setError(null)
@@ -87,20 +72,25 @@ export function ButlerMonitorBoard(): React.JSX.Element {
   }, [snapshot])
 
   const handleCreateCalendar = async (): Promise<void> => {
-    if (!calendarTitle.trim() || !calendarStartAt.trim()) return
+    const title = window.prompt("事件标题")
+    if (title === null || !title.trim()) return
+    const startInput = window.prompt("开始时间 (YYYY-MM-DDTHH:mm)")
+    if (startInput === null || !startInput.trim()) return
+    const endInput = window.prompt("结束时间 (可空)", "")
+    if (endInput === null) return
+    const description = window.prompt("说明 (可空)", "")
+    if (description === null) return
+    const location = window.prompt("地点 (可空)", "")
+    if (location === null) return
+
     try {
       await window.api.butlerMonitor.createCalendarEvent({
-        title: calendarTitle.trim(),
-        startAt: fromInputDateTime(calendarStartAt),
-        endAt: calendarEndAt ? fromInputDateTime(calendarEndAt) : undefined,
-        description: calendarDescription.trim() || undefined,
-        location: calendarLocation.trim() || undefined
+        title: title.trim(),
+        startAt: fromInputDateTime(startInput.trim()),
+        endAt: endInput.trim() ? fromInputDateTime(endInput.trim()) : undefined,
+        description: description.trim() || undefined,
+        location: location.trim() || undefined
       })
-      setCalendarTitle("")
-      setCalendarStartAt("")
-      setCalendarEndAt("")
-      setCalendarDescription("")
-      setCalendarLocation("")
       await load()
     } catch (createError) {
       console.error("[ButlerMonitorBoard] create calendar failed:", createError)
@@ -136,16 +126,19 @@ export function ButlerMonitorBoard(): React.JSX.Element {
   }
 
   const handleCreateCountdown = async (): Promise<void> => {
-    if (!countdownTitle.trim() || !countdownDueAt.trim()) return
+    const title = window.prompt("倒计时标题")
+    if (title === null || !title.trim()) return
+    const dueAtInput = window.prompt("到点时间 (YYYY-MM-DDTHH:mm)")
+    if (dueAtInput === null || !dueAtInput.trim()) return
+    const description = window.prompt("说明 (可空)", "")
+    if (description === null) return
+
     try {
       await window.api.butlerMonitor.createCountdownTimer({
-        title: countdownTitle.trim(),
-        dueAt: fromInputDateTime(countdownDueAt),
-        description: countdownDescription.trim() || undefined
+        title: title.trim(),
+        dueAt: fromInputDateTime(dueAtInput.trim()),
+        description: description.trim() || undefined
       })
-      setCountdownTitle("")
-      setCountdownDueAt("")
-      setCountdownDescription("")
       await load()
     } catch (createError) {
       console.error("[ButlerMonitorBoard] create countdown failed:", createError)
@@ -175,19 +168,23 @@ export function ButlerMonitorBoard(): React.JSX.Element {
   }
 
   const handleCreateMailRule = async (): Promise<void> => {
-    if (!mailRuleName.trim()) return
+    const name = window.prompt("规则名称")
+    if (name === null || !name.trim()) return
+    const folder = window.prompt("邮箱文件夹 (默认 INBOX)", "INBOX")
+    if (folder === null) return
+    const fromContains = window.prompt("发件人包含 (可空)", "")
+    if (fromContains === null) return
+    const subjectContains = window.prompt("主题包含 (可空)", "")
+    if (subjectContains === null) return
+
     try {
       await window.api.butlerMonitor.createMailRule({
-        name: mailRuleName.trim(),
-        folder: mailRuleFolder.trim() || "INBOX",
-        fromContains: mailRuleFromContains.trim() || undefined,
-        subjectContains: mailRuleSubjectContains.trim() || undefined,
+        name: name.trim(),
+        folder: folder.trim() || "INBOX",
+        fromContains: fromContains.trim() || undefined,
+        subjectContains: subjectContains.trim() || undefined,
         enabled: true
       })
-      setMailRuleName("")
-      setMailRuleFolder("INBOX")
-      setMailRuleFromContains("")
-      setMailRuleSubjectContains("")
       await load()
     } catch (createError) {
       console.error("[ButlerMonitorBoard] create mail rule failed:", createError)
@@ -286,40 +283,9 @@ export function ButlerMonitorBoard(): React.JSX.Element {
       <div className="flex-1 min-h-0 overflow-y-auto p-3 space-y-3">
         {activeTab === "calendar" && (
           <>
-            <div className="rounded-md border border-border p-3 space-y-2">
-              <div className="text-xs text-muted-foreground uppercase tracking-[0.12em]">新增日历事件</div>
-              <input
-                value={calendarTitle}
-                onChange={(event) => setCalendarTitle(event.target.value)}
-                placeholder="事件标题"
-                className="w-full h-8 px-2 text-xs rounded border border-border bg-background"
-              />
-              <input
-                type="datetime-local"
-                value={calendarStartAt}
-                onChange={(event) => setCalendarStartAt(event.target.value)}
-                className="w-full h-8 px-2 text-xs rounded border border-border bg-background"
-              />
-              <input
-                type="datetime-local"
-                value={calendarEndAt}
-                onChange={(event) => setCalendarEndAt(event.target.value)}
-                className="w-full h-8 px-2 text-xs rounded border border-border bg-background"
-              />
-              <input
-                value={calendarLocation}
-                onChange={(event) => setCalendarLocation(event.target.value)}
-                placeholder="地点（可空）"
-                className="w-full h-8 px-2 text-xs rounded border border-border bg-background"
-              />
-              <textarea
-                value={calendarDescription}
-                onChange={(event) => setCalendarDescription(event.target.value)}
-                placeholder="说明（可空）"
-                className="w-full min-h-[56px] px-2 py-2 text-xs rounded border border-border bg-background"
-              />
+            <div className="flex items-center justify-end">
               <Button className="h-7 px-2 text-xs" onClick={() => void handleCreateCalendar()}>
-                添加到日历
+                创建日历事件
               </Button>
             </div>
 
@@ -382,28 +348,9 @@ export function ButlerMonitorBoard(): React.JSX.Element {
 
         {activeTab === "countdown" && (
           <>
-            <div className="rounded-md border border-border p-3 space-y-2">
-              <div className="text-xs text-muted-foreground uppercase tracking-[0.12em]">新增倒计时</div>
-              <input
-                value={countdownTitle}
-                onChange={(event) => setCountdownTitle(event.target.value)}
-                placeholder="倒计时标题"
-                className="w-full h-8 px-2 text-xs rounded border border-border bg-background"
-              />
-              <input
-                type="datetime-local"
-                value={countdownDueAt}
-                onChange={(event) => setCountdownDueAt(event.target.value)}
-                className="w-full h-8 px-2 text-xs rounded border border-border bg-background"
-              />
-              <textarea
-                value={countdownDescription}
-                onChange={(event) => setCountdownDescription(event.target.value)}
-                placeholder="说明（可空）"
-                className="w-full min-h-[56px] px-2 py-2 text-xs rounded border border-border bg-background"
-              />
+            <div className="flex items-center justify-end">
               <Button className="h-7 px-2 text-xs" onClick={() => void handleCreateCountdown()}>
-                添加到倒计时
+                创建倒计时
               </Button>
             </div>
 
@@ -468,46 +415,21 @@ export function ButlerMonitorBoard(): React.JSX.Element {
 
         {activeTab === "mail" && (
           <>
-            <div className="rounded-md border border-border p-3 space-y-2">
-              <div className="text-xs text-muted-foreground uppercase tracking-[0.12em]">新增邮件规则</div>
-              <input
-                value={mailRuleName}
-                onChange={(event) => setMailRuleName(event.target.value)}
-                placeholder="规则名称"
-                className="w-full h-8 px-2 text-xs rounded border border-border bg-background"
-              />
-              <input
-                value={mailRuleFolder}
-                onChange={(event) => setMailRuleFolder(event.target.value)}
-                placeholder="文件夹（默认 INBOX）"
-                className="w-full h-8 px-2 text-xs rounded border border-border bg-background"
-              />
-              <input
-                value={mailRuleFromContains}
-                onChange={(event) => setMailRuleFromContains(event.target.value)}
-                placeholder="发件人包含（可空）"
-                className="w-full h-8 px-2 text-xs rounded border border-border bg-background"
-              />
-              <input
-                value={mailRuleSubjectContains}
-                onChange={(event) => setMailRuleSubjectContains(event.target.value)}
-                placeholder="主题包含（可空）"
-                className="w-full h-8 px-2 text-xs rounded border border-border bg-background"
-              />
-              <div className="flex items-center gap-2">
-                <Button className="h-7 px-2 text-xs" onClick={() => void handleCreateMailRule()}>
-                  添加规则
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-7 px-2 text-xs"
-                  disabled={pulling}
-                  onClick={() => void handlePullMailNow()}
-                >
-                  {pulling ? "拉取中..." : "立即拉取"}
-                </Button>
-              </div>
+            <div className="flex items-center justify-end gap-2">
+              <Button className="h-7 px-2 text-xs" onClick={() => void handleCreateMailRule()}>
+                创建邮件规则
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-7 px-2 text-xs"
+                disabled={pulling}
+                onClick={() => void handlePullMailNow()}
+              >
+                {pulling ? "拉取中..." : "立即拉取"}
+              </Button>
+            </div>
+            <div>
               {pullResult && <div className="text-[11px] text-blue-300">{pullResult}</div>}
             </div>
 
@@ -592,4 +514,3 @@ export function ButlerMonitorBoard(): React.JSX.Element {
     </div>
   )
 }
-

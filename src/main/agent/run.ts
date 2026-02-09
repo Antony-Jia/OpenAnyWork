@@ -1,6 +1,6 @@
 import { BrowserWindow } from "electron"
 import { randomUUID } from "node:crypto"
-import { HumanMessage } from "@langchain/core/messages"
+import { HumanMessage, type MessageContent } from "@langchain/core/messages"
 import { createAgentRuntime } from "./runtime"
 import { extractAssistantChunkText } from "./stream-utils"
 import { appendRalphLogEntry } from "../ralph-log"
@@ -52,7 +52,7 @@ export async function runAgentStream({
   })
 
   const humanMessage = Array.isArray(message)
-    ? new HumanMessage({ content: message as unknown as any })
+    ? new HumanMessage({ content: message as MessageContent })
     : new HumanMessage(message)
   const stream = await agent.stream(
     { messages: [humanMessage] },

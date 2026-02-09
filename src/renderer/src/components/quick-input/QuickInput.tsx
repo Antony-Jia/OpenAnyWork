@@ -3,12 +3,6 @@ import { Loader2, Search } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { useLanguage } from "@/lib/i18n"
 
-type AgentEvent = {
-  type?: string
-  message?: string
-  error?: string
-}
-
 export function QuickInput(): React.JSX.Element {
   const { t } = useLanguage()
   const [value, setValue] = useState("")
@@ -28,45 +22,11 @@ export function QuickInput(): React.JSX.Element {
     setError(null)
 
     try {
-      const settings = await window.api.settings.get()
-      const defaultWorkspacePath = settings.defaultWorkspacePath?.trim()
-      if (!defaultWorkspacePath) {
-        setError(t("quick_input.no_default_workspace"))
-        window.electron.ipcRenderer.send("app:open-settings")
-        setIsSubmitting(false)
-        return
-      }
-
-      const thread = await window.api.threads.create({
-        workspacePath: defaultWorkspacePath,
-        disableApprovals: true,
-        createdBy: "quick-input"
-      })
-      const threadId = thread.thread_id
-
-      void (async () => {
-        try {
-          const generatedTitle = await window.api.threads.generateTitle(message)
-          if (generatedTitle) {
-            await window.api.threads.update(threadId, { title: generatedTitle })
-          }
-        } catch (titleError) {
-          console.warn("[QuickInput] Failed to generate title:", titleError)
-        }
-      })()
-
-      window.api.agent.invoke(threadId, message, (event) => {
-        const evt = event as AgentEvent
-        if (evt.type === "done") {
-          window.electron.ipcRenderer.send("app:activate-thread", threadId)
-          window.electron.ipcRenderer.send("quick-input:hide")
-          setValue("")
-          setIsSubmitting(false)
-        } else if (evt.type === "error") {
-          setError(evt.message || evt.error || "Unknown error")
-          setIsSubmitting(false)
-        }
-      })
+      await window.api.butler.send(message)
+      window.electron.ipcRenderer.send("app:open-butler")
+      window.electron.ipcRenderer.send("quick-input:hide")
+      setValue("")
+      setIsSubmitting(false)
     } catch (submitError) {
       const message =
         submitError instanceof Error ? submitError.message : t("quick_input.submit_failed")

@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 import { cpSync, existsSync, mkdirSync, rmSync } from "node:fs"
-import { join, resolve } from "node:path"
+import { basename, dirname, join, resolve } from "node:path"
 import { createDeepAgent } from "deepagents"
 import { toolRetryMiddleware, createMiddleware } from "langchain"
 import { getOpenworkDir, getThreadCheckpointPath } from "../storage"
@@ -109,11 +109,19 @@ function normalizeSkillSourcePath(path: string): string {
   return resolve(path).replace(/\\/g, "/")
 }
 
+function resolveSkillRoot(path: string): string {
+  const resolved = resolve(path)
+  if (basename(resolved).toLowerCase() === "skill.md") {
+    return dirname(resolved)
+  }
+  return resolved
+}
+
 function buildSkillPathMap(skills: SkillItem[]): Map<string, string> {
   const skillPathByName = new Map<string, string>()
   for (const skill of skills) {
     if (!skill?.name || !skill?.path) continue
-    skillPathByName.set(skill.name, resolve(skill.path))
+    skillPathByName.set(skill.name, resolveSkillRoot(skill.path))
   }
   return skillPathByName
 }
@@ -140,20 +148,19 @@ function createSkillSnapshotSource(params: {
   mkdirSync(targetRoot, { recursive: true })
   let copied = 0
   for (const skillName of uniqueSkillNames) {
-    const sourcePath = skillPathByName.get(skillName)
-    if (!sourcePath) {
+    const sourceDir = skillPathByName.get(skillName)
+    if (!sourceDir) {
       logEntry("Runtime", "skills.missing", { agentName, skillName, reason: "not_in_registry" })
       continue
     }
-    if (!existsSync(sourcePath)) {
+    if (!existsSync(sourceDir)) {
       logEntry("Runtime", "skills.missing", { agentName, skillName, reason: "file_missing" })
       continue
     }
 
     const targetSkillDir = join(targetRoot, skillName)
     try {
-      mkdirSync(targetSkillDir, { recursive: true })
-      cpSync(sourcePath, join(targetSkillDir, "SKILL.md"))
+      cpSync(sourceDir, targetSkillDir, { recursive: true })
       copied += 1
     } catch (error) {
       logEntry("Runtime", "skills.copy_failed", {
@@ -442,7 +449,7 @@ export async function createAgentRuntime(options: CreateAgentRuntimeOptions) {
     `\n\n${currentTimePrompt}` +
     (extraSystemPrompt ? `\n\n${extraSystemPrompt}` : "")
 
-  const allSkills = listAppSkills()
+  const allSkills = listAppSkills({ workspacePath })
   const enabledSkills = allSkills.filter((skill) => skill.enabled)
   const skillPathByName = buildSkillPathMap(allSkills)
   const runtimeSkillsRoot = resetRuntimeSkillRoot(threadId)

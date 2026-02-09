@@ -1,3 +1,7 @@
+import {
+  createSkillFromConversationDefinition,
+  createSkillFromConversationTool
+} from "./create-skill-from-conversation"
 import { internetSearchDefinition, internetSearchTool } from "./internet-search"
 import { sendEmailDefinition, sendEmailTool } from "./send-email"
 import type { ToolDefinition } from "../types"
@@ -6,6 +10,7 @@ export const toolRegistry: Array<{
   definition: ToolDefinition
   instance: unknown
 }> = [
+  { definition: createSkillFromConversationDefinition, instance: createSkillFromConversationTool },
   { definition: internetSearchDefinition, instance: internetSearchTool },
   { definition: sendEmailDefinition, instance: sendEmailTool }
 ]

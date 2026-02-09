@@ -14,13 +14,27 @@ import { logEntry, logExit } from "./logging"
 import { isSkillEnabled, removeSkillConfig, setSkillEnabled } from "./skills/config"
 import { getOpenworkDir } from "./storage"
 
-const SKILLS_ROOT = join(getOpenworkDir(), "skills")
+const MANAGED_SKILLS_ROOT = join(getOpenworkDir(), "skills")
+const AGENT_USER_SKILLS_ROOT = join(getOpenworkDir(), "agent", "skills")
 
-function ensureSkillsDir(): string {
-  if (!existsSync(SKILLS_ROOT)) {
-    mkdirSync(SKILLS_ROOT, { recursive: true })
+export interface ListAppSkillsOptions {
+  workspacePath?: string | null
+}
+
+type SkillSourceType = NonNullable<SkillItem["sourceType"]>
+
+interface SkillRecord extends SkillItem {
+  sourceType: SkillSourceType
+  readOnly: boolean
+  skillPath: string
+  root: string
+}
+
+function ensureManagedSkillsDir(): string {
+  if (!existsSync(MANAGED_SKILLS_ROOT)) {
+    mkdirSync(MANAGED_SKILLS_ROOT, { recursive: true })
   }
-  return SKILLS_ROOT
+  return MANAGED_SKILLS_ROOT
 }
 
 function normalizeSkillPath(path: string): string {
@@ -28,20 +42,97 @@ function normalizeSkillPath(path: string): string {
 }
 
 export function getSkillsRoot(): string {
-  return ensureSkillsDir()
+  return ensureManagedSkillsDir()
 }
 
-export function listAppSkills(): SkillItem[] {
-  logEntry("Skills", "list")
-  const root = ensureSkillsDir()
+function getWorkspaceSkillsRoot(workspacePath?: string | null): string {
+  const root = workspacePath?.trim() ? workspacePath.trim() : process.cwd()
+  return resolve(root, "agent", "skills")
+}
+
+function listSkillRecordsByRoot(params: {
+  root: string
+  sourceType: SkillSourceType
+  readOnly: boolean
+  ensureRoot?: boolean
+}): SkillRecord[] {
+  const { root, sourceType, readOnly, ensureRoot } = params
+  if (ensureRoot && !existsSync(root)) {
+    mkdirSync(root, { recursive: true })
+  }
+  if (!existsSync(root)) {
+    return []
+  }
+
   const skills = listSkills({ userSkillsDir: root })
-  const result = skills.map((skill) => ({
+  return skills.map((skill) => ({
     name: skill.name,
     description: skill.description,
     path: normalizeSkillPath(skill.path),
+    skillPath: resolve(skill.path),
+    root: resolve(root),
     source: skill.source,
+    sourceType,
+    readOnly,
     enabled: isSkillEnabled(skill.name)
   }))
+}
+
+function listAppSkillRecords(options?: ListAppSkillsOptions): SkillRecord[] {
+  const agentUserSkills = listSkillRecordsByRoot({
+    root: AGENT_USER_SKILLS_ROOT,
+    sourceType: "agent-user",
+    readOnly: true
+  })
+  const agentWorkspaceSkills = listSkillRecordsByRoot({
+    root: getWorkspaceSkillsRoot(options?.workspacePath),
+    sourceType: "agent-workspace",
+    readOnly: true
+  })
+  const managedSkills = listSkillRecordsByRoot({
+    root: ensureManagedSkillsDir(),
+    sourceType: "managed",
+    readOnly: false,
+    ensureRoot: true
+  })
+
+  // Source priority: agent-user < agent-workspace < managed.
+  const merged = new Map<string, SkillRecord>()
+  for (const item of [...agentUserSkills, ...agentWorkspaceSkills, ...managedSkills]) {
+    merged.set(item.name, item)
+  }
+
+  return Array.from(merged.values()).sort((a, b) => a.name.localeCompare(b.name))
+}
+
+function toSkillItem(record: SkillRecord): SkillItem {
+  return {
+    name: record.name,
+    description: record.description,
+    path: normalizeSkillPath(record.skillPath),
+    source: record.source,
+    sourceType: record.sourceType,
+    readOnly: record.readOnly,
+    enabled: record.enabled
+  }
+}
+
+function resolveSkillRecord(name: string, options?: ListAppSkillsOptions): SkillRecord {
+  const normalized = name.trim()
+  if (!normalized) {
+    throw new Error("Skill name is required.")
+  }
+
+  const record = listAppSkillRecords(options).find((item) => item.name === normalized)
+  if (!record) {
+    throw new Error("Skill not found.")
+  }
+  return record
+}
+
+export function listAppSkills(options?: ListAppSkillsOptions): SkillItem[] {
+  logEntry("Skills", "list")
+  const result = listAppSkillRecords(options).map((record) => toSkillItem(record))
   logExit("Skills", "list", { count: result.length })
   return result
 }
@@ -61,7 +152,7 @@ export function createSkill(params: {
   content?: string
 }): SkillItem {
   logEntry("Skills", "create", { name: params.name, contentLength: params.content?.length ?? 0 })
-  const root = ensureSkillsDir()
+  const root = ensureManagedSkillsDir()
   const name = params.name.trim()
   const description = params.description.trim()
 
@@ -89,6 +180,8 @@ export function createSkill(params: {
     description,
     path: normalizeSkillPath(skillPath),
     source: "user",
+    sourceType: "managed" as const,
+    readOnly: false,
     enabled: true
   }
   logExit("Skills", "create", { name })
@@ -121,7 +214,7 @@ function resolveSkillSourcePath(inputPath: string): string {
 
 export function installSkillFromPath(inputPath: string): SkillItem {
   logEntry("Skills", "install", { inputPath })
-  const root = ensureSkillsDir()
+  const root = ensureManagedSkillsDir()
   const sourceDir = resolveSkillSourcePath(inputPath)
   const skillName = basename(sourceDir)
   const targetDir = join(root, skillName)
@@ -142,6 +235,8 @@ export function installSkillFromPath(inputPath: string): SkillItem {
     description,
     path: normalizeSkillPath(skillPath),
     source: "user",
+    sourceType: "managed" as const,
+    readOnly: false,
     enabled: true
   }
   logExit("Skills", "install", { name: skillName })
@@ -155,7 +250,22 @@ function readSkillDescription(skillPath: string): string {
     if (!match) return ""
     const frontmatter = match[1]
     const descMatch = frontmatter.match(/^description:\s*(.*)$/m)
-    return descMatch ? descMatch[1].trim() : ""
+    if (!descMatch) return ""
+    const raw = descMatch[1].trim()
+    if (
+      (raw.startsWith('"') && raw.endsWith('"')) ||
+      (raw.startsWith("'") && raw.endsWith("'"))
+    ) {
+      try {
+        if (raw.startsWith('"')) {
+          return JSON.parse(raw)
+        }
+        return raw.slice(1, -1)
+      } catch {
+        return raw.slice(1, -1)
+      }
+    }
+    return raw
   } catch {
     return ""
   }
@@ -163,65 +273,69 @@ function readSkillDescription(skillPath: string): string {
 
 export function deleteSkill(name: string): void {
   logEntry("Skills", "delete", { name })
-  const root = ensureSkillsDir()
-  const skillDir = join(root, name)
+  const record = resolveSkillRecord(name)
+  if (record.readOnly) {
+    throw new Error("Skill is read-only.")
+  }
+  const skillDir = resolve(record.skillPath, "..")
   if (!existsSync(skillDir)) {
     logExit("Skills", "delete", { name, removed: false })
     return
   }
   rmSync(skillDir, { recursive: true, force: true })
-  removeSkillConfig(name)
-  logExit("Skills", "delete", { name })
+  removeSkillConfig(record.name)
+  logExit("Skills", "delete", { name: record.name })
 }
 
 export function getSkillContent(name: string): string {
   logEntry("Skills", "getContent", { name })
-  const root = ensureSkillsDir()
-  const skillPath = join(root, name, "SKILL.md")
-  if (!existsSync(skillPath)) {
+  const record = resolveSkillRecord(name)
+  if (!existsSync(record.skillPath)) {
     throw new Error("Skill not found.")
   }
-  const content = readFileSync(skillPath, "utf-8")
-  logExit("Skills", "getContent", { name, contentLength: content.length })
+  const content = readFileSync(record.skillPath, "utf-8")
+  logExit("Skills", "getContent", { name: record.name, contentLength: content.length })
   return content
 }
 
 export function saveSkillContent(name: string, content: string): SkillItem {
   logEntry("Skills", "saveContent", { name, contentLength: content.length })
-  const root = ensureSkillsDir()
-  const skillPath = join(root, name, "SKILL.md")
-  if (!existsSync(skillPath)) {
+  const record = resolveSkillRecord(name)
+  if (record.readOnly) {
+    throw new Error("Skill is read-only.")
+  }
+  if (!existsSync(record.skillPath)) {
     throw new Error("Skill not found.")
   }
-  writeFileSync(skillPath, content)
-  const description = readSkillDescription(skillPath)
+  writeFileSync(record.skillPath, content)
+  const description = readSkillDescription(record.skillPath)
   const result = {
-    name,
+    name: record.name,
     description,
-    path: normalizeSkillPath(skillPath),
-    source: "user",
-    enabled: isSkillEnabled(name)
+    path: normalizeSkillPath(record.skillPath),
+    source: record.source,
+    sourceType: record.sourceType,
+    readOnly: false,
+    enabled: isSkillEnabled(record.name)
   }
-  logExit("Skills", "saveContent", { name })
+  logExit("Skills", "saveContent", { name: record.name })
   return result
 }
 
 export function updateSkillEnabled(name: string, enabled: boolean): SkillItem {
   logEntry("Skills", "setEnabled", { name, enabled })
-  const root = ensureSkillsDir()
-  const skillPath = join(root, name, "SKILL.md")
-  if (!existsSync(skillPath)) {
-    throw new Error("Skill not found.")
-  }
-  setSkillEnabled(name, enabled)
-  const description = readSkillDescription(skillPath)
+  const record = resolveSkillRecord(name)
+  setSkillEnabled(record.name, enabled)
+  const description = readSkillDescription(record.skillPath)
   const result = {
-    name,
+    name: record.name,
     description,
-    path: normalizeSkillPath(skillPath),
-    source: "user",
+    path: normalizeSkillPath(record.skillPath),
+    source: record.source,
+    sourceType: record.sourceType,
+    readOnly: record.readOnly,
     enabled
   }
-  logExit("Skills", "setEnabled", { name, enabled })
+  logExit("Skills", "setEnabled", { name: record.name, enabled })
   return result
 }

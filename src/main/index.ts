@@ -384,6 +384,13 @@ app.whenReady().then(async () => {
     }
   })
 
+  ipcMain.on("app:open-butler", () => {
+    showMainWindow()
+    if (mainWindow) {
+      mainWindow.webContents.send("app:open-butler")
+    }
+  })
+
   ipcMain.on("quick-input:hide", () => {
     quickInputWindow?.hide()
   })

@@ -35,6 +35,13 @@ export function SkillsManager(): React.JSX.Element {
   const [error, setError] = useState<string | null>(null)
   const { t } = useLanguage()
 
+  const getSourceLabel = (skill: SkillItem): string => {
+    if (skill.sourceType === "managed") return t("skills.source_managed")
+    if (skill.sourceType === "agent-user") return t("skills.source_agent_user")
+    if (skill.sourceType === "agent-workspace") return t("skills.source_agent_workspace")
+    return t("skills.source_unknown")
+  }
+
   const loadSkills = useCallback(async () => {
     const items = await window.api.skills.list()
     setSkills(items)
@@ -69,6 +76,7 @@ export function SkillsManager(): React.JSX.Element {
   }
 
   const startEdit = async (skill: SkillItem): Promise<void> => {
+    if (skill.readOnly) return
     const content = await window.api.skills.getContent(skill.name)
     setForm({
       name: skill.name,
@@ -103,6 +111,7 @@ export function SkillsManager(): React.JSX.Element {
   }
 
   const handleDelete = async (skill: SkillItem): Promise<void> => {
+    if (skill.readOnly) return
     const confirmed = window.confirm(`${t("skills.delete")}: ${skill.name}?`)
     if (!confirmed) return
     await window.api.skills.delete(skill.name)
@@ -153,7 +162,7 @@ export function SkillsManager(): React.JSX.Element {
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2 text-xs text-muted-foreground">
                     <Folder className="size-3.5" />
-                    <span>{t("skills.path")}: .openwork/skills</span>
+                    <span>{t("skills.sources_hint")}</span>
                   </div>
                   <div className="flex items-center gap-2">
                     <Button variant="ghost" size="sm" onClick={startInstall}>
@@ -180,7 +189,15 @@ export function SkillsManager(): React.JSX.Element {
                         <div className="space-y-1">
                           <div className="text-sm font-medium">{skill.name}</div>
                           <div className="text-xs text-muted-foreground">{skill.description}</div>
+                          <div className="text-[10px] text-muted-foreground">
+                            {t("skills.source")}: {getSourceLabel(skill)}
+                          </div>
                           <div className="text-[10px] text-muted-foreground">{skill.path}</div>
+                          {skill.readOnly && (
+                            <div className="text-[10px] text-muted-foreground">
+                              {t("skills.readonly_hint")}
+                            </div>
+                          )}
                           {!skill.enabled && (
                             <div className="text-[10px] text-muted-foreground">
                               {t("skills.disabled_hint")}
@@ -200,14 +217,18 @@ export function SkillsManager(): React.JSX.Element {
                           >
                             {skill.enabled ? t("tools.enabled") : t("tools.disabled")}
                           </button>
-                          <Button variant="ghost" size="sm" onClick={() => startEdit(skill)}>
-                            <Pencil className="size-3.5" />
-                            {t("skills.edit")}
-                          </Button>
-                          <Button variant="ghost" size="sm" onClick={() => handleDelete(skill)}>
-                            <Trash2 className="size-3.5" />
-                            {t("skills.delete")}
-                          </Button>
+                          {!skill.readOnly && (
+                            <Button variant="ghost" size="sm" onClick={() => startEdit(skill)}>
+                              <Pencil className="size-3.5" />
+                              {t("skills.edit")}
+                            </Button>
+                          )}
+                          {!skill.readOnly && (
+                            <Button variant="ghost" size="sm" onClick={() => handleDelete(skill)}>
+                              <Trash2 className="size-3.5" />
+                              {t("skills.delete")}
+                            </Button>
+                          )}
                         </div>
                       </div>
                     ))}

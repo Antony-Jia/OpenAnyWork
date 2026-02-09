@@ -162,6 +162,15 @@ function MainApp(): React.JSX.Element {
     }
   }, [])
 
+  useEffect(() => {
+    const cleanup = window.electron.ipcRenderer.on("app:open-butler", () => {
+      setAppMode("butler")
+    })
+    return () => {
+      if (typeof cleanup === "function") cleanup()
+    }
+  }, [setAppMode])
+
   // Listen for toast messages from main process
   useEffect(() => {
     const cleanup = window.electron.ipcRenderer.on("app:toast", (...args: unknown[]) => {

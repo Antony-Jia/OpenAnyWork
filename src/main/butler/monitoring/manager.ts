@@ -4,6 +4,7 @@ import { simpleParser } from "mailparser"
 import { getSettings } from "../../settings"
 import type {
   ButlerMonitorSnapshot,
+  ButlerMonitorBusEvent,
   ButlerPerceptionInput,
   CalendarWatchEvent,
   CalendarWatchEventCreateInput,
@@ -34,8 +35,10 @@ import {
   updateCountdownWatchItem,
   updateMailWatchRule
 } from "./store"
+import { ButlerMonitorBus } from "./bus"
 
 interface ButlerMonitorManagerDeps {
+  bus: ButlerMonitorBus
   perceptionGateway: ButlerPerceptionGateway
   onNotice: (notice: TaskCompletionNotice) => void
 }
@@ -48,7 +51,6 @@ interface MailConnectionSettings {
   pass: string
 }
 
-const TIME_SCAN_INTERVAL_MS = 30_000
 const CALENDAR_DUE_SOON_MS = 2 * 60 * 60 * 1000
 const MAX_MAIL_FETCH_PER_RULE = 30
 
@@ -81,8 +83,16 @@ function normalizeMailSettings(): MailConnectionSettings | null {
   }
 }
 
-function normalizeMailPollIntervalMs(): number {
-  const sec = getSettings().email?.pollIntervalSec
+function normalizeMonitorScanIntervalMs(): number {
+  const sec = getSettings().butler?.monitorScanIntervalSec
+  if (typeof sec !== "number" || !Number.isFinite(sec) || sec <= 0) {
+    return 30_000
+  }
+  return Math.max(1, Math.round(sec)) * 1000
+}
+
+function normalizeMonitorPullIntervalMs(): number {
+  const sec = getSettings().butler?.monitorPullIntervalSec
   if (typeof sec !== "number" || !Number.isFinite(sec) || sec <= 0) {
     return 60_000
   }
@@ -104,7 +114,8 @@ export class ButlerMonitorManager {
     this.scheduleTimeScan()
     this.scheduleMailPolling()
     void this.scanTimeTriggers()
-    void this.pullMailNow()
+    void this.pullMailNow("startup")
+    this.emitSnapshotChanged()
   }
 
   stop(): void {
@@ -119,8 +130,9 @@ export class ButlerMonitorManager {
     }
   }
 
-  refreshEmailPollingInterval(): void {
+  refreshIntervals(): void {
     if (!this.started) return
+    this.scheduleTimeScan()
     this.scheduleMailPolling()
   }
 
@@ -140,17 +152,20 @@ export class ButlerMonitorManager {
   createCalendarEvent(input: CalendarWatchEventCreateInput): CalendarWatchEvent {
     const event = createCalendarWatchEvent(input)
     void this.scanTimeTriggers()
+    this.emitSnapshotChanged()
     return event
   }
 
   updateCalendarEvent(id: string, updates: CalendarWatchEventUpdateInput): CalendarWatchEvent {
     const event = updateCalendarWatchEvent(id, updates)
     void this.scanTimeTriggers()
+    this.emitSnapshotChanged()
     return event
   }
 
   deleteCalendarEvent(id: string): void {
     deleteCalendarWatchEvent(id)
+    this.emitSnapshotChanged()
   }
 
   listCountdownTimers(): CountdownWatchItem[] {
@@ -160,17 +175,20 @@ export class ButlerMonitorManager {
   createCountdownTimer(input: CountdownWatchItemCreateInput): CountdownWatchItem {
     const timer = createCountdownWatchItem(input)
     void this.scanTimeTriggers()
+    this.emitSnapshotChanged()
     return timer
   }
 
   updateCountdownTimer(id: string, updates: CountdownWatchItemUpdateInput): CountdownWatchItem {
     const timer = updateCountdownWatchItem(id, updates)
     void this.scanTimeTriggers()
+    this.emitSnapshotChanged()
     return timer
   }
 
   deleteCountdownTimer(id: string): void {
     deleteCountdownWatchItem(id)
+    this.emitSnapshotChanged()
   }
 
   listMailRules(): MailWatchRule[] {
@@ -179,25 +197,35 @@ export class ButlerMonitorManager {
 
   createMailRule(input: MailWatchRuleCreateInput): MailWatchRule {
     const rule = createMailWatchRule(input)
-    void this.pullMailNow()
+    void this.pullMailNow("rule_update")
+    this.emitSnapshotChanged()
     return rule
   }
 
   updateMailRule(id: string, updates: MailWatchRuleUpdateInput): MailWatchRule {
     const rule = updateMailWatchRule(id, updates)
-    void this.pullMailNow()
+    void this.pullMailNow("rule_update")
+    this.emitSnapshotChanged()
     return rule
   }
 
   deleteMailRule(id: string): void {
     deleteMailWatchRule(id)
+    this.emitSnapshotChanged()
   }
 
   listRecentMails(limit = 20): MailWatchMessage[] {
     return listRecentMailWatchMessages(limit)
   }
 
-  async pullMailNow(): Promise<MailWatchMessage[]> {
+  async pullMailNow(
+    source: "manual" | "interval" | "startup" | "rule_update" = "manual"
+  ): Promise<MailWatchMessage[]> {
+    this.emitBusEvent({
+      type: "pull_requested",
+      source,
+      at: nowIso()
+    })
     if (this.mailPollingRunning) {
       return []
     }
@@ -241,6 +269,7 @@ export class ButlerMonitorManager {
       }
 
       if (fetchedMessages.length === 0) {
+        this.emitSnapshotChanged()
         return []
       }
 
@@ -260,6 +289,7 @@ export class ButlerMonitorManager {
         })
       }
 
+      this.emitSnapshotChanged()
       return inserted
     } catch (error) {
       console.warn("[ButlerMonitor] pullMailNow failed:", error)
@@ -273,18 +303,19 @@ export class ButlerMonitorManager {
     if (this.timeScanTimer) {
       clearInterval(this.timeScanTimer)
     }
+    const intervalMs = normalizeMonitorScanIntervalMs()
     this.timeScanTimer = setInterval(() => {
       void this.scanTimeTriggers()
-    }, TIME_SCAN_INTERVAL_MS)
+    }, intervalMs)
   }
 
   private scheduleMailPolling(): void {
     if (this.mailPollTimer) {
       clearInterval(this.mailPollTimer)
     }
-    const intervalMs = normalizeMailPollIntervalMs()
+    const intervalMs = normalizeMonitorPullIntervalMs()
     this.mailPollTimer = setInterval(() => {
-      void this.pullMailNow()
+      void this.pullMailNow("interval")
     }, intervalMs)
   }
 
@@ -295,6 +326,7 @@ export class ButlerMonitorManager {
     try {
       await this.scanCalendarDueSoon()
       await this.scanCountdownDue()
+      this.emitSnapshotChanged()
     } catch (error) {
       console.warn("[ButlerMonitor] scanTimeTriggers failed:", error)
     } finally {
@@ -453,8 +485,26 @@ export class ButlerMonitorManager {
     try {
       const notice = await this.deps.perceptionGateway.ingest(input)
       this.deps.onNotice(notice)
+      this.emitBusEvent({
+        type: "perception_notice",
+        notice,
+        at: nowIso()
+      })
+      this.emitSnapshotChanged()
     } catch (error) {
       console.warn("[ButlerMonitor] dispatchPerception failed:", error)
     }
+  }
+
+  private emitSnapshotChanged(): void {
+    this.emitBusEvent({
+      type: "snapshot_changed",
+      snapshot: this.getSnapshot(),
+      at: nowIso()
+    })
+  }
+
+  private emitBusEvent(event: ButlerMonitorBusEvent): void {
+    this.deps.bus.emit(event)
   }
 }

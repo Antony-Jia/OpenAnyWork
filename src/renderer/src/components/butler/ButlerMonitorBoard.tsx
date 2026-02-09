@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { Button } from "@/components/ui/button"
 import type {
+  ButlerMonitorBusEvent,
   ButlerMonitorSnapshot,
   CalendarWatchEvent,
   CountdownWatchItem,
@@ -9,6 +10,7 @@ import type {
 } from "@/types"
 
 type MonitorTab = "calendar" | "countdown" | "mail"
+const FALLBACK_PULL_INTERVAL_MS = 45_000
 
 function toInputDateTime(iso?: string): string {
   if (!iso) return ""
@@ -38,8 +40,11 @@ export function ButlerMonitorBoard(): React.JSX.Element {
   const [pulling, setPulling] = useState(false)
   const [pullResult, setPullResult] = useState("")
 
-  const load = useCallback(async () => {
-    setLoading(true)
+  const load = useCallback(async (options?: { silent?: boolean }) => {
+    const silent = options?.silent ?? false
+    if (!silent) {
+      setLoading(true)
+    }
     setError(null)
     try {
       const [nextSnapshot, events, countdowns, rules, mails] = await Promise.all([
@@ -58,12 +63,50 @@ export function ButlerMonitorBoard(): React.JSX.Element {
       console.error("[ButlerMonitorBoard] load failed:", loadError)
       setError(loadError instanceof Error ? loadError.message : "加载监听任务失败。")
     } finally {
-      setLoading(false)
+      if (!silent) {
+        setLoading(false)
+      }
     }
   }, [])
 
   useEffect(() => {
     void load()
+  }, [load])
+
+  useEffect(() => {
+    if (!window.api?.butlerMonitor?.onEvent) {
+      return
+    }
+
+    const handleEvent = (event: ButlerMonitorBusEvent): void => {
+      if (event.type === "snapshot_changed") {
+        setSnapshot(event.snapshot)
+        setCalendarEvents(event.snapshot.calendarEvents)
+        setCountdownTimers(event.snapshot.countdownTimers)
+        setMailRules(event.snapshot.mailRules)
+        setRecentMails(event.snapshot.recentMails)
+        setLoading(false)
+        return
+      }
+
+      if (event.type === "perception_notice") {
+        setPullResult(`新提醒：${event.notice.title}`)
+      }
+    }
+
+    const unsubscribe = window.api.butlerMonitor.onEvent(handleEvent)
+    return () => {
+      unsubscribe()
+    }
+  }, [])
+
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      void load({ silent: true })
+    }, FALLBACK_PULL_INTERVAL_MS)
+    return () => {
+      window.clearInterval(timer)
+    }
   }, [load])
 
   const stats = useMemo(() => {
@@ -248,7 +291,12 @@ export function ButlerMonitorBoard(): React.JSX.Element {
     <div className="h-full min-h-0 flex flex-col">
       <div className="px-3 py-2 border-b border-border flex items-center justify-between gap-2">
         <div className="text-[11px] text-muted-foreground">{stats}</div>
-        <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={() => void load()}>
+        <Button
+          variant="ghost"
+          size="sm"
+          className="h-7 px-2 text-xs"
+          onClick={() => void load({ silent: true })}
+        >
           刷新
         </Button>
       </div>

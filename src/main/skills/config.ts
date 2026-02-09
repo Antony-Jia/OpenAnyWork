@@ -1,11 +1,14 @@
 import { existsSync, readFileSync, writeFileSync } from "node:fs"
 import { join } from "node:path"
 import { getOpenworkDir } from "../storage"
+import type { CapabilityScope } from "../types"
 
 const SKILLS_CONFIG_FILE = join(getOpenworkDir(), "skills.json")
 
 interface SkillsConfigStore {
   [skillName: string]: {
+    enabledClassic?: boolean
+    enabledButler?: boolean
     enabled?: boolean
   }
 }
@@ -29,28 +32,50 @@ function writeSkillsConfig(config: SkillsConfigStore): void {
   writeFileSync(SKILLS_CONFIG_FILE, data)
 }
 
-export function isSkillEnabled(skillName: string): boolean {
+export function getSkillEnabledState(skillName: string): { classic: boolean; butler: boolean } {
   const config = readSkillsConfig()
-  const enabled = config[skillName]?.enabled
-  return enabled ?? true
+  const entry = config[skillName]
+  const classic = entry?.enabledClassic ?? entry?.enabled ?? true
+  const butler = entry?.enabledButler ?? entry?.enabled ?? true
+  return { classic, butler }
 }
 
-export function setSkillEnabled(skillName: string, enabled: boolean): void {
+export function isSkillEnabled(skillName: string, scope: CapabilityScope = "classic"): boolean {
+  const state = getSkillEnabledState(skillName)
+  return scope === "butler" ? state.butler : state.classic
+}
+
+function pruneSkillConfig(config: SkillsConfigStore, skillName: string): void {
+  const entry = config[skillName]
+  if (!entry) return
+  if (
+    entry.enabled === undefined &&
+    entry.enabledClassic === undefined &&
+    entry.enabledButler === undefined
+  ) {
+    delete config[skillName]
+  }
+}
+
+export function setSkillEnabled(skillName: string, enabled: boolean, scope?: CapabilityScope): void {
   const config = readSkillsConfig()
   const existing = config[skillName] ?? {}
 
-  if (enabled) {
-    delete existing.enabled
+  if (!scope) {
+    existing.enabled = enabled
+    existing.enabledClassic = enabled
+    existing.enabledButler = enabled
   } else {
-    existing.enabled = false
+    if (scope === "classic") {
+      existing.enabledClassic = enabled
+    } else {
+      existing.enabledButler = enabled
+    }
+    existing.enabled = existing.enabledClassic ?? existing.enabledButler ?? existing.enabled
   }
 
-  if (existing.enabled === undefined) {
-    delete config[skillName]
-  } else {
-    config[skillName] = existing
-  }
-
+  config[skillName] = existing
+  pruneSkillConfig(config, skillName)
   writeSkillsConfig(config)
 }
 

@@ -1,6 +1,15 @@
 import { IpcMain } from "electron"
-import { listTools, updateToolEnabled, updateToolKey } from "../tools/service"
-import type { ToolEnableUpdateParams, ToolKeyUpdateParams } from "../types"
+import {
+  listTools,
+  updateToolEnabled,
+  updateToolEnabledByScope,
+  updateToolKey
+} from "../tools/service"
+import type {
+  ToolEnableScopeUpdateParams,
+  ToolEnableUpdateParams,
+  ToolKeyUpdateParams
+} from "../types"
 import { withSpan } from "../logging"
 
 export function registerToolHandlers(ipcMain: IpcMain): void {
@@ -23,6 +32,15 @@ export function registerToolHandlers(ipcMain: IpcMain): void {
       "tools:setEnabled",
       { name: payload.name, enabled: payload.enabled },
       async () => updateToolEnabled(payload.name, payload.enabled)
+    )
+  })
+
+  ipcMain.handle("tools:setEnabledScope", async (_event, payload: ToolEnableScopeUpdateParams) => {
+    return withSpan(
+      "IPC",
+      "tools:setEnabledScope",
+      { name: payload.name, enabled: payload.enabled, scope: payload.scope },
+      async () => updateToolEnabledByScope(payload.name, payload.enabled, payload.scope)
     )
   })
 }

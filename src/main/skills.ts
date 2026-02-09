@@ -9,9 +9,14 @@ import {
 } from "node:fs"
 import { basename, join, resolve } from "node:path"
 import { listSkills } from "deepagents"
-import type { SkillItem } from "./types"
+import type { CapabilityScope, SkillItem } from "./types"
 import { logEntry, logExit } from "./logging"
-import { isSkillEnabled, removeSkillConfig, setSkillEnabled } from "./skills/config"
+import {
+  getSkillEnabledState,
+  isSkillEnabled,
+  removeSkillConfig,
+  setSkillEnabled
+} from "./skills/config"
 import { getOpenworkDir } from "./storage"
 
 const MANAGED_SKILLS_ROOT = join(getOpenworkDir(), "skills")
@@ -19,6 +24,7 @@ const AGENT_USER_SKILLS_ROOT = join(getOpenworkDir(), "agent", "skills")
 
 export interface ListAppSkillsOptions {
   workspacePath?: string | null
+  scope?: CapabilityScope
 }
 
 type SkillSourceType = NonNullable<SkillItem["sourceType"]>
@@ -65,17 +71,22 @@ function listSkillRecordsByRoot(params: {
   }
 
   const skills = listSkills({ userSkillsDir: root })
-  return skills.map((skill) => ({
-    name: skill.name,
-    description: skill.description,
-    path: normalizeSkillPath(skill.path),
-    skillPath: resolve(skill.path),
-    root: resolve(root),
-    source: skill.source,
-    sourceType,
-    readOnly,
-    enabled: isSkillEnabled(skill.name)
-  }))
+  return skills.map((skill) => {
+    const state = getSkillEnabledState(skill.name)
+    return {
+      name: skill.name,
+      description: skill.description,
+      path: normalizeSkillPath(skill.path),
+      skillPath: resolve(skill.path),
+      root: resolve(root),
+      source: skill.source,
+      sourceType,
+      readOnly,
+      enabled: state.classic,
+      enabledClassic: state.classic,
+      enabledButler: state.butler
+    }
+  })
 }
 
 function listAppSkillRecords(options?: ListAppSkillsOptions): SkillRecord[] {
@@ -113,6 +124,8 @@ function toSkillItem(record: SkillRecord): SkillItem {
     source: record.source,
     sourceType: record.sourceType,
     readOnly: record.readOnly,
+    enabledClassic: record.enabledClassic,
+    enabledButler: record.enabledButler,
     enabled: record.enabled
   }
 }
@@ -132,7 +145,11 @@ function resolveSkillRecord(name: string, options?: ListAppSkillsOptions): Skill
 
 export function listAppSkills(options?: ListAppSkillsOptions): SkillItem[] {
   logEntry("Skills", "list")
-  const result = listAppSkillRecords(options).map((record) => toSkillItem(record))
+  const all = listAppSkillRecords(options).map((record) => toSkillItem(record))
+  const result =
+    options?.scope === undefined
+      ? all
+      : all.filter((item) => (options.scope === "butler" ? item.enabledButler : item.enabledClassic))
   logExit("Skills", "list", { count: result.length })
   return result
 }
@@ -182,6 +199,8 @@ export function createSkill(params: {
     source: "user",
     sourceType: "managed" as const,
     readOnly: false,
+    enabledClassic: true,
+    enabledButler: true,
     enabled: true
   }
   logExit("Skills", "create", { name })
@@ -237,6 +256,8 @@ export function installSkillFromPath(inputPath: string): SkillItem {
     source: "user",
     sourceType: "managed" as const,
     readOnly: false,
+    enabledClassic: true,
+    enabledButler: true,
     enabled: true
   }
   logExit("Skills", "install", { name: skillName })
@@ -316,16 +337,23 @@ export function saveSkillContent(name: string, content: string): SkillItem {
     source: record.source,
     sourceType: record.sourceType,
     readOnly: false,
-    enabled: isSkillEnabled(record.name)
+    enabledClassic: isSkillEnabled(record.name, "classic"),
+    enabledButler: isSkillEnabled(record.name, "butler"),
+    enabled: isSkillEnabled(record.name, "classic")
   }
   logExit("Skills", "saveContent", { name: record.name })
   return result
 }
 
-export function updateSkillEnabled(name: string, enabled: boolean): SkillItem {
-  logEntry("Skills", "setEnabled", { name, enabled })
+export function updateSkillEnabled(
+  name: string,
+  enabled: boolean,
+  scope?: CapabilityScope
+): SkillItem {
+  logEntry("Skills", "setEnabled", { name, enabled, scope: scope ?? "all" })
   const record = resolveSkillRecord(name)
-  setSkillEnabled(record.name, enabled)
+  setSkillEnabled(record.name, enabled, scope)
+  const state = getSkillEnabledState(record.name)
   const description = readSkillDescription(record.skillPath)
   const result = {
     name: record.name,
@@ -334,8 +362,14 @@ export function updateSkillEnabled(name: string, enabled: boolean): SkillItem {
     source: record.source,
     sourceType: record.sourceType,
     readOnly: record.readOnly,
-    enabled
+    enabledClassic: state.classic,
+    enabledButler: state.butler,
+    enabled: state.classic
   }
-  logExit("Skills", "setEnabled", { name: record.name, enabled })
+  logExit("Skills", "setEnabled", {
+    name: record.name,
+    enabledClassic: result.enabledClassic,
+    enabledButler: result.enabledButler
+  })
   return result
 }

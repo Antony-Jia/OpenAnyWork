@@ -1,6 +1,6 @@
 import { listRunningMcpTools } from "../mcp/service"
 import { listAppSkills } from "../skills"
-import { listSubagents } from "../subagents"
+import { listSubagentsByScope } from "../subagents"
 import { listTools } from "../tools/service"
 
 export interface ButlerCapabilitySnapshot {
@@ -19,18 +19,14 @@ function compactList(values: string[], limit = 6): string {
 
 export function getButlerCapabilitySnapshot(): ButlerCapabilitySnapshot {
   const tools = listTools()
-    .filter((item) => item.enabled && item.hasKey)
+    .filter((item) => item.enabledButler && item.hasKey)
     .map((item) => item.name)
 
-  const mcpTools = listRunningMcpTools().map((item) => item.fullName)
+  const mcpTools = listRunningMcpTools("butler").map((item) => item.fullName)
 
-  const skills = listAppSkills()
-    .filter((item) => item.enabled)
-    .map((item) => item.name)
+  const skills = listAppSkills({ scope: "butler" }).map((item) => item.name)
 
-  const subagents = listSubagents()
-    .filter((item) => item.enabled !== false)
-    .map((item) => item.name)
+  const subagents = listSubagentsByScope("butler").map((item) => item.name)
 
   return {
     tools,
@@ -59,4 +55,3 @@ export function buildCapabilitySummaryLine(snapshot: ButlerCapabilitySnapshot): 
     `Subagents(${snapshot.subagents.length}): ${compactList(snapshot.subagents)}`
   ].join(" | ")
 }
-

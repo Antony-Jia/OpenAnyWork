@@ -11,7 +11,7 @@ import {
 import { Input } from "@/components/ui/input"
 import { cn } from "@/lib/utils"
 import { useLanguage } from "@/lib/i18n"
-import type { SkillItem } from "@/types"
+import type { CapabilityScope, SkillItem } from "@/types"
 
 interface SkillFormState {
   name: string
@@ -23,6 +23,10 @@ const emptyForm: SkillFormState = {
   name: "",
   description: "",
   content: ""
+}
+
+function isSkillEnabledInScope(skill: SkillItem, scope: CapabilityScope): boolean {
+  return scope === "butler" ? skill.enabledButler : skill.enabledClassic
 }
 
 export function SkillsManager(): React.JSX.Element {
@@ -118,8 +122,12 @@ export function SkillsManager(): React.JSX.Element {
     await loadSkills()
   }
 
-  const handleToggleEnabled = async (skill: SkillItem): Promise<void> => {
-    await window.api.skills.setEnabled({ name: skill.name, enabled: !skill.enabled })
+  const handleToggleEnabled = async (skill: SkillItem, scope: CapabilityScope): Promise<void> => {
+    await window.api.skills.setEnabledScope({
+      name: skill.name,
+      scope,
+      enabled: !isSkillEnabledInScope(skill, scope)
+    })
     await loadSkills()
   }
 
@@ -198,25 +206,31 @@ export function SkillsManager(): React.JSX.Element {
                               {t("skills.readonly_hint")}
                             </div>
                           )}
-                          {!skill.enabled && (
+                          {!skill.enabledClassic && !skill.enabledButler && (
                             <div className="text-[10px] text-muted-foreground">
                               {t("skills.disabled_hint")}
                             </div>
                           )}
                         </div>
                         <div className="flex items-center gap-2">
-                          <button
-                            type="button"
-                            onClick={() => handleToggleEnabled(skill)}
-                            className={cn(
-                              "text-[10px] uppercase tracking-[0.2em] transition-colors",
-                              skill.enabled
-                                ? "text-foreground"
-                                : "text-muted-foreground hover:text-foreground"
-                            )}
-                          >
-                            {skill.enabled ? t("tools.enabled") : t("tools.disabled")}
-                          </button>
+                          {(["classic", "butler"] as const).map((scope) => {
+                            const enabled = isSkillEnabledInScope(skill, scope)
+                            return (
+                              <button
+                                key={scope}
+                                type="button"
+                                onClick={() => handleToggleEnabled(skill, scope)}
+                                className={cn(
+                                  "text-[10px] uppercase tracking-[0.12em] transition-colors",
+                                  enabled
+                                    ? "text-foreground"
+                                    : "text-muted-foreground hover:text-foreground"
+                                )}
+                              >
+                                {t(`scope.${scope}`)}: {enabled ? t("tools.enabled") : t("tools.disabled")}
+                              </button>
+                            )
+                          })}
                           {!skill.readOnly && (
                             <Button variant="ghost" size="sm" onClick={() => startEdit(skill)}>
                               <Pencil className="size-3.5" />

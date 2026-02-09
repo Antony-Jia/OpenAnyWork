@@ -9,6 +9,7 @@ import type {
   SkillItem,
   ToolInfo,
   ToolKeyUpdateParams,
+  ToolEnableScopeUpdateParams,
   ToolEnableUpdateParams,
   MiddlewareDefinition,
   McpServerConfig,
@@ -42,7 +43,9 @@ import type {
   MailWatchRuleCreateInput,
   MailWatchRuleUpdateInput,
   MailWatchMessage,
+  ButlerMonitorBusEvent,
   ButlerMonitorSnapshot,
+  CapabilityScope,
   ThreadDeleteOptions,
   PromptTemplate,
   PromptCreateInput,
@@ -134,6 +137,7 @@ interface CustomAPI {
     deleteMailRule: (id: string) => Promise<void>
     listRecentMails: (limit?: number) => Promise<MailWatchMessage[]>
     pullMailNow: () => Promise<MailWatchMessage[]>
+    onEvent: (callback: (event: ButlerMonitorBusEvent) => void) => () => void
   }
   prompts: {
     list: (query?: string) => Promise<PromptTemplate[]>
@@ -175,6 +179,7 @@ interface CustomAPI {
     install: (input: { path: string }) => Promise<SkillItem>
     delete: (name: string) => Promise<void>
     setEnabled: (input: { name: string; enabled: boolean }) => Promise<SkillItem>
+    setEnabledScope: (input: { name: string; enabled: boolean; scope: CapabilityScope }) => Promise<SkillItem>
     getContent: (name: string) => Promise<string>
     saveContent: (input: { name: string; content: string }) => Promise<SkillItem>
   }
@@ -182,6 +187,7 @@ interface CustomAPI {
     list: () => Promise<ToolInfo[]>
     setKey: (input: ToolKeyUpdateParams) => Promise<ToolInfo>
     setEnabled: (input: ToolEnableUpdateParams) => Promise<ToolInfo>
+    setEnabledScope: (input: ToolEnableScopeUpdateParams) => Promise<ToolInfo>
   }
   middleware: {
     list: () => Promise<MiddlewareDefinition[]>

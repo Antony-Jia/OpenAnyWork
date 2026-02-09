@@ -12,6 +12,7 @@ import { Input } from "@/components/ui/input"
 import { useLanguage } from "@/lib/i18n"
 import { cn } from "@/lib/utils"
 import type {
+  CapabilityScope,
   McpServerListItem,
   McpToolInfo,
   MiddlewareDefinition,
@@ -30,6 +31,8 @@ interface SubagentFormState {
   provider: SimpleProviderId | "inherit"
   model: string
   interruptOn: boolean
+  enabledClassic: boolean
+  enabledButler: boolean
   tools: string[]
   middleware: string[]
   skills: string[]
@@ -52,9 +55,18 @@ const emptyForm: SubagentFormState = {
   provider: "inherit",
   model: "",
   interruptOn: false,
+  enabledClassic: true,
+  enabledButler: true,
   tools: [],
   middleware: [],
   skills: []
+}
+
+function isSubagentEnabledInScope(agent: SubagentConfig, scope: CapabilityScope): boolean {
+  if (scope === "butler") {
+    return agent.enabledButler ?? agent.enabled ?? true
+  }
+  return agent.enabledClassic ?? agent.enabled ?? true
 }
 
 const defaultSectionState: Record<SelectorSection, boolean> = {
@@ -170,6 +182,8 @@ export function SubagentManager(): React.JSX.Element {
       provider: agent.provider ?? "inherit",
       model: agent.model ?? "",
       interruptOn: agent.interruptOn ?? false,
+      enabledClassic: agent.enabledClassic ?? agent.enabled ?? true,
+      enabledButler: agent.enabledButler ?? agent.enabled ?? true,
       tools: agent.tools ?? [],
       middleware: agent.middleware ?? [],
       skills: agent.skills ?? []
@@ -241,7 +255,9 @@ export function SubagentManager(): React.JSX.Element {
           tools: form.tools,
           middleware: form.middleware,
           skills: form.skills,
-          interruptOn: form.interruptOn
+          interruptOn: form.interruptOn,
+          enabledClassic: form.enabledClassic,
+          enabledButler: form.enabledButler
         })
       } else if (mode === "edit" && editingId) {
         await window.api.subagents.update(editingId, {
@@ -253,7 +269,9 @@ export function SubagentManager(): React.JSX.Element {
           tools: form.tools,
           middleware: form.middleware,
           skills: form.skills,
-          interruptOn: form.interruptOn
+          interruptOn: form.interruptOn,
+          enabledClassic: form.enabledClassic,
+          enabledButler: form.enabledButler
         })
       }
       await loadSubagents()
@@ -271,8 +289,15 @@ export function SubagentManager(): React.JSX.Element {
     await loadSubagents()
   }
 
-  const handleToggleEnabled = async (agent: SubagentConfig): Promise<void> => {
-    await window.api.subagents.update(agent.id, { enabled: !(agent.enabled ?? true) })
+  const handleToggleEnabled = async (
+    agent: SubagentConfig,
+    scope: CapabilityScope
+  ): Promise<void> => {
+    const nextEnabled = !isSubagentEnabledInScope(agent, scope)
+    await window.api.subagents.update(
+      agent.id,
+      scope === "classic" ? { enabledClassic: nextEnabled } : { enabledButler: nextEnabled }
+    )
     await loadSubagents()
   }
 
@@ -348,25 +373,32 @@ export function SubagentManager(): React.JSX.Element {
                         <div className="space-y-1">
                           <div className="text-sm font-medium">{agent.name}</div>
                           <div className="text-xs text-muted-foreground">{agent.description}</div>
-                          {agent.enabled === false && (
+                          {!isSubagentEnabledInScope(agent, "classic") &&
+                            !isSubagentEnabledInScope(agent, "butler") && (
                             <div className="text-[10px] text-muted-foreground">
                               {t("subagents.disabled_hint")}
                             </div>
-                          )}
+                            )}
                         </div>
                         <div className="flex items-center gap-2">
-                          <button
-                            type="button"
-                            onClick={() => handleToggleEnabled(agent)}
-                            className={cn(
-                              "text-[10px] uppercase tracking-[0.2em] transition-colors",
-                              agent.enabled !== false
-                                ? "text-foreground"
-                                : "text-muted-foreground hover:text-foreground"
-                            )}
-                          >
-                            {agent.enabled !== false ? t("tools.enabled") : t("tools.disabled")}
-                          </button>
+                          {(["classic", "butler"] as const).map((scope) => {
+                            const enabled = isSubagentEnabledInScope(agent, scope)
+                            return (
+                              <button
+                                key={scope}
+                                type="button"
+                                onClick={() => handleToggleEnabled(agent, scope)}
+                                className={cn(
+                                  "text-[10px] uppercase tracking-[0.12em] transition-colors",
+                                  enabled
+                                    ? "text-foreground"
+                                    : "text-muted-foreground hover:text-foreground"
+                                )}
+                              >
+                                {t(`scope.${scope}`)}: {enabled ? t("tools.enabled") : t("tools.disabled")}
+                              </button>
+                            )
+                          })}
                           <Button variant="ghost" size="sm" onClick={() => startEdit(agent)}>
                             <Pencil className="size-3.5" />
                             {t("subagents.edit")}
@@ -480,7 +512,7 @@ export function SubagentManager(): React.JSX.Element {
                                   {tool.label}
                                 </span>
                               </div>
-                              {!tool.enabled && (
+                              {!tool.enabledClassic && !tool.enabledButler && (
                                 <span className="text-[10px] text-muted-foreground shrink-0">
                                   {t("tools.disabled")}
                                 </span>
@@ -510,7 +542,9 @@ export function SubagentManager(): React.JSX.Element {
                         const prefix = `mcp.${server.config.id}.`
                         const isSelected = form.tools.some((name) => name.startsWith(prefix))
                         const serverTools = mcpTools.filter((tool) => tool.serverId === server.config.id)
-                        const isEnabled = server.config.enabled !== false
+                        const isEnabled =
+                          (server.config.enabledClassic ?? server.config.enabled ?? true) ||
+                          (server.config.enabledButler ?? server.config.enabled ?? true)
                         const canSelect = isEnabled && serverTools.length > 0
                         return (
                           <div
@@ -632,7 +666,7 @@ export function SubagentManager(): React.JSX.Element {
                                   {skill.name}
                                 </span>
                               </div>
-                              {!skill.enabled && (
+                              {!skill.enabledClassic && !skill.enabledButler && (
                                 <span className="text-[10px] text-muted-foreground shrink-0">
                                   {t("tools.disabled")}
                                 </span>
@@ -643,7 +677,7 @@ export function SubagentManager(): React.JSX.Element {
                                 {skill.description}
                               </div>
                             )}
-                            {!skill.enabled && (
+                            {!skill.enabledClassic && !skill.enabledButler && (
                               <div className="text-[10px] text-muted-foreground mt-1 pl-5">
                                 {t("subagents.skills_disabled_global_hint")}
                               </div>
@@ -663,6 +697,32 @@ export function SubagentManager(): React.JSX.Element {
                   />
                   {t("subagents.interrupt_on")}
                 </label>
+
+                <div className="space-y-2">
+                  <div className="text-xs text-muted-foreground">{t("scope.title")}</div>
+                  <div className="flex items-center gap-4 text-xs text-muted-foreground">
+                    <label className="flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        checked={form.enabledClassic}
+                        onChange={(e) =>
+                          setForm((prev) => ({ ...prev, enabledClassic: e.target.checked }))
+                        }
+                      />
+                      {t("scope.classic")}
+                    </label>
+                    <label className="flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        checked={form.enabledButler}
+                        onChange={(e) =>
+                          setForm((prev) => ({ ...prev, enabledButler: e.target.checked }))
+                        }
+                      />
+                      {t("scope.butler")}
+                    </label>
+                  </div>
+                </div>
                 {error && <div className="text-xs text-status-critical">{error}</div>}
               </div>
             )}

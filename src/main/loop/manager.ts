@@ -6,9 +6,10 @@ import { runAgentStream } from "../agent/run"
 import { getAllThreads, getThread, updateThread as dbUpdateThread } from "../db"
 import { broadcastThreadsChanged, broadcastToast } from "../ipc/events"
 import { ensureDockerRunning, getDockerRuntimeConfig } from "../docker/session"
-import { emitTaskCompleted } from "../tasks/lifecycle"
+import { emitTaskCompleted, emitTaskStarted } from "../tasks/lifecycle"
 import { getPreferredMainWindow } from "../window-target"
 import type {
+  CapabilityScope,
   LoopConfig,
   LoopConditionOp,
   LoopFileTrigger,
@@ -538,13 +539,19 @@ export class LoopManager {
 
       const metadata = getThreadMetadata(runner.threadId)
       const modelId = metadata.model as string | undefined
+      const capabilityScope: CapabilityScope = metadata.createdBy === "butler" ? "butler" : "classic"
 
+      emitTaskStarted({
+        threadId: runner.threadId,
+        source: "loop"
+      })
       const output = await runAgentStream({
         threadId: runner.threadId,
         workspacePath,
         modelId,
         dockerConfig,
         dockerContainerId,
+        capabilityScope,
         disableApprovals: true,
         message: finalMessage,
         window,

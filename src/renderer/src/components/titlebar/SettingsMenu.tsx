@@ -87,6 +87,8 @@ export function SettingsMenu(_props: SettingsMenuProps): React.JSX.Element {
   const [butlerRootPath, setButlerRootPath] = useState("")
   const [butlerMaxConcurrent, setButlerMaxConcurrent] = useState("2")
   const [butlerRecentRounds, setButlerRecentRounds] = useState("5")
+  const [butlerMonitorScanIntervalSec, setButlerMonitorScanIntervalSec] = useState("30")
+  const [butlerMonitorPullIntervalSec, setButlerMonitorPullIntervalSec] = useState("60")
 
   // Speech settings
   const [sttUrl, setSttUrl] = useState("")
@@ -144,6 +146,8 @@ export function SettingsMenu(_props: SettingsMenuProps): React.JSX.Element {
           setButlerRootPath(settings.butler?.rootPath || "")
           setButlerMaxConcurrent(String(settings.butler?.maxConcurrent ?? 2))
           setButlerRecentRounds(String(settings.butler?.recentRounds ?? 5))
+          setButlerMonitorScanIntervalSec(String(settings.butler?.monitorScanIntervalSec ?? 30))
+          setButlerMonitorPullIntervalSec(String(settings.butler?.monitorPullIntervalSec ?? 60))
           setSttUrl(settings.speech?.stt?.url || "")
           setSttHeaders(serializeKeyValue(settings.speech?.stt?.headers))
           setSttLanguage(settings.speech?.stt?.language || "")
@@ -175,6 +179,8 @@ export function SettingsMenu(_props: SettingsMenuProps): React.JSX.Element {
     const imapPollIntervalValue = Number.parseInt(imapPollIntervalSec, 10)
     const butlerMaxConcurrentValue = Number.parseInt(butlerMaxConcurrent, 10)
     const butlerRecentRoundsValue = Number.parseInt(butlerRecentRounds, 10)
+    const butlerMonitorScanIntervalValue = Number.parseInt(butlerMonitorScanIntervalSec, 10)
+    const butlerMonitorPullIntervalValue = Number.parseInt(butlerMonitorPullIntervalSec, 10)
     const toList = emailTo
       .split(/[,\n]/)
       .map((entry) => entry.trim())
@@ -230,7 +236,15 @@ export function SettingsMenu(_props: SettingsMenuProps): React.JSX.Element {
             recentRounds:
               Number.isFinite(butlerRecentRoundsValue) && butlerRecentRoundsValue > 0
                 ? butlerRecentRoundsValue
-                : 5
+                : 5,
+            monitorScanIntervalSec:
+              Number.isFinite(butlerMonitorScanIntervalValue) && butlerMonitorScanIntervalValue > 0
+                ? butlerMonitorScanIntervalValue
+                : 30,
+            monitorPullIntervalSec:
+              Number.isFinite(butlerMonitorPullIntervalValue) && butlerMonitorPullIntervalValue > 0
+                ? butlerMonitorPullIntervalValue
+                : 60
           },
           email: {
             enabled: emailEnabled,
@@ -290,6 +304,8 @@ export function SettingsMenu(_props: SettingsMenuProps): React.JSX.Element {
     butlerRootPath,
     butlerMaxConcurrent,
     butlerRecentRounds,
+    butlerMonitorScanIntervalSec,
+    butlerMonitorPullIntervalSec,
     emailEnabled,
     emailFrom,
     emailTo,
@@ -436,6 +452,32 @@ export function SettingsMenu(_props: SettingsMenuProps): React.JSX.Element {
                     min={1}
                     value={butlerRecentRounds}
                     onChange={(e) => setButlerRecentRounds(e.target.value)}
+                    className="w-24 h-7 px-2 text-xs bg-muted/50 border border-border/50 rounded-md focus:outline-none focus:ring-1 focus:ring-ring"
+                  />
+                </div>
+
+                <div className="px-4 py-3 border-b border-border/70 flex items-center justify-between gap-3">
+                  <div className="text-xs text-muted-foreground">
+                    {t("settings.butler.monitor_scan_interval")}
+                  </div>
+                  <input
+                    type="number"
+                    min={1}
+                    value={butlerMonitorScanIntervalSec}
+                    onChange={(e) => setButlerMonitorScanIntervalSec(e.target.value)}
+                    className="w-24 h-7 px-2 text-xs bg-muted/50 border border-border/50 rounded-md focus:outline-none focus:ring-1 focus:ring-ring"
+                  />
+                </div>
+
+                <div className="px-4 py-3 border-b border-border/70 flex items-center justify-between gap-3">
+                  <div className="text-xs text-muted-foreground">
+                    {t("settings.butler.monitor_pull_interval")}
+                  </div>
+                  <input
+                    type="number"
+                    min={1}
+                    value={butlerMonitorPullIntervalSec}
+                    onChange={(e) => setButlerMonitorPullIntervalSec(e.target.value)}
                     className="w-24 h-7 px-2 text-xs bg-muted/50 border border-border/50 rounded-md focus:outline-none focus:ring-1 focus:ring-ring"
                   />
                 </div>

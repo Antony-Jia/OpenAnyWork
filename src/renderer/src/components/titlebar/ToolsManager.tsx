@@ -5,7 +5,11 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Input } from "@/components/ui/input"
 import { cn } from "@/lib/utils"
 import { useLanguage } from "@/lib/i18n"
-import type { ToolInfo } from "@/types"
+import type { CapabilityScope, ToolInfo } from "@/types"
+
+function isToolEnabledInScope(tool: ToolInfo, scope: CapabilityScope): boolean {
+  return scope === "butler" ? tool.enabledButler ?? tool.enabled : tool.enabledClassic ?? tool.enabled
+}
 
 export function ToolsManager(): React.JSX.Element {
   const [open, setOpen] = useState(false)
@@ -73,22 +77,27 @@ export function ToolsManager(): React.JSX.Element {
     }
   }
 
-  const handleToggle = async (tool: ToolInfo): Promise<void> => {
+  const handleToggle = async (tool: ToolInfo, scope: CapabilityScope): Promise<void> => {
     setError(null)
-    setToggling((prev) => ({ ...prev, [tool.name]: true }))
+    const toggleKey = `${tool.name}:${scope}`
+    setToggling((prev) => ({ ...prev, [toggleKey]: true }))
 
     try {
-      if (!window.api?.tools?.setEnabled) {
+      if (!window.api?.tools?.setEnabledScope) {
         setError(t("tools.save_failed"))
         return
       }
-      await window.api.tools.setEnabled({ name: tool.name, enabled: !tool.enabled })
+      await window.api.tools.setEnabledScope({
+        name: tool.name,
+        scope,
+        enabled: !isToolEnabledInScope(tool, scope)
+      })
       await loadTools()
     } catch (e) {
       const message = e instanceof Error ? e.message : t("tools.save_failed")
       setError(message)
     } finally {
-      setToggling((prev) => ({ ...prev, [tool.name]: false }))
+      setToggling((prev) => ({ ...prev, [toggleKey]: false }))
     }
   }
 
@@ -147,19 +156,28 @@ export function ToolsManager(): React.JSX.Element {
                           )}
                         </div>
                         <div className="flex flex-col items-end gap-2">
-                          <button
-                            type="button"
-                            disabled={toggling[tool.name]}
-                            onClick={() => handleToggle(tool)}
-                            className={cn(
-                              "text-[10px] uppercase tracking-[0.2em] transition-colors",
-                              tool.enabled
-                                ? "text-foreground"
-                                : "text-muted-foreground hover:text-foreground"
-                            )}
-                          >
-                            {tool.enabled ? t("tools.enabled") : t("tools.disabled")}
-                          </button>
+                          <div className="flex items-center gap-3">
+                            {(["classic", "butler"] as const).map((scope) => {
+                              const enabled = isToolEnabledInScope(tool, scope)
+                              const toggleKey = `${tool.name}:${scope}`
+                              return (
+                                <button
+                                  key={scope}
+                                  type="button"
+                                  disabled={toggling[toggleKey]}
+                                  onClick={() => handleToggle(tool, scope)}
+                                  className={cn(
+                                    "text-[10px] uppercase tracking-[0.12em] transition-colors",
+                                    enabled
+                                      ? "text-foreground"
+                                      : "text-muted-foreground hover:text-foreground"
+                                  )}
+                                >
+                                  {t(`scope.${scope}`)}: {enabled ? t("tools.enabled") : t("tools.disabled")}
+                                </button>
+                              )
+                            })}
+                          </div>
                           <span
                             className={cn(
                               "text-[10px] uppercase tracking-[0.2em]",
@@ -199,7 +217,7 @@ export function ToolsManager(): React.JSX.Element {
                         </div>
                       )}
 
-                      {!tool.enabled && (
+                      {!tool.enabledClassic && !tool.enabledButler && (
                         <div className="text-xs text-muted-foreground">
                           {t("tools.disabled_hint")}
                         </div>

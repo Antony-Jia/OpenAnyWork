@@ -10,7 +10,9 @@ import type {
   SkillItem,
   ToolInfo,
   ToolKeyUpdateParams,
+  ToolEnableScopeUpdateParams,
   ToolEnableUpdateParams,
+  CapabilityScope,
   MiddlewareDefinition,
   McpServerConfig,
   McpServerCreateParams,
@@ -41,6 +43,7 @@ import type {
   MailWatchRuleCreateInput,
   MailWatchRuleUpdateInput,
   MailWatchMessage,
+  ButlerMonitorBusEvent,
   ButlerMonitorSnapshot,
   ThreadDeleteOptions,
   PromptTemplate,
@@ -283,6 +286,13 @@ const api = {
     },
     pullMailNow: (): Promise<MailWatchMessage[]> => {
       return ipcRenderer.invoke("butler-monitor:mail:pullNow")
+    },
+    onEvent: (
+      callback: (event: ButlerMonitorBusEvent) => void
+    ): (() => void) => {
+      const handler = (_: unknown, event: ButlerMonitorBusEvent): void => callback(event)
+      ipcRenderer.on("butler-monitor:event", handler)
+      return () => ipcRenderer.removeListener("butler-monitor:event", handler)
     }
   },
   prompts: {
@@ -383,6 +393,13 @@ const api = {
     setEnabled: (input: { name: string; enabled: boolean }): Promise<SkillItem> => {
       return ipcRenderer.invoke("skills:setEnabled", input)
     },
+    setEnabledScope: (input: {
+      name: string
+      enabled: boolean
+      scope: CapabilityScope
+    }): Promise<SkillItem> => {
+      return ipcRenderer.invoke("skills:setEnabledScope", input)
+    },
     getContent: (name: string): Promise<string> => {
       return ipcRenderer.invoke("skills:getContent", name)
     },
@@ -399,6 +416,9 @@ const api = {
     },
     setEnabled: (input: ToolEnableUpdateParams): Promise<ToolInfo> => {
       return ipcRenderer.invoke("tools:setEnabled", input)
+    },
+    setEnabledScope: (input: ToolEnableScopeUpdateParams): Promise<ToolInfo> => {
+      return ipcRenderer.invoke("tools:setEnabledScope", input)
     }
   },
   middleware: {

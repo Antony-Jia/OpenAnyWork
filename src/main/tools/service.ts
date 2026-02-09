@@ -1,7 +1,7 @@
 import { isToolEnabled, resolveToolKey, setStoredToolKey, setToolEnabled } from "./config"
 import { toolDefinitions, toolInstanceMap } from "./registry"
 import { getRunningMcpToolInstanceMap } from "../mcp/service"
-import type { ToolInfo } from "../types"
+import type { CapabilityScope, ToolInfo } from "../types"
 import { logEntry, logExit, summarizeList } from "../logging"
 import { canSendEmail } from "../email/service"
 
@@ -12,10 +12,14 @@ function toToolInfo(definition: (typeof toolDefinitions)[number]): ToolInfo {
       : definition.requiresKey === false
         ? true
         : !!resolveToolKey(definition.name, definition.envVar)
-  const enabled = isToolEnabled(definition.name)
+  const enabledClassic = isToolEnabled(definition.name, "classic")
+  const enabledButler = isToolEnabled(definition.name, "butler")
+  const enabled = enabledClassic
   return {
     ...definition,
     hasKey,
+    enabledClassic,
+    enabledButler,
     enabled
   }
 }
@@ -27,24 +31,27 @@ export function listTools(): ToolInfo[] {
   return result
 }
 
-export function getEnabledToolInstances() {
+export function getEnabledToolInstances(scope: CapabilityScope = "classic") {
   const enabled = toolDefinitions
-    .filter((definition) => isToolEnabled(definition.name))
+    .filter((definition) => isToolEnabled(definition.name, scope))
     .map((definition) => toolInstanceMap.get(definition.name))
     .filter((instance): instance is NonNullable<typeof instance> => !!instance)
-  logExit("Tools", "getEnabledToolInstances", { count: enabled.length })
+  logExit("Tools", "getEnabledToolInstances", { count: enabled.length, scope })
   return enabled
 }
 
-export function getEnabledToolNames(): string[] {
+export function getEnabledToolNames(scope: CapabilityScope = "classic"): string[] {
   const names = toolDefinitions
-    .filter((definition) => isToolEnabled(definition.name))
+    .filter((definition) => isToolEnabled(definition.name, scope))
     .map((definition) => definition.name)
-  logExit("Tools", "getEnabledToolNames", summarizeList(names))
+  logExit("Tools", "getEnabledToolNames", { ...summarizeList(names), scope })
   return names
 }
 
-export function resolveToolInstancesByName(names?: string[]): Array<unknown> | undefined {
+export function resolveToolInstancesByName(
+  names?: string[],
+  scope: CapabilityScope = "classic"
+): Array<unknown> | undefined {
   if (!names) {
     logExit("Tools", "resolveToolInstancesByName", { requested: 0, resolved: 0 })
     return undefined
@@ -54,7 +61,7 @@ export function resolveToolInstancesByName(names?: string[]): Array<unknown> | u
     return []
   }
 
-  const mcpToolMap = getRunningMcpToolInstanceMap()
+  const mcpToolMap = getRunningMcpToolInstanceMap(scope)
   // For subagents, we resolve tools by name directly without checking global enabled state.
   // The subagent configuration explicitly specifies which tools to use.
   const instances = names
@@ -91,5 +98,27 @@ export function updateToolEnabled(toolName: string, enabled: boolean): ToolInfo 
   setToolEnabled(toolName, enabled)
   const result = toToolInfo(definition)
   logExit("Tools", "updateToolEnabled", { toolName, enabled: result.enabled })
+  return result
+}
+
+export function updateToolEnabledByScope(
+  toolName: string,
+  enabled: boolean,
+  scope: CapabilityScope
+): ToolInfo {
+  const definition = toolDefinitions.find((tool) => tool.name === toolName)
+  if (!definition) {
+    throw new Error("Tool not found.")
+  }
+
+  logEntry("Tools", "updateToolEnabledByScope", { toolName, enabled, scope })
+  setToolEnabled(toolName, enabled, scope)
+  const result = toToolInfo(definition)
+  logExit("Tools", "updateToolEnabledByScope", {
+    toolName,
+    scope,
+    enabledClassic: result.enabledClassic,
+    enabledButler: result.enabledButler
+  })
   return result
 }

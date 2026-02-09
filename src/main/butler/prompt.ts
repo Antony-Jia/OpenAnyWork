@@ -1,5 +1,6 @@
 import type { ButlerDispatchIntent } from "./tools"
 import type { ButlerPerceptionInput } from "../types"
+import { composeButlerUserPrompt } from "./prompt/composer"
 
 export type ButlerDispatchPolicy = "standard" | "single_task_first"
 
@@ -35,42 +36,6 @@ export interface ButlerPerceptionPromptContext {
 }
 
 const CLARIFICATION_PREFIX = "CLARIFICATION_REQUIRED:"
-
-function formatMemoryHints(memoryHints: ButlerPromptMemoryHint[]): string {
-  if (memoryHints.length === 0) {
-    return "none"
-  }
-  return memoryHints
-    .map((hint, index) => {
-      const title = hint.title ? ` (${hint.title})` : ""
-      return `${index + 1}. ${hint.threadId}${title}: ${hint.summaryBrief}`
-    })
-    .join("\n")
-}
-
-function formatRecentTasks(tasks: ButlerPromptRecentTask[]): string {
-  if (tasks.length === 0) return "none"
-  return tasks
-    .map((task, index) => {
-      return `${index + 1}. [${task.mode}/${task.status}] ${task.title} | thread=${task.threadId} | createdAt=${task.createdAt}`
-    })
-    .join("\n")
-}
-
-function formatDispatchPolicy(policy?: ButlerDispatchPolicy): string {
-  if (policy === "single_task_first") {
-    return [
-      "single_task_first",
-      "默认将单一业务目标编排为 1 个任务；把步骤写入同一任务的 initialPrompt/loopConfig.contentTemplate。",
-      "仅当存在两个及以上语义独立、可独立交付、失败互不影响的目标时，才允许拆分。"
-    ].join("\n")
-  }
-
-  return [
-    "standard",
-    "可创建多个任务，但只有在目标语义独立时才拆分；避免把同一目标的执行步骤拆成 DAG。"
-  ].join("\n")
-}
 
 export function getClarificationPrefix(): string {
   return CLARIFICATION_PREFIX
@@ -208,37 +173,9 @@ export function buildButlerPerceptionSystemPrompt(): string {
 }
 
 export function buildButlerUserPrompt(context: ButlerPromptContext): string {
-  const sections = [
-    "[User Request]",
-    context.userMessage.trim(),
-    "",
-    "[Dispatch Policy]",
-    formatDispatchPolicy(context.dispatchPolicy),
-    "",
-    "[Capability Summary]",
-    context.capabilitySummary,
-    "",
-    context.capabilityCatalog,
-    "",
-    "[Memory Hints]",
-    formatMemoryHints(context.memoryHints),
-    "",
-    "[Previous User Message]",
-    context.previousUserMessage?.trim() || "none",
-    "",
-    "[Recent Butler Tasks]",
-    formatRecentTasks(context.recentTasks),
-    "",
-    "[Daily Profile]",
-    context.profileText?.trim() || "none",
-    "",
-    "[Profile Delta]",
-    context.comparisonText?.trim() || "none",
-    "",
-    "[Instruction]",
-    "Use semantic reasoning. If dispatch is feasible, call creation tools with valid JSON. If not feasible, respond with clarification prefix."
-  ]
-  return sections.join("\n")
+  return composeButlerUserPrompt(context, {
+    clarificationPrefix: CLARIFICATION_PREFIX
+  })
 }
 
 export function buildButlerPerceptionUserPrompt(context: ButlerPerceptionPromptContext): string {

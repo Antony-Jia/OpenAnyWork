@@ -137,6 +137,8 @@ export async function initializeDatabase(): Promise<SqlJsDatabase> {
     CREATE TABLE IF NOT EXISTS tool_config (
       name TEXT PRIMARY KEY,
       enabled INTEGER,
+      enabled_classic INTEGER,
+      enabled_butler INTEGER,
       key TEXT
     )
   `)
@@ -153,6 +155,8 @@ export async function initializeDatabase(): Promise<SqlJsDatabase> {
       url TEXT,
       headers TEXT,
       auto_start INTEGER,
+      enabled_classic INTEGER,
+      enabled_butler INTEGER,
       enabled INTEGER
     )
   `)
@@ -169,6 +173,8 @@ export async function initializeDatabase(): Promise<SqlJsDatabase> {
       middleware TEXT,
       skills TEXT,
       interrupt_on INTEGER,
+      enabled_classic INTEGER,
+      enabled_butler INTEGER,
       enabled INTEGER
     )
   `)
@@ -268,6 +274,44 @@ export async function initializeDatabase(): Promise<SqlJsDatabase> {
   if (!tableHasColumn(db, "subagents", "skills")) {
     db.run(`ALTER TABLE subagents ADD COLUMN skills TEXT`)
   }
+  if (!tableHasColumn(db, "tool_config", "enabled_classic")) {
+    db.run(`ALTER TABLE tool_config ADD COLUMN enabled_classic INTEGER`)
+  }
+  if (!tableHasColumn(db, "tool_config", "enabled_butler")) {
+    db.run(`ALTER TABLE tool_config ADD COLUMN enabled_butler INTEGER`)
+  }
+  if (!tableHasColumn(db, "mcp_servers", "enabled_classic")) {
+    db.run(`ALTER TABLE mcp_servers ADD COLUMN enabled_classic INTEGER`)
+  }
+  if (!tableHasColumn(db, "mcp_servers", "enabled_butler")) {
+    db.run(`ALTER TABLE mcp_servers ADD COLUMN enabled_butler INTEGER`)
+  }
+  if (!tableHasColumn(db, "subagents", "enabled_classic")) {
+    db.run(`ALTER TABLE subagents ADD COLUMN enabled_classic INTEGER`)
+  }
+  if (!tableHasColumn(db, "subagents", "enabled_butler")) {
+    db.run(`ALTER TABLE subagents ADD COLUMN enabled_butler INTEGER`)
+  }
+
+  // Backward compatibility: if legacy `enabled` exists, copy it to both scope columns.
+  db.run(
+    `UPDATE tool_config
+     SET enabled_classic = COALESCE(enabled_classic, enabled),
+         enabled_butler = COALESCE(enabled_butler, enabled)
+     WHERE enabled IS NOT NULL`
+  )
+  db.run(
+    `UPDATE mcp_servers
+     SET enabled_classic = COALESCE(enabled_classic, enabled),
+         enabled_butler = COALESCE(enabled_butler, enabled)
+     WHERE enabled IS NOT NULL`
+  )
+  db.run(
+    `UPDATE subagents
+     SET enabled_classic = COALESCE(enabled_classic, enabled),
+         enabled_butler = COALESCE(enabled_butler, enabled)
+     WHERE enabled IS NOT NULL`
+  )
 
   migrateConfigFromJson(db)
   saveToDisk()
@@ -387,6 +431,13 @@ function migrateConfigFromJson(database: SqlJsDatabase): void {
           enabled,
           key
         ])
+        database.run(
+          `UPDATE tool_config
+           SET enabled_classic = COALESCE(enabled_classic, enabled),
+               enabled_butler = COALESCE(enabled_butler, enabled)
+           WHERE name = ?`,
+          [name]
+        )
         wrote = true
       }
     }
@@ -398,8 +449,8 @@ function migrateConfigFromJson(database: SqlJsDatabase): void {
     for (const server of servers) {
       database.run(
         `INSERT OR REPLACE INTO mcp_servers
-         (id, name, mode, command, args, env, cwd, url, headers, auto_start, enabled)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         (id, name, mode, command, args, env, cwd, url, headers, auto_start, enabled_classic, enabled_butler, enabled)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           server.id,
           server.name,
@@ -411,6 +462,24 @@ function migrateConfigFromJson(database: SqlJsDatabase): void {
           server.url ?? null,
           server.headers ? JSON.stringify(server.headers) : null,
           server.autoStart === undefined ? null : server.autoStart ? 1 : 0,
+          server.enabledClassic === undefined
+            ? server.enabled === undefined
+              ? null
+              : server.enabled
+                ? 1
+                : 0
+            : server.enabledClassic
+              ? 1
+              : 0,
+          server.enabledButler === undefined
+            ? server.enabled === undefined
+              ? null
+              : server.enabled
+                ? 1
+                : 0
+            : server.enabledButler
+              ? 1
+              : 0,
           server.enabled === undefined ? null : server.enabled ? 1 : 0
         ]
       )
@@ -424,8 +493,8 @@ function migrateConfigFromJson(database: SqlJsDatabase): void {
       for (const subagent of subagents) {
         database.run(
           `INSERT OR REPLACE INTO subagents
-           (id, name, description, system_prompt, model, model_provider, tools, middleware, skills, interrupt_on, enabled)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+           (id, name, description, system_prompt, model, model_provider, tools, middleware, skills, interrupt_on, enabled_classic, enabled_butler, enabled)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           [
             subagent.id,
             subagent.name,
@@ -437,6 +506,24 @@ function migrateConfigFromJson(database: SqlJsDatabase): void {
             subagent.middleware ? JSON.stringify(subagent.middleware) : null,
             subagent.skills ? JSON.stringify(subagent.skills) : null,
             subagent.interruptOn === undefined ? null : subagent.interruptOn ? 1 : 0,
+            subagent.enabledClassic === undefined
+              ? subagent.enabled === undefined
+                ? null
+                : subagent.enabled
+                  ? 1
+                  : 0
+              : subagent.enabledClassic
+                ? 1
+                : 0,
+            subagent.enabledButler === undefined
+              ? subagent.enabled === undefined
+                ? null
+                : subagent.enabled
+                  ? 1
+                  : 0
+              : subagent.enabledButler
+                ? 1
+                : 0,
             subagent.enabled === undefined ? null : subagent.enabled ? 1 : 0
           ]
         )

@@ -249,6 +249,8 @@ export interface ProviderState {
   configs: Partial<Record<SimpleProviderId, ProviderConfig>>
 }
 
+export type CapabilityScope = "classic" | "butler"
+
 // Custom subagent configuration
 export interface SubagentConfig {
   id: string
@@ -261,6 +263,8 @@ export interface SubagentConfig {
   middleware?: string[]
   skills?: string[]
   interruptOn?: boolean
+  enabledClassic?: boolean
+  enabledButler?: boolean
   enabled?: boolean
 }
 
@@ -272,6 +276,8 @@ export interface SkillItem {
   source?: string
   sourceType?: "managed" | "agent-user" | "agent-workspace"
   readOnly?: boolean
+  enabledClassic: boolean
+  enabledButler: boolean
   enabled: boolean
 }
 
@@ -286,6 +292,8 @@ export interface ToolDefinition {
 
 export interface ToolInfo extends ToolDefinition {
   hasKey: boolean
+  enabledClassic: boolean
+  enabledButler: boolean
   enabled: boolean
 }
 
@@ -297,6 +305,12 @@ export interface ToolKeyUpdateParams {
 export interface ToolEnableUpdateParams {
   name: string
   enabled: boolean
+}
+
+export interface ToolEnableScopeUpdateParams {
+  name: string
+  enabled: boolean
+  scope: CapabilityScope
 }
 
 // App settings
@@ -356,6 +370,8 @@ export interface ButlerSettings {
   rootPath: string
   maxConcurrent: number
   recentRounds: number
+  monitorScanIntervalSec: number
+  monitorPullIntervalSec: number
 }
 
 export interface SettingsUpdateParams {
@@ -551,6 +567,27 @@ export interface TaskCompletionNotice {
   eventKind?: ButlerPerceptionKind
 }
 
+export interface TaskStartedPayload {
+  threadId: string
+  mode: ThreadMode
+  title?: string
+  source: "agent" | "loop" | "email" | "butler"
+  startedAt: string
+  metadata: Record<string, unknown>
+}
+
+export interface TaskLifecycleNotice {
+  id: string
+  phase: "started" | "completed"
+  threadId: string
+  title: string
+  mode: ThreadMode
+  source: "agent" | "loop" | "email" | "butler"
+  at: string
+  resultBrief?: string
+  resultDetail?: string
+}
+
 export interface MemorySummary {
   id: string
   threadId: string
@@ -626,8 +663,27 @@ export interface McpServerConfig {
   url?: string
   headers?: Record<string, string>
   autoStart?: boolean
+  enabledClassic?: boolean
+  enabledButler?: boolean
   enabled?: boolean
 }
+
+export type ButlerMonitorBusEvent =
+  | {
+      type: "snapshot_changed"
+      snapshot: ButlerMonitorSnapshot
+      at: string
+    }
+  | {
+      type: "pull_requested"
+      source: "manual" | "interval" | "startup" | "rule_update"
+      at: string
+    }
+  | {
+      type: "perception_notice"
+      notice: TaskCompletionNotice
+      at: string
+    }
 
 export interface McpServerStatus {
   running: boolean

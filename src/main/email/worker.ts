@@ -16,8 +16,9 @@ import {
 } from "./service"
 import { buildEmailModePrompt } from "./prompt"
 import { generateTitle } from "../services/title-generator"
-import { emitTaskCompleted } from "../tasks/lifecycle"
+import { emitTaskCompleted, emitTaskStarted } from "../tasks/lifecycle"
 import type { EmailTask } from "./service"
+import type { CapabilityScope } from "../types"
 
 let pollInterval: NodeJS.Timeout | null = null
 let polling = false
@@ -37,22 +38,29 @@ function buildErrorEmailBody(title: string, details: string): string {
 async function runAgentToSummary({
   threadId,
   workspacePath,
-  message
+  message,
+  capabilityScope = "classic"
 }: {
   threadId: string
   workspacePath: string
   message: string
+  capabilityScope?: CapabilityScope
 }): Promise<string> {
   await ensureDockerRunning()
   const dockerRuntime = getDockerRuntimeConfig()
   const dockerConfig = dockerRuntime.config ?? undefined
   const dockerContainerId = dockerRuntime.containerId ?? undefined
 
+  emitTaskStarted({
+    threadId,
+    source: "email"
+  })
   const agent = await createAgentRuntime({
     threadId,
     workspacePath,
     dockerConfig,
     dockerContainerId,
+    capabilityScope,
     extraSystemPrompt: buildEmailModePrompt(threadId),
     forceToolNames: ["send_email"],
     disableApprovals: true // 邮件模式下禁用人工审批，否则会卡在等待审批
@@ -107,6 +115,7 @@ async function processStartWorkTask(task: EmailTask, defaultWorkspacePath: strin
   const threadId = uuid()
   const metadata: Record<string, unknown> = {
     mode: "email",
+    createdBy: "user",
     workspacePath: defaultWorkspacePath
   }
   dbCreateThread(threadId, metadata)
@@ -121,7 +130,8 @@ async function processStartWorkTask(task: EmailTask, defaultWorkspacePath: strin
   const summary = await runAgentToSummary({
     threadId,
     workspacePath: defaultWorkspacePath,
-    message: taskPrompt
+    message: taskPrompt,
+    capabilityScope: "classic"
   })
   broadcastThreadHistoryUpdated(threadId)
   emitTaskCompleted({
@@ -158,7 +168,8 @@ async function processReplyTask(task: EmailTask, defaultWorkspacePath: string | 
   const summary = await runAgentToSummary({
     threadId,
     workspacePath,
-    message: taskPrompt
+    message: taskPrompt,
+    capabilityScope: metadata.createdBy === "butler" ? "butler" : "classic"
   })
   broadcastThreadHistoryUpdated(threadId)
   emitTaskCompleted({

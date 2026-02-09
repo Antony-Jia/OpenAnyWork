@@ -11,7 +11,7 @@ import {
 import { Input } from "@/components/ui/input"
 import { cn } from "@/lib/utils"
 import { useLanguage } from "@/lib/i18n"
-import type { McpServerListItem, McpServerMode } from "@/types"
+import type { CapabilityScope, McpServerListItem, McpServerMode } from "@/types"
 
 interface McpFormState {
   name: string
@@ -23,6 +23,8 @@ interface McpFormState {
   url: string
   headersText: string
   autoStart: boolean
+  enabledClassic: boolean
+  enabledButler: boolean
 }
 
 const emptyForm: McpFormState = {
@@ -34,7 +36,16 @@ const emptyForm: McpFormState = {
   cwd: "",
   url: "",
   headersText: "",
-  autoStart: false
+  autoStart: false,
+  enabledClassic: true,
+  enabledButler: true
+}
+
+function isServerEnabledInScope(item: McpServerListItem, scope: CapabilityScope): boolean {
+  if (scope === "butler") {
+    return item.config.enabledButler ?? item.config.enabled ?? true
+  }
+  return item.config.enabledClassic ?? item.config.enabled ?? true
 }
 
 function serializeKeyValue(record?: Record<string, string>): string {
@@ -117,7 +128,9 @@ export function McpManager(): React.JSX.Element {
       cwd: config.cwd ?? "",
       url: config.url ?? "",
       headersText: serializeKeyValue(config.headers),
-      autoStart: !!config.autoStart
+      autoStart: !!config.autoStart,
+      enabledClassic: config.enabledClassic ?? config.enabled ?? true,
+      enabledButler: config.enabledButler ?? config.enabled ?? true
     })
     setEditingId(config.id)
     setError(null)
@@ -136,7 +149,9 @@ export function McpManager(): React.JSX.Element {
         cwd: form.mode === "local" ? form.cwd.trim() || undefined : undefined,
         url: form.mode === "remote" ? form.url.trim() : undefined,
         headers: form.mode === "remote" ? parseKeyValue(form.headersText) : undefined,
-        autoStart: form.autoStart
+        autoStart: form.autoStart,
+        enabledClassic: form.enabledClassic,
+        enabledButler: form.enabledButler
       }
 
       let targetId = editingId
@@ -165,8 +180,15 @@ export function McpManager(): React.JSX.Element {
     await loadServers()
   }
 
-  const handleToggleEnabled = async (id: string, enabled: boolean): Promise<void> => {
-    await window.api.mcp.update({ id, updates: { enabled } })
+  const handleToggleEnabled = async (
+    item: McpServerListItem,
+    scope: CapabilityScope
+  ): Promise<void> => {
+    const nextEnabled = !isServerEnabledInScope(item, scope)
+    await window.api.mcp.update({
+      id: item.config.id,
+      updates: scope === "classic" ? { enabledClassic: nextEnabled } : { enabledButler: nextEnabled }
+    })
     await loadServers()
   }
 
@@ -262,11 +284,12 @@ export function McpManager(): React.JSX.Element {
                           <div className="text-[10px] text-muted-foreground">
                             {t("mcp.tools_count")}: {item.status.toolsCount}
                           </div>
-                          {item.config.enabled === false && (
+                          {!isServerEnabledInScope(item, "classic") &&
+                            !isServerEnabledInScope(item, "butler") && (
                             <div className="text-[10px] text-muted-foreground">
                               {t("mcp.disabled_hint")}
                             </div>
-                          )}
+                            )}
                           {item.status.lastError && (
                             <div className="text-[10px] text-status-critical">
                               {item.status.lastError}
@@ -275,22 +298,24 @@ export function McpManager(): React.JSX.Element {
                         </div>
                         <div className="flex flex-col items-end gap-2">
                           <div className="flex items-center gap-2">
-                            <button
-                              type="button"
-                              onClick={() =>
-                                handleToggleEnabled(item.config.id, !(item.config.enabled ?? true))
-                              }
-                              className={cn(
-                                "text-[10px] uppercase tracking-[0.2em] transition-colors",
-                                item.config.enabled !== false
-                                  ? "text-foreground"
-                                  : "text-muted-foreground hover:text-foreground"
-                              )}
-                            >
-                              {item.config.enabled !== false
-                                ? t("tools.enabled")
-                                : t("tools.disabled")}
-                            </button>
+                            {(["classic", "butler"] as const).map((scope) => {
+                              const enabled = isServerEnabledInScope(item, scope)
+                              return (
+                                <button
+                                  key={scope}
+                                  type="button"
+                                  onClick={() => handleToggleEnabled(item, scope)}
+                                  className={cn(
+                                    "text-[10px] uppercase tracking-[0.12em] transition-colors",
+                                    enabled
+                                      ? "text-foreground"
+                                      : "text-muted-foreground hover:text-foreground"
+                                  )}
+                                >
+                                  {t(`scope.${scope}`)}: {enabled ? t("tools.enabled") : t("tools.disabled")}
+                                </button>
+                              )
+                            })}
                             <Button variant="ghost" size="sm" onClick={() => startEdit(item)}>
                               <Pencil className="size-3.5" />
                               {t("mcp.edit")}
@@ -433,6 +458,32 @@ export function McpManager(): React.JSX.Element {
                   />
                   {t("mcp.auto_start")}
                 </label>
+
+                <div className="space-y-2">
+                  <div className="text-xs text-muted-foreground">{t("scope.title")}</div>
+                  <div className="flex items-center gap-4 text-xs text-muted-foreground">
+                    <label className="flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        checked={form.enabledClassic}
+                        onChange={(e) =>
+                          setForm((prev) => ({ ...prev, enabledClassic: e.target.checked }))
+                        }
+                      />
+                      {t("scope.classic")}
+                    </label>
+                    <label className="flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        checked={form.enabledButler}
+                        onChange={(e) =>
+                          setForm((prev) => ({ ...prev, enabledButler: e.target.checked }))
+                        }
+                      />
+                      {t("scope.butler")}
+                    </label>
+                  </div>
+                </div>
 
                 {error && <div className="text-xs text-status-critical">{error}</div>}
               </div>

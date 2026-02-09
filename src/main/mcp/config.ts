@@ -30,6 +30,18 @@ export function listMcpConfigs(): McpServerConfig[] {
         row.auto_start === null || row.auto_start === undefined
           ? undefined
           : Boolean(row.auto_start),
+      enabledClassic:
+        row.enabled_classic === null || row.enabled_classic === undefined
+          ? row.enabled === null || row.enabled === undefined
+            ? undefined
+            : Boolean(row.enabled)
+          : Boolean(row.enabled_classic),
+      enabledButler:
+        row.enabled_butler === null || row.enabled_butler === undefined
+          ? row.enabled === null || row.enabled === undefined
+            ? undefined
+            : Boolean(row.enabled)
+          : Boolean(row.enabled_butler),
       enabled: row.enabled === null || row.enabled === undefined ? undefined : Boolean(row.enabled)
     })
   }
@@ -43,8 +55,8 @@ export function saveMcpConfigs(servers: McpServerConfig[]): void {
   for (const server of servers) {
     database.run(
       `INSERT OR REPLACE INTO mcp_servers
-       (id, name, mode, command, args, env, cwd, url, headers, auto_start, enabled)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       (id, name, mode, command, args, env, cwd, url, headers, auto_start, enabled_classic, enabled_butler, enabled)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         server.id,
         server.name,
@@ -56,6 +68,24 @@ export function saveMcpConfigs(servers: McpServerConfig[]): void {
         server.url ?? null,
         server.headers ? JSON.stringify(server.headers) : null,
         server.autoStart === undefined ? null : server.autoStart ? 1 : 0,
+        server.enabledClassic === undefined
+          ? server.enabled === undefined
+            ? null
+            : server.enabled
+              ? 1
+              : 0
+          : server.enabledClassic
+            ? 1
+            : 0,
+        server.enabledButler === undefined
+          ? server.enabled === undefined
+            ? null
+            : server.enabled
+              ? 1
+              : 0
+          : server.enabledButler
+            ? 1
+            : 0,
         server.enabled === undefined ? null : server.enabled ? 1 : 0
       ]
     )

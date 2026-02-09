@@ -9,6 +9,7 @@ import {
   updateSkillEnabled
 } from "../skills"
 import { logEntry, logExit, withSpan } from "../logging"
+import type { CapabilityScope } from "../types"
 
 export function registerSkillHandlers(ipcMain: IpcMain): void {
   ipcMain.handle("skills:list", async () => {
@@ -44,6 +45,18 @@ export function registerSkillHandlers(ipcMain: IpcMain): void {
       updateSkillEnabled(input.name, input.enabled)
     )
   })
+
+  ipcMain.handle(
+    "skills:setEnabledScope",
+    async (_event, input: { name: string; enabled: boolean; scope: CapabilityScope }) => {
+      return withSpan(
+        "IPC",
+        "skills:setEnabledScope",
+        { name: input.name, scope: input.scope },
+        async () => updateSkillEnabled(input.name, input.enabled, input.scope)
+      )
+    }
+  )
 
   ipcMain.handle("skills:getContent", async (_event, name: string) => {
     return withSpan("IPC", "skills:getContent", { name }, async () => getSkillContent(name))

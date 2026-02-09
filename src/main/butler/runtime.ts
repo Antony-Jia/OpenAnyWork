@@ -10,10 +10,11 @@ import {
   buildButlerSystemPrompt,
   buildButlerPerceptionSystemPrompt,
   buildButlerPerceptionUserPrompt,
-  buildButlerUserPrompt,
+  getClarificationPrefix,
   parseButlerAssistantText,
   type ButlerPromptContext
 } from "./prompt"
+import { composeButlerUserPrompt } from "./prompt/composer"
 import { createButlerDispatchTools, type ButlerDispatchIntent } from "./tools"
 import type { ButlerPerceptionInput } from "../types"
 
@@ -119,10 +120,15 @@ export async function runButlerOrchestratorTurn(
       intents.push(intent)
     }
   })
-  let userPrompt = buildButlerUserPrompt({
-    ...input.promptContext,
-    dispatchPolicy: input.promptContext.dispatchPolicy ?? "standard"
-  })
+  let userPrompt = composeButlerUserPrompt(
+    {
+      ...input.promptContext,
+      dispatchPolicy: input.promptContext.dispatchPolicy ?? "standard"
+    },
+    {
+      clarificationPrefix: getClarificationPrefix()
+    }
+  )
   // Regression guard: keep daily profile context visible in prompt even after refactors.
   if (!userPrompt.includes(DAILY_PROFILE_MARKER)) {
     console.warn("[Butler] Missing [Daily Profile] in user prompt, injecting fallback section.")

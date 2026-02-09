@@ -9,7 +9,7 @@ import { ChatOpenAI } from "@langchain/openai"
 import { ToolMessage } from "@langchain/core/messages"
 import { SqlJsSaver } from "../checkpointer/sqljs-saver"
 import { LocalSandbox } from "./local-sandbox"
-import { listSubagents } from "../subagents"
+import { listSubagentsByScope } from "../subagents"
 import { listAppSkills } from "../skills"
 import {
   getEnabledToolInstances,
@@ -20,6 +20,7 @@ import { getRunningMcpToolInstances, listRunningMcpTools } from "../mcp/service"
 import { resolveMiddlewareById } from "../middleware/registry"
 import { createDockerTools } from "../tools/docker-tools"
 import type {
+  CapabilityScope,
   ContentBlock,
   DockerConfig,
   ProviderConfig,
@@ -382,6 +383,8 @@ export interface CreateAgentRuntimeOptions {
   extraSystemPrompt?: string
   /** Optional tools to force-inject by name */
   forceToolNames?: string[]
+  /** Capability scope used for tools/MCP/skills/subagents selection */
+  capabilityScope?: CapabilityScope
 }
 
 // Create agent runtime with configured model and checkpointer
@@ -397,7 +400,8 @@ export async function createAgentRuntime(options: CreateAgentRuntimeOptions) {
     dockerContainerId,
     disableApprovals,
     extraSystemPrompt,
-    forceToolNames
+    forceToolNames,
+    capabilityScope = "classic"
   } = options
   void modelId
 
@@ -450,7 +454,9 @@ export async function createAgentRuntime(options: CreateAgentRuntimeOptions) {
     (extraSystemPrompt ? `\n\n${extraSystemPrompt}` : "")
 
   const allSkills = listAppSkills({ workspacePath })
-  const enabledSkills = allSkills.filter((skill) => skill.enabled)
+  const enabledSkills = allSkills.filter((skill) =>
+    capabilityScope === "butler" ? skill.enabledButler : skill.enabledClassic
+  )
   const skillPathByName = buildSkillPathMap(allSkills)
   const runtimeSkillsRoot = resetRuntimeSkillRoot(threadId)
   const mainSkillSources = createSkillSnapshotSource({
@@ -462,10 +468,9 @@ export async function createAgentRuntime(options: CreateAgentRuntimeOptions) {
   logEntry("Runtime", "skills.runtime_root", { path: normalizeSkillSourcePath(runtimeSkillsRoot) })
   logEntry("Runtime", "skills.enabled", summarizeList(enabledSkills.map((skill) => skill.name)))
 
-  const subagents = listSubagents()
-    .filter((agent) => agent.enabled !== false)
+  const subagents = listSubagentsByScope(capabilityScope)
     .map((agent) => {
-      const resolvedTools = resolveToolInstancesByName(agent.tools) ?? []
+      const resolvedTools = resolveToolInstancesByName(agent.tools, capabilityScope) ?? []
       logEntry("Runtime", "subagent.tools", {
         name: agent.name,
         ...summarizeList(agent.tools ?? [])
@@ -519,12 +524,12 @@ The workspace root is: ${effectiveWorkspace}`
 
   const dockerTools =
     dockerConfig?.enabled ? createDockerTools(dockerConfig, dockerContainerId || null) : []
-  const enabledToolNames = getEnabledToolNames()
-  const mcpToolInfos = listRunningMcpTools()
+  const enabledToolNames = getEnabledToolNames(capabilityScope)
+  const mcpToolInfos = listRunningMcpTools(capabilityScope)
   const mcpToolNames = mcpToolInfos.map((toolInfo) => toolInfo.fullName)
-  const mcpTools = await getRunningMcpToolInstances()
-  const forcedTools = resolveToolInstancesByName(forceToolNames) ?? []
-  const enabledTools = [...getEnabledToolInstances(), ...mcpTools, ...dockerTools]
+  const mcpTools = await getRunningMcpToolInstances(capabilityScope)
+  const forcedTools = resolveToolInstancesByName(forceToolNames, capabilityScope) ?? []
+  const enabledTools = [...getEnabledToolInstances(capabilityScope), ...mcpTools, ...dockerTools]
   const tools = [...enabledTools]
   for (const tool of forcedTools) {
     if (!tools.includes(tool)) tools.push(tool)
@@ -533,7 +538,8 @@ The workspace root is: ${effectiveWorkspace}`
   logEntry("Runtime", "tools.inject", {
     ...summarizeList(enabledToolNames),
     mcpCount: mcpToolNames.length,
-    dockerCount: dockerTools.length
+    dockerCount: dockerTools.length,
+    scope: capabilityScope
   })
   if (mcpToolNames.length > 0) {
     logEntry("Runtime", "tools.inject.mcp", summarizeList(mcpToolNames))

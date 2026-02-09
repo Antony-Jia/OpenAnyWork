@@ -7,6 +7,7 @@ import { SSEClientTransport } from "@modelcontextprotocol/sdk/client/sse.js"
 import { listMcpConfigs, saveMcpConfigs } from "./config"
 import { logEntry, logExit, summarizeArgs, summarizeList, withSpan } from "../logging"
 import type {
+  CapabilityScope,
   McpServerConfig,
   McpServerCreateParams,
   McpServerListItem,
@@ -41,8 +42,41 @@ const clientInfo = {
   version: "0.1.0"
 }
 
+function isServerEnabledForScope(config: McpServerConfig, scope: CapabilityScope): boolean {
+  if (scope === "butler") {
+    return config.enabledButler ?? config.enabled ?? true
+  }
+  return config.enabledClassic ?? config.enabled ?? true
+}
+
 function getConfigById(id: string): McpServerConfig | undefined {
   return listMcpConfigs().find((item) => item.id === id)
+}
+
+function mergeEnabledFields(
+  current: McpServerConfig,
+  updates: Partial<Omit<McpServerConfig, "id">>
+): McpServerConfig {
+  const next = {
+    ...current,
+    ...updates
+  }
+
+  if (updates.enabled !== undefined) {
+    next.enabledClassic = updates.enabled
+    next.enabledButler = updates.enabled
+    next.enabled = updates.enabled
+    return next
+  }
+
+  const classic =
+    updates.enabledClassic ?? current.enabledClassic ?? current.enabled ?? true
+  const butler =
+    updates.enabledButler ?? current.enabledButler ?? current.enabled ?? true
+  next.enabledClassic = classic
+  next.enabledButler = butler
+  next.enabled = classic
+  return next
 }
 
 function updateConfig(id: string, updates: Partial<Omit<McpServerConfig, "id">>): McpServerConfig {
@@ -52,10 +86,7 @@ function updateConfig(id: string, updates: Partial<Omit<McpServerConfig, "id">>)
     throw new Error("MCP server not found.")
   }
 
-  const next = {
-    ...servers[index],
-    ...updates
-  }
+  const next = mergeEnabledFields(servers[index], updates)
   servers[index] = next
   saveMcpConfigs(servers)
   return next
@@ -201,6 +232,8 @@ export function createMcpServer(input: McpServerCreateParams): McpServerConfig {
   }
 
   const servers = listMcpConfigs()
+  const enabledClassic = input.enabledClassic ?? input.enabled ?? true
+  const enabledButler = input.enabledButler ?? input.enabled ?? true
   const created: McpServerConfig = {
     ...input,
     id: randomUUID(),
@@ -208,7 +241,9 @@ export function createMcpServer(input: McpServerCreateParams): McpServerConfig {
     command: input.command?.trim(),
     url: input.url?.trim(),
     autoStart: input.autoStart ?? false,
-    enabled: input.enabled ?? true
+    enabledClassic,
+    enabledButler,
+    enabled: input.enabled ?? enabledClassic
   }
   saveMcpConfigs([...servers, created])
   logExit("MCP", "createServer", { id: created.id, name: created.name })
@@ -359,7 +394,11 @@ export async function stopMcpServer(id: string): Promise<McpServerStatus> {
 
 export async function startAutoMcpServers(): Promise<void> {
   logEntry("MCP", "startAuto")
-  const servers = listMcpConfigs().filter((item) => item.autoStart && item.enabled !== false)
+  const servers = listMcpConfigs().filter(
+    (item) =>
+      item.autoStart &&
+      ((item.enabledClassic ?? item.enabled ?? true) || (item.enabledButler ?? item.enabled ?? true))
+  )
   for (const server of servers) {
     try {
       await startMcpServer(server.id)
@@ -371,25 +410,27 @@ export async function startAutoMcpServers(): Promise<void> {
   logExit("MCP", "startAuto", { count: servers.length })
 }
 
-export async function getRunningMcpToolInstances(): Promise<Array<unknown>> {
+export async function getRunningMcpToolInstances(
+  scope: CapabilityScope = "classic"
+): Promise<Array<unknown>> {
   const instances = Array.from(runningServers.values())
-    .filter((server) => server.config.enabled !== false)
+    .filter((server) => isServerEnabledForScope(server.config, scope))
     .flatMap((server) => server.toolInstances)
-  logExit("MCP", "getRunningToolInstances", { count: instances.length })
+  logExit("MCP", "getRunningToolInstances", { count: instances.length, scope })
   return instances
 }
 
-export function listRunningMcpTools(): McpToolInfo[] {
+export function listRunningMcpTools(scope: CapabilityScope = "classic"): McpToolInfo[] {
   const result = Array.from(runningServers.values())
-    .filter((server) => server.config.enabled !== false)
+    .filter((server) => isServerEnabledForScope(server.config, scope))
     .flatMap((server) => server.tools.map((toolDef) => toMcpToolInfo(server.config, toolDef)))
-  logExit("MCP", "listRunningTools", { count: result.length })
+  logExit("MCP", "listRunningTools", { count: result.length, scope })
   return result
 }
 
-export function getRunningMcpToolInstanceMap(): Map<string, unknown> {
+export function getRunningMcpToolInstanceMap(scope: CapabilityScope = "classic"): Map<string, unknown> {
   const entries = Array.from(runningServers.values())
-    .filter((server) => server.config.enabled !== false)
+    .filter((server) => isServerEnabledForScope(server.config, scope))
     .flatMap((server) =>
       server.tools.map((toolDef, index) => {
         const fullName = `mcp.${server.config.id}.${toolDef.name}`
@@ -397,6 +438,6 @@ export function getRunningMcpToolInstanceMap(): Map<string, unknown> {
         return [fullName, instance] as const
       })
     )
-  logExit("MCP", "getRunningToolInstanceMap", { count: entries.length })
+  logExit("MCP", "getRunningToolInstanceMap", { count: entries.length, scope })
   return new Map(entries)
 }

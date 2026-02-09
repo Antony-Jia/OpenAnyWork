@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto"
-import type { SubagentConfig } from "./types"
+import type { CapabilityScope, SubagentConfig } from "./types"
 import { logEntry, logExit } from "./logging"
 import { getDb, markDbDirty } from "./db"
 
@@ -29,6 +29,16 @@ export function listSubagents(): SubagentConfig[] {
       providerRaw === "ollama" || providerRaw === "openai-compatible" || providerRaw === "multimodal"
         ? providerRaw
         : undefined
+    const legacyEnabled =
+      row.enabled === null || row.enabled === undefined ? undefined : Boolean(row.enabled)
+    const enabledClassic =
+      row.enabled_classic === null || row.enabled_classic === undefined
+        ? legacyEnabled
+        : Boolean(row.enabled_classic)
+    const enabledButler =
+      row.enabled_butler === null || row.enabled_butler === undefined
+        ? legacyEnabled
+        : Boolean(row.enabled_butler)
     result.push({
       id: String(row.id),
       name: String(row.name),
@@ -43,12 +53,28 @@ export function listSubagents(): SubagentConfig[] {
         row.interrupt_on === null || row.interrupt_on === undefined
           ? undefined
           : Boolean(row.interrupt_on),
-      enabled: row.enabled === null || row.enabled === undefined ? undefined : Boolean(row.enabled)
+      enabledClassic,
+      enabledButler,
+      enabled: enabledClassic ?? legacyEnabled
     })
   }
   stmt.free()
   logExit("Subagents", "list", { count: result.length })
   return result
+}
+
+export function isSubagentEnabledInScope(
+  subagent: Pick<SubagentConfig, "enabled" | "enabledClassic" | "enabledButler">,
+  scope: CapabilityScope
+): boolean {
+  if (scope === "butler") {
+    return subagent.enabledButler ?? subagent.enabled ?? true
+  }
+  return subagent.enabledClassic ?? subagent.enabled ?? true
+}
+
+export function listSubagentsByScope(scope: CapabilityScope): SubagentConfig[] {
+  return listSubagents().filter((subagent) => isSubagentEnabledInScope(subagent, scope))
 }
 
 export function createSubagent(input: Omit<SubagentConfig, "id">): SubagentConfig {
@@ -86,14 +112,16 @@ export function createSubagent(input: Omit<SubagentConfig, "id">): SubagentConfi
     middleware: input.middleware,
     skills: input.skills,
     interruptOn: input.interruptOn ?? false,
-    enabled: input.enabled ?? true
+    enabledClassic: input.enabledClassic ?? input.enabled ?? true,
+    enabledButler: input.enabledButler ?? input.enabled ?? true,
+    enabled: input.enabledClassic ?? input.enabled ?? true
   }
 
   const database = getDb()
   database.run(
     `INSERT OR REPLACE INTO subagents
-     (id, name, description, system_prompt, model, model_provider, tools, middleware, skills, interrupt_on, enabled)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+     (id, name, description, system_prompt, model, model_provider, tools, middleware, skills, interrupt_on, enabled_classic, enabled_butler, enabled)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       created.id,
       created.name,
@@ -105,6 +133,8 @@ export function createSubagent(input: Omit<SubagentConfig, "id">): SubagentConfi
       created.middleware ? JSON.stringify(created.middleware) : null,
       created.skills ? JSON.stringify(created.skills) : null,
       created.interruptOn === undefined ? null : created.interruptOn ? 1 : 0,
+      created.enabledClassic === undefined ? null : created.enabledClassic ? 1 : 0,
+      created.enabledButler === undefined ? null : created.enabledButler ? 1 : 0,
       created.enabled === undefined ? null : created.enabled ? 1 : 0
     ]
   )
@@ -136,6 +166,14 @@ export function updateSubagent(
 
   const current = subagents[index]
   const nextSystemPrompt = updates.systemPrompt?.trim()
+  const currentClassic = current.enabledClassic ?? current.enabled ?? true
+  const currentButler = current.enabledButler ?? current.enabled ?? true
+  const updatesClassic =
+    updates.enabledClassic === undefined ? undefined : Boolean(updates.enabledClassic)
+  const updatesButler =
+    updates.enabledButler === undefined ? undefined : Boolean(updates.enabledButler)
+  const nextClassic = updatesClassic ?? (updates.enabled === undefined ? currentClassic : updates.enabled)
+  const nextButler = updatesButler ?? (updates.enabled === undefined ? currentButler : updates.enabled)
   const updated: SubagentConfig = {
     ...current,
     ...updates,
@@ -144,14 +182,17 @@ export function updateSubagent(
     systemPrompt:
       updates.systemPrompt === undefined
         ? current.systemPrompt
-        : appendCurrentTime(nextSystemPrompt ?? "")
+        : appendCurrentTime(nextSystemPrompt ?? ""),
+    enabledClassic: nextClassic,
+    enabledButler: nextButler,
+    enabled: nextClassic
   }
 
   const database = getDb()
   database.run(
     `INSERT OR REPLACE INTO subagents
-     (id, name, description, system_prompt, model, model_provider, tools, middleware, skills, interrupt_on, enabled)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+     (id, name, description, system_prompt, model, model_provider, tools, middleware, skills, interrupt_on, enabled_classic, enabled_butler, enabled)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       updated.id,
       updated.name,
@@ -163,6 +204,8 @@ export function updateSubagent(
       updated.middleware ? JSON.stringify(updated.middleware) : null,
       updated.skills ? JSON.stringify(updated.skills) : null,
       updated.interruptOn === undefined ? null : updated.interruptOn ? 1 : 0,
+      updated.enabledClassic === undefined ? null : updated.enabledClassic ? 1 : 0,
+      updated.enabledButler === undefined ? null : updated.enabledButler ? 1 : 0,
       updated.enabled === undefined ? null : updated.enabled ? 1 : 0
     ]
   )

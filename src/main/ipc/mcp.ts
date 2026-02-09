@@ -17,7 +17,15 @@ export function registerMcpHandlers(ipcMain: IpcMain): void {
   })
 
   ipcMain.handle("mcp:tools", async () => {
-    return withSpan("IPC", "mcp:tools", undefined, async () => listRunningMcpTools())
+    return withSpan("IPC", "mcp:tools", undefined, async () => {
+      const classic = listRunningMcpTools("classic")
+      const butler = listRunningMcpTools("butler")
+      const unique = new Map<string, (typeof classic)[number]>()
+      for (const item of [...classic, ...butler]) {
+        unique.set(item.fullName, item)
+      }
+      return Array.from(unique.values())
+    })
   })
 
   ipcMain.handle("mcp:create", async (_event, payload: McpServerCreateParams) => {

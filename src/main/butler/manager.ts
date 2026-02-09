@@ -4,7 +4,12 @@ import { join } from "path"
 import { v4 as uuid } from "uuid"
 import { createThread as dbCreateThread, getAllThreads, updateThread as dbUpdateThread } from "../db"
 import { getSettings } from "../settings"
-import { emitTaskCompleted, onTaskCompleted, type TaskCompletionPayload } from "../tasks/lifecycle"
+import {
+  emitTaskCompleted,
+  emitTaskStarted,
+  onTaskCompleted,
+  type TaskCompletionPayload
+} from "../tasks/lifecycle"
 import {
   appendButlerHistoryMessage,
   clearButlerHistoryMessages,
@@ -28,6 +33,7 @@ import { createButlerTaskThread, executeButlerTask } from "./task-dispatcher"
 import { renderTaskPrompt, type ButlerDispatchIntent } from "./tools"
 import type {
   ButlerPerceptionInput,
+  TaskLifecycleNotice,
   ButlerRound,
   ButlerTask,
   ButlerState,
@@ -296,6 +302,37 @@ class ButlerManager {
       `${TASK_NOTICE_MARKER}${JSON.stringify(notice)}`
     ].join("\n")
 
+    this.pushMessage({
+      id: uuid(),
+      role: "assistant",
+      content,
+      ts: nowIso()
+    })
+    this.broadcastState()
+  }
+
+  notifyLifecycleNotice(notice: TaskLifecycleNotice): void {
+    if (notice.phase === "completed") {
+      this.notifyCompletionNotice({
+        id: notice.id,
+        threadId: notice.threadId,
+        title: notice.title,
+        resultBrief: notice.resultBrief || "任务已完成。",
+        resultDetail: notice.resultDetail || notice.resultBrief || "任务已完成。",
+        completedAt: notice.at,
+        mode: notice.mode,
+        source: notice.source,
+        noticeType: "task"
+      })
+      return
+    }
+
+    const content = [
+      `任务启动通知：${notice.title}`,
+      `模式: ${notice.mode} | 来源: ${notice.source}`,
+      `线程: ${notice.threadId}`,
+      `摘要: ${notice.resultBrief || "任务已开始执行。"}`
+    ].join("\n")
     this.pushMessage({
       id: uuid(),
       role: "assistant",
@@ -955,6 +992,10 @@ class ButlerManager {
       task.startedAt = nowIso()
       this.running.add(task.id)
       this.runningThreadIds.add(task.threadId)
+      emitTaskStarted({
+        threadId: task.threadId,
+        source: "butler"
+      })
       persistButlerTask(task)
       this.broadcastTasks()
 

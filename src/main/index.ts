@@ -53,15 +53,20 @@ import {
 } from "./memory"
 import { butlerManager } from "./butler/manager"
 import { ButlerMonitorManager } from "./butler/monitoring/manager"
+import { ButlerMonitorBus } from "./butler/monitoring/bus"
 import { TaskPopupController } from "./notifications/popup-controller"
 import { TaskCompletionBus } from "./notifications/task-completion-bus"
+import { TaskLifecycleButlerBus } from "./notifications/task-lifecycle-butler-bus"
 
 let mainWindow: BrowserWindow | null = null
 let quickInputWindow: BrowserWindow | null = null
 let tray: Tray | null = null
 let taskPopupController: TaskPopupController | null = null
 let taskCompletionBus: TaskCompletionBus | null = null
+let taskLifecycleButlerBus: TaskLifecycleButlerBus | null = null
 let butlerMonitorManager: ButlerMonitorManager | null = null
+let butlerMonitorBus: ButlerMonitorBus | null = null
+let unsubscribeButlerMonitorBus: (() => void) | null = null
 let isQuitting = false
 
 // Simple dev check - replaces @electron-toolkit/utils is.dev
@@ -314,7 +319,9 @@ app.whenReady().then(async () => {
   await initializeMemoryService()
   await generateDailyProfileOnStartup()
   await butlerManager.initialize()
+  butlerMonitorBus = new ButlerMonitorBus()
   butlerMonitorManager = new ButlerMonitorManager({
+    bus: butlerMonitorBus,
     perceptionGateway: {
       ingest: async (input) => {
         return butlerManager.ingestPerception(input)
@@ -325,6 +332,11 @@ app.whenReady().then(async () => {
       if (!mainWindow || !mainWindow.isVisible() || mainWindow.isMinimized()) {
         taskPopupController?.enqueue(notice)
       }
+    }
+  })
+  unsubscribeButlerMonitorBus = butlerMonitorBus.onEvent((event) => {
+    for (const win of BrowserWindow.getAllWindows()) {
+      win.webContents.send("butler-monitor:event", event)
     }
   })
   loopManager.resetAllOnStartup()
@@ -342,7 +354,7 @@ app.whenReady().then(async () => {
   registerMcpHandlers(ipcMain)
   registerSettingsHandlers(ipcMain, {
     onSettingsUpdated: () => {
-      butlerMonitorManager?.refreshEmailPollingInterval()
+      butlerMonitorManager?.refreshIntervals()
     }
   })
   registerSpeechHandlers(ipcMain)
@@ -372,8 +384,8 @@ app.whenReady().then(async () => {
   })
 
   taskCompletionBus = new TaskCompletionBus({
-    notifyButler: (notice) => {
-      butlerManager.notifyCompletionNotice(notice)
+    notifyButler: () => {
+      // Butler lifecycle notifications are handled by TaskLifecycleButlerBus.
     },
     notifyInAppCard: (notice) => {
       broadcastTaskCard(notice)
@@ -390,6 +402,12 @@ app.whenReady().then(async () => {
     }
   })
   taskCompletionBus.start()
+  taskLifecycleButlerBus = new TaskLifecycleButlerBus({
+    notifyButler: (notice) => {
+      butlerManager.notifyLifecycleNotice(notice)
+    }
+  })
+  taskLifecycleButlerBus.start()
   butlerMonitorManager?.start()
 
   ipcMain.on("app:show-main", () => {
@@ -489,11 +507,18 @@ app.on("before-quit", () => {
   globalShortcut.unregisterAll()
   taskCompletionBus?.stop()
   taskCompletionBus = null
+  taskLifecycleButlerBus?.stop()
+  taskLifecycleButlerBus = null
   taskPopupController?.dispose()
   taskPopupController = null
   stopEmailPolling()
   butlerMonitorManager?.stop()
   butlerMonitorManager = null
+  if (unsubscribeButlerMonitorBus) {
+    unsubscribeButlerMonitorBus()
+    unsubscribeButlerMonitorBus = null
+  }
+  butlerMonitorBus = null
   loopManager.stopAll()
   butlerManager.shutdown()
   void stopMemoryService()

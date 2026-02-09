@@ -12,7 +12,7 @@ import { ensureDockerRunning, getDockerRuntimeConfig } from "../docker/session"
 import { appendRalphLogEntry } from "../ralph-log"
 import { runAgentStream } from "../agent/run"
 import { extractAssistantChunkText } from "../agent/stream-utils"
-import { emitTaskCompleted } from "../tasks/lifecycle"
+import { emitTaskCompleted, emitTaskStarted } from "../tasks/lifecycle"
 import type {
   AgentInvokeParams,
   AgentResumeParams,
@@ -205,6 +205,12 @@ export function registerAgentHandlers(ipcMain: IpcMain): void {
       const mode = (metadata.mode as ThreadMode) || "default"
       const settings = getSettings()
       const normalizedWorkspace = workspacePath || ""
+      const emitAgentStarted = (): void => {
+        emitTaskStarted({
+          threadId,
+          source: "agent"
+        })
+      }
       const disableApprovalsForThread =
         metadata.disableApprovals === true || metadata.createdBy === "quick-input"
 
@@ -244,6 +250,7 @@ export function registerAgentHandlers(ipcMain: IpcMain): void {
           // await resetRalphCheckpoint(threadId)
           const initPrompt = buildRalphInitPrompt(trimmed)
 
+          emitAgentStarted()
           const output = await runAgentStream({
             threadId,
             workspacePath: normalizedWorkspace,
@@ -255,6 +262,7 @@ export function registerAgentHandlers(ipcMain: IpcMain): void {
             window,
             channel,
             abortController,
+            capabilityScope: "classic",
             ralphLog: { enabled: true, iteration: 0, phase: ralph.phase }
           })
           updateMetadata(threadId, { ralph: { phase: "awaiting_confirm", iterations: 0 } })
@@ -306,6 +314,7 @@ export function registerAgentHandlers(ipcMain: IpcMain): void {
               "- 工作过程的重要信息你需要写入在工作路径中，并写在 progress.txt 中，提示下一轮迭代读取或者最终总结。"
             ].join("\n")
 
+            emitAgentStarted()
             lastIterationOutput = await runAgentStream({
               threadId,
               workspacePath: normalizedWorkspace,
@@ -317,6 +326,7 @@ export function registerAgentHandlers(ipcMain: IpcMain): void {
               window,
               channel,
               abortController,
+              capabilityScope: "classic",
               ralphLog: { enabled: true, iteration: i, phase: "running" }
             })
             updateMetadata(threadId, { ralph: { iterations: i } })
@@ -366,6 +376,7 @@ export function registerAgentHandlers(ipcMain: IpcMain): void {
           await resetRalphCheckpoint(threadId)
           const initPrompt = buildRalphInitPrompt(messageText)
 
+          emitAgentStarted()
           const output = await runAgentStream({
             threadId,
             workspacePath: normalizedWorkspace,
@@ -377,6 +388,7 @@ export function registerAgentHandlers(ipcMain: IpcMain): void {
             window,
             channel,
             abortController,
+            capabilityScope: "classic",
             ralphLog: { enabled: true, iteration: 0, phase: ralph.phase }
           })
           updateMetadata(threadId, { ralph: { phase: "awaiting_confirm", iterations: 0 } })
@@ -393,6 +405,7 @@ export function registerAgentHandlers(ipcMain: IpcMain): void {
       }
 
       if (mode === "email") {
+        emitAgentStarted()
         const output = await runAgentStream({
           threadId,
           workspacePath: normalizedWorkspace,
@@ -404,6 +417,7 @@ export function registerAgentHandlers(ipcMain: IpcMain): void {
           window,
           channel,
           abortController,
+          capabilityScope: "classic",
           extraSystemPrompt: buildEmailModePrompt(threadId),
           forceToolNames: ["send_email"]
         })
@@ -419,6 +433,7 @@ export function registerAgentHandlers(ipcMain: IpcMain): void {
         return
       }
 
+      emitAgentStarted()
       const output = await runAgentStream({
         threadId,
         workspacePath: normalizedWorkspace,
@@ -429,7 +444,8 @@ export function registerAgentHandlers(ipcMain: IpcMain): void {
         message,
         window,
         channel,
-        abortController
+        abortController,
+        capabilityScope: "classic"
       })
 
       if (!abortController.signal.aborted) {
@@ -506,12 +522,17 @@ export function registerAgentHandlers(ipcMain: IpcMain): void {
     activeRuns.set(threadId, abortController)
 
     try {
+      emitTaskStarted({
+        threadId,
+        source: "agent"
+      })
       const agent = await createAgentRuntime({
         threadId,
         workspacePath: workspacePath || "",
         modelId,
         dockerConfig,
-        dockerContainerId
+        dockerContainerId,
+        capabilityScope: "classic"
       })
       const config = {
         configurable: { thread_id: threadId },
@@ -612,12 +633,17 @@ export function registerAgentHandlers(ipcMain: IpcMain): void {
     activeRuns.set(threadId, abortController)
 
     try {
+      emitTaskStarted({
+        threadId,
+        source: "agent"
+      })
       const agent = await createAgentRuntime({
         threadId,
         workspacePath: workspacePath || "",
         modelId,
         dockerConfig,
-        dockerContainerId
+        dockerContainerId,
+        capabilityScope: "classic"
       })
       const config = {
         configurable: { thread_id: threadId },

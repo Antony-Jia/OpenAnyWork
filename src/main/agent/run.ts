@@ -4,7 +4,7 @@ import { HumanMessage, type MessageContent } from "@langchain/core/messages"
 import { createAgentRuntime } from "./runtime"
 import { extractAssistantChunkText } from "./stream-utils"
 import { appendRalphLogEntry } from "../ralph-log"
-import type { ContentBlock, RalphLogEntry, RalphState, DockerConfig } from "../types"
+import type { CapabilityScope, ContentBlock, RalphLogEntry, RalphState, DockerConfig } from "../types"
 
 export async function runAgentStream({
   threadId,
@@ -15,6 +15,7 @@ export async function runAgentStream({
   disableApprovals,
   extraSystemPrompt,
   forceToolNames,
+  capabilityScope,
   message,
   window,
   channel,
@@ -29,6 +30,7 @@ export async function runAgentStream({
   disableApprovals?: boolean
   extraSystemPrompt?: string
   forceToolNames?: string[]
+  capabilityScope?: CapabilityScope
   message: string | ContentBlock[]
   window: BrowserWindow
   channel: string
@@ -48,7 +50,8 @@ export async function runAgentStream({
     dockerContainerId,
     disableApprovals,
     extraSystemPrompt,
-    forceToolNames
+    forceToolNames,
+    capabilityScope
   })
 
   const humanMessage = Array.isArray(message)

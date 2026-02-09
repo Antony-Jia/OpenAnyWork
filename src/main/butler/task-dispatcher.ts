@@ -134,6 +134,7 @@ export async function executeButlerTask(task: ButlerTask): Promise<ExecuteResult
       workspacePath: task.workspacePath,
       dockerConfig,
       dockerContainerId,
+      capabilityScope: "butler",
       disableApprovals: true,
       message: task.prompt,
       window,

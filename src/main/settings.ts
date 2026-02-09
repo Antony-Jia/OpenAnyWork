@@ -42,7 +42,9 @@ const defaultSettings: AppSettings = {
   butler: {
     rootPath: join(getOpenworkDir(), "butler-workspaces"),
     maxConcurrent: 2,
-    recentRounds: 5
+    recentRounds: 5,
+    monitorScanIntervalSec: 30,
+    monitorPullIntervalSec: 60
   },
   dockerConfig: {
     enabled: false,

@@ -25,6 +25,9 @@ export interface ButlerOrchestratorTurnResult {
   clarification: boolean
 }
 
+const DAILY_PROFILE_MARKER = "[Daily Profile]"
+const PROFILE_DELTA_MARKER = "[Profile Delta]"
+
 function requireProviderState(): ProviderState {
   const state = getProviderState()
   if (!state) {
@@ -104,7 +107,26 @@ export async function runButlerOrchestratorTurn(
       intents.push(intent)
     }
   })
-  const userPrompt = buildButlerUserPrompt(input.promptContext)
+  let userPrompt = buildButlerUserPrompt({
+    ...input.promptContext,
+    dispatchPolicy: input.promptContext.dispatchPolicy ?? "standard"
+  })
+  // Regression guard: keep daily profile context visible in prompt even after refactors.
+  if (!userPrompt.includes(DAILY_PROFILE_MARKER)) {
+    console.warn("[Butler] Missing [Daily Profile] in user prompt, injecting fallback section.")
+    userPrompt = [userPrompt, "", DAILY_PROFILE_MARKER, input.promptContext.profileText?.trim() || "none"].join(
+      "\n"
+    )
+  }
+  if (!userPrompt.includes(PROFILE_DELTA_MARKER)) {
+    console.warn("[Butler] Missing [Profile Delta] in user prompt, injecting fallback section.")
+    userPrompt = [
+      userPrompt,
+      "",
+      PROFILE_DELTA_MARKER,
+      input.promptContext.comparisonText?.trim() || "none"
+    ].join("\n")
+  }
 
   const stream = await agent.stream(
     { messages: [new HumanMessage(userPrompt)] },
@@ -147,4 +169,3 @@ export async function runButlerOrchestratorTurn(
     clarification: parsed.clarification
   }
 }
-

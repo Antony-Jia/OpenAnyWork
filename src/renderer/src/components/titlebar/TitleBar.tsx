@@ -1,5 +1,7 @@
 import React from "react"
 import { SettingsMenu } from "./SettingsMenu"
+import { PromptManager } from "./PromptManager"
+import { MemoryManager } from "./MemoryManager"
 import { SubagentManager } from "./SubagentManager"
 import { SkillsManager } from "./SkillsManager"
 import { ToolsManager } from "./ToolsManager"
@@ -43,6 +45,8 @@ export function TitleBar({ threadId }: TitleBarProps): React.JSX.Element {
         <div className="h-4 w-[1px] bg-border mx-1" />
 
         <SettingsMenu threadId={threadId} />
+        <PromptManager />
+        <MemoryManager />
         <SubagentManager />
         <SkillsManager />
         <ToolsManager />

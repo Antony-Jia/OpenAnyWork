@@ -80,6 +80,15 @@ export interface ThreadUpdateParams {
   updates: Partial<Thread>
 }
 
+export interface ThreadDeleteOptions {
+  deleteMemory?: boolean
+}
+
+export interface ThreadDeleteParams {
+  threadId: string
+  options?: ThreadDeleteOptions
+}
+
 // Workspace IPC
 export interface WorkspaceSetParams {
   threadId?: string
@@ -393,11 +402,18 @@ export interface ButlerRound {
   ts: string
 }
 
+export interface ButlerPendingDispatchChoice {
+  id: string
+  awaiting: boolean
+  createdAt: string
+}
+
 export interface ButlerState {
   mainThreadId: string
   recentRounds: ButlerRound[]
   totalMessageCount: number
   activeTaskCount: number
+  pendingDispatchChoice?: ButlerPendingDispatchChoice
 }
 
 export interface TaskCompletionNotice {
@@ -432,6 +448,24 @@ export interface DailyProfile {
   profileText: string
   comparisonText: string
   previousProfileDay?: string
+}
+
+export interface PromptTemplate {
+  id: string
+  name: string
+  content: string
+  createdAt: string
+  updatedAt: string
+}
+
+export interface PromptCreateInput {
+  name: string
+  content: string
+}
+
+export interface PromptUpdateInput {
+  name?: string
+  content?: string
 }
 
 export interface SpeechSttRequest {

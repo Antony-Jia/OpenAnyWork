@@ -31,7 +31,13 @@ import type {
   LoopConfig,
   ButlerState,
   ButlerTask,
-  TaskCompletionNotice
+  TaskCompletionNotice,
+  ThreadDeleteOptions,
+  PromptTemplate,
+  PromptCreateInput,
+  PromptUpdateInput,
+  MemorySummary,
+  DailyProfile
 } from "../main/types"
 
 interface ElectronAPI {
@@ -74,7 +80,7 @@ interface CustomAPI {
     get: (threadId: string) => Promise<Thread | null>
     create: (metadata?: Record<string, unknown>) => Promise<Thread>
     update: (threadId: string, updates: Partial<Thread>) => Promise<Thread>
-    delete: (threadId: string) => Promise<void>
+    delete: (threadId: string, options?: ThreadDeleteOptions) => Promise<void>
     getHistory: (threadId: string) => Promise<unknown[]>
     getRalphLogTail: (threadId: string, limit?: number) => Promise<RalphLogEntry[]>
     generateTitle: (message: string) => Promise<string>
@@ -90,8 +96,22 @@ interface CustomAPI {
     getState: () => Promise<ButlerState>
     send: (message: string) => Promise<ButlerState>
     listTasks: () => Promise<ButlerTask[]>
+    clearHistory: () => Promise<ButlerState>
+    clearTasks: () => Promise<ButlerTask[]>
     onTaskUpdate: (callback: (tasks: ButlerTask[]) => void) => () => void
     onTaskCompleted: (callback: (card: TaskCompletionNotice) => void) => () => void
+  }
+  prompts: {
+    list: (query?: string) => Promise<PromptTemplate[]>
+    get: (id: string) => Promise<PromptTemplate | null>
+    create: (input: PromptCreateInput) => Promise<PromptTemplate>
+    update: (id: string, updates: PromptUpdateInput) => Promise<PromptTemplate>
+    delete: (id: string) => Promise<void>
+  }
+  memory: {
+    listConversationSummaries: (limit?: number) => Promise<MemorySummary[]>
+    listDailyProfiles: (limit?: number) => Promise<DailyProfile[]>
+    clearAll: () => Promise<void>
   }
   models: {
     list: () => Promise<ModelConfig[]>

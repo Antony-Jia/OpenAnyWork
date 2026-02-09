@@ -1,13 +1,159 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { Button } from "@/components/ui/button"
+import { Badge } from "@/components/ui/badge"
+import { useAppStore } from "@/lib/store"
 import { ButlerTaskBoard } from "./ButlerTaskBoard"
-import type { ButlerState, ButlerTask } from "@/types"
+import type { ButlerState, ButlerTask, TaskCompletionNotice } from "@/types"
+
+const TASK_NOTICE_MARKER = "[TASK_NOTICE_JSON]"
+
+function toStatusVariant(status: ButlerTask["status"]): "outline" | "info" | "nominal" | "critical" {
+  if (status === "running") return "info"
+  if (status === "completed") return "nominal"
+  if (status === "failed" || status === "cancelled") return "critical"
+  return "outline"
+}
+
+function isSettledTask(task: ButlerTask): boolean {
+  return task.status === "completed" || task.status === "failed" || task.status === "cancelled"
+}
+
+interface ButlerNoticeCard {
+  threadId: string
+  title: string
+  status: ButlerTask["status"]
+  resultBrief: string
+  resultDetail: string
+  completedAt: string
+}
+
+function resolveTaskDetail(card: ButlerNoticeCard): string {
+  const detail = card.resultDetail?.trim()
+  if (detail) return detail
+  const brief = card.resultBrief?.trim()
+  if (brief) return brief
+  return "暂无任务结果内容。"
+}
+
+function isTaskCompletionNotice(value: unknown): value is TaskCompletionNotice {
+  if (!value || typeof value !== "object") return false
+  const record = value as Record<string, unknown>
+  return (
+    typeof record.id === "string" &&
+    typeof record.threadId === "string" &&
+    typeof record.title === "string" &&
+    typeof record.resultBrief === "string" &&
+    typeof record.resultDetail === "string" &&
+    typeof record.completedAt === "string" &&
+    typeof record.mode === "string" &&
+    typeof record.source === "string"
+  )
+}
+
+function extractNoticeSnapshot(text: string): TaskCompletionNotice | null {
+  const markerIndex = text.lastIndexOf(TASK_NOTICE_MARKER)
+  if (markerIndex < 0) return null
+
+  const jsonText = text.slice(markerIndex + TASK_NOTICE_MARKER.length).trim()
+  if (!jsonText) return null
+
+  try {
+    const parsed = JSON.parse(jsonText) as unknown
+    return isTaskCompletionNotice(parsed) ? parsed : null
+  } catch {
+    return null
+  }
+}
+
+function stripNoticeSnapshot(text: string): string {
+  const markerIndex = text.lastIndexOf(TASK_NOTICE_MARKER)
+  if (markerIndex < 0) return text
+  return text.slice(0, markerIndex).trimEnd()
+}
+
+function inferSnapshotStatus(notice: TaskCompletionNotice): ButlerTask["status"] {
+  const normalized = `${notice.resultBrief}\n${notice.resultDetail}`.toLowerCase()
+  return normalized.includes("任务失败") || normalized.includes("错误:") ? "failed" : "completed"
+}
+
+function extractNoticeThreadId(text: string): string | null {
+  const match = text.match(/线程:\s*([^\r\n]+)/)
+  if (!match?.[1]) return null
+  const threadId = match[1].trim()
+  return threadId.length > 0 ? threadId : null
+}
+
+function findTaskForNotice(round: ButlerState["recentRounds"][number], tasks: ButlerTask[]): ButlerTask | null {
+  const threadId = extractNoticeThreadId(round.assistant)
+  if (!threadId) return null
+
+  const settled = tasks
+    .filter((task) => isSettledTask(task) && task.threadId === threadId)
+    .sort((a, b) => {
+      const aTs = a.completedAt || a.createdAt
+      const bTs = b.completedAt || b.createdAt
+      return bTs.localeCompare(aTs)
+    })
+  if (settled.length === 0) return null
+
+  const noticeTs = round.ts
+  const beforeOrEqual = settled.find((task) => {
+    const taskTs = task.completedAt || task.createdAt
+    return taskTs <= noticeTs
+  })
+
+  return beforeOrEqual || settled[0]
+}
+
+function mapTaskToNoticeCard(task: ButlerTask): ButlerNoticeCard {
+  return {
+    threadId: task.threadId,
+    title: task.title,
+    status: task.status,
+    resultBrief: task.resultBrief || "任务已结束。",
+    resultDetail: task.resultDetail || task.resultBrief || "暂无任务结果内容。",
+    completedAt: task.completedAt || task.createdAt
+  }
+}
+
+function resolveNoticeCard(
+  round: ButlerState["recentRounds"][number],
+  assistantText: string,
+  tasks: ButlerTask[],
+  snapshot: TaskCompletionNotice | null
+): ButlerNoticeCard | null {
+  if (snapshot) {
+    const matchedTask = tasks
+      .filter((task) => isSettledTask(task) && task.threadId === snapshot.threadId)
+      .sort((a, b) => {
+        const aTs = a.completedAt || a.createdAt
+        const bTs = b.completedAt || b.createdAt
+        return bTs.localeCompare(aTs)
+      })[0]
+
+    return {
+      threadId: snapshot.threadId,
+      title: snapshot.title || matchedTask?.title || "任务已结束",
+      status: matchedTask?.status || inferSnapshotStatus(snapshot),
+      resultBrief: snapshot.resultBrief || matchedTask?.resultBrief || "任务已结束。",
+      resultDetail:
+        snapshot.resultDetail || matchedTask?.resultDetail || snapshot.resultBrief || "暂无任务结果内容。",
+      completedAt: snapshot.completedAt || matchedTask?.completedAt || matchedTask?.createdAt || round.ts
+    }
+  }
+
+  const fallback = findTaskForNotice({ ...round, assistant: assistantText }, tasks)
+  return fallback ? mapTaskToNoticeCard(fallback) : null
+}
 
 export function ButlerWorkspace(): React.JSX.Element {
+  const setAppMode = useAppStore((state) => state.setAppMode)
   const [state, setState] = useState<ButlerState | null>(null)
   const [tasks, setTasks] = useState<ButlerTask[]>([])
   const [input, setInput] = useState("")
   const [sending, setSending] = useState(false)
+  const [clearingHistory, setClearingHistory] = useState(false)
+  const [clearingTasks, setClearingTasks] = useState(false)
 
   const load = useCallback(async () => {
     const [nextState, nextTasks] = await Promise.all([
@@ -36,10 +182,8 @@ export function ButlerWorkspace(): React.JSX.Element {
       })
     )
     cleanups.push(
-      window.api.butler.onTaskCompleted((card) => {
-        // 管家页收到完成卡后切回传统模式并定位线程由卡片点击处理，这里仅刷新数据。
+      window.api.butler.onTaskCompleted(() => {
         void load()
-        console.log("[Butler] Task completed:", card.threadId)
       })
     )
     return () => {
@@ -50,8 +194,18 @@ export function ButlerWorkspace(): React.JSX.Element {
   }, [load])
 
   const rounds = state?.recentRounds || []
-
   const canSend = useMemo(() => input.trim().length > 0 && !sending, [input, sending])
+  const hasPendingDispatchChoice = state?.pendingDispatchChoice?.awaiting === true
+
+  const openTaskThread = useCallback(
+    async (threadId: string): Promise<void> => {
+      const normalized = threadId.trim()
+      if (!normalized) return
+      setAppMode("classic")
+      await useAppStore.getState().selectThread(normalized)
+    },
+    [setAppMode]
+  )
 
   const handleSend = async (): Promise<void> => {
     const message = input.trim()
@@ -68,28 +222,132 @@ export function ButlerWorkspace(): React.JSX.Element {
     }
   }
 
+  const handleClearHistory = async (): Promise<void> => {
+    if (clearingHistory) return
+    const confirmed = window.confirm("确认清空聊天记录吗？")
+    if (!confirmed) return
+
+    setClearingHistory(true)
+    try {
+      const nextState = await window.api.butler.clearHistory()
+      setState(nextState)
+    } finally {
+      setClearingHistory(false)
+    }
+  }
+
+  const handleClearTasks = async (): Promise<void> => {
+    if (clearingTasks) return
+    const confirmed = window.confirm("确认清空任务列表吗？运行中的任务不会被清理。")
+    if (!confirmed) return
+
+    setClearingTasks(true)
+    try {
+      const nextTasks = await window.api.butler.clearTasks()
+      setTasks(nextTasks)
+    } finally {
+      setClearingTasks(false)
+    }
+  }
+
   return (
     <div className="flex h-full min-h-0">
       <section className="flex min-w-0 flex-1 flex-col border-r border-border">
-        <header className="h-10 px-3 border-b border-border flex items-center text-xs text-muted-foreground uppercase tracking-[0.18em]">
-          Butler AI
+        <header className="h-10 px-3 border-b border-border flex items-center justify-between">
+          <span className="text-xs text-muted-foreground uppercase tracking-[0.18em]">Butler AI</span>
+          <Button
+            variant="ghost"
+            size="sm"
+            disabled={clearingHistory}
+            onClick={() => void handleClearHistory()}
+            className="h-7 px-2 text-xs"
+          >
+            {clearingHistory ? "清空中..." : "清空聊天"}
+          </Button>
         </header>
         <div className="flex-1 min-h-0 overflow-y-auto p-3 space-y-3">
+          {hasPendingDispatchChoice && (
+            <div className="text-xs rounded-md border border-amber-500/40 bg-amber-500/10 p-3">
+              当前有待确认的任务编排方案，请在输入框回复 A 或 B。
+            </div>
+          )}
           {rounds.length === 0 && (
             <div className="text-xs text-muted-foreground rounded-md border border-border p-3">
               暂无对话，输入你的任务需求后，管家会自动路由。
             </div>
           )}
-          {rounds.map((round) => (
-            <div key={round.id} className="space-y-2">
-              <div className="rounded-md border border-border bg-card p-3 text-sm whitespace-pre-wrap">
-                {round.user}
+          {rounds.map((round) => {
+            const isSystemNotice = round.user === "[系统通知]"
+            const snapshot = isSystemNotice ? extractNoticeSnapshot(round.assistant) : null
+            const assistantText = isSystemNotice ? stripNoticeSnapshot(round.assistant) : round.assistant
+            const hasAssistantContent = assistantText.trim().length > 0
+            const noticeCard = isSystemNotice ? resolveNoticeCard(round, assistantText, tasks, snapshot) : null
+            return (
+              <div key={round.id} className="space-y-2">
+                {!isSystemNotice && (
+                  <div className="flex justify-end">
+                    <div className="max-w-[82%] rounded-md border border-primary/30 bg-primary/10 p-3 text-sm whitespace-pre-wrap">
+                      {round.user}
+                    </div>
+                  </div>
+                )}
+
+                {(isSystemNotice || hasAssistantContent) && (
+                  <div className="flex justify-start">
+                    <div className="max-w-[86%] rounded-md border border-blue-500/30 bg-blue-500/5 p-3">
+                      <div className="mb-1 text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
+                        {isSystemNotice ? "系统通知" : "管家"}
+                      </div>
+                      <div className="text-sm whitespace-pre-wrap">
+                        {assistantText || "处理中..."}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {isSystemNotice && noticeCard && (
+                  <div className="flex justify-start">
+                    <details className="w-[86%] rounded-md border border-border/70 bg-card/60 p-2">
+                      <summary className="cursor-pointer">
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0">
+                            <div className="truncate text-sm font-medium" title={noticeCard.title}>
+                              {noticeCard.title}
+                            </div>
+                            <div className="mt-1 max-h-12 overflow-hidden whitespace-pre-wrap text-xs text-muted-foreground">
+                              {noticeCard.resultBrief || "任务已结束。"}
+                            </div>
+                            <div className="mt-1 text-[10px] text-muted-foreground">
+                              {new Date(noticeCard.completedAt).toLocaleString()}
+                            </div>
+                          </div>
+                          <Badge variant={toStatusVariant(noticeCard.status)}>{noticeCard.status}</Badge>
+                        </div>
+                      </summary>
+                      <div className="mt-2 space-y-2">
+                        <div className="max-h-44 overflow-y-auto whitespace-pre-wrap rounded-sm border border-border/60 bg-background/70 p-2 text-xs">
+                          {resolveTaskDetail(noticeCard)}
+                        </div>
+                        <div className="flex justify-end">
+                          <button
+                            type="button"
+                            disabled={!noticeCard.threadId}
+                            onClick={() => {
+                              if (!noticeCard.threadId) return
+                              void openTaskThread(noticeCard.threadId)
+                            }}
+                            className="text-xs text-blue-500 hover:text-blue-400 disabled:text-muted-foreground disabled:cursor-not-allowed"
+                          >
+                            查看线程
+                          </button>
+                        </div>
+                      </div>
+                    </details>
+                  </div>
+                )}
               </div>
-              <div className="rounded-md border border-blue-500/30 bg-blue-500/5 p-3 text-sm whitespace-pre-wrap">
-                {round.assistant}
-              </div>
-            </div>
-          ))}
+            )
+          })}
         </div>
         <div className="border-t border-border p-3 flex items-end gap-2">
           <textarea
@@ -110,12 +368,27 @@ export function ButlerWorkspace(): React.JSX.Element {
         </div>
       </section>
 
-      <aside className="w-[380px] shrink-0">
-        <header className="h-10 px-3 border-b border-border flex items-center justify-between text-xs text-muted-foreground uppercase tracking-[0.18em]">
-          <span>执行任务</span>
-          <span>{tasks.filter((task) => task.status === "running").length} Running</span>
+      <aside className="flex h-full min-h-0 w-[380px] shrink-0 flex-col">
+        <header className="h-10 shrink-0 px-3 border-b border-border flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2 min-w-0">
+            <span className="text-xs text-muted-foreground uppercase tracking-[0.18em]">执行任务</span>
+            <span className="text-[11px] text-muted-foreground">
+              {tasks.filter((task) => task.status === "running").length} Running
+            </span>
+          </div>
+          <Button
+            variant="ghost"
+            size="sm"
+            disabled={clearingTasks}
+            onClick={() => void handleClearTasks()}
+            className="h-7 px-2 text-xs"
+          >
+            {clearingTasks ? "清空中..." : "清空任务"}
+          </Button>
         </header>
-        <ButlerTaskBoard tasks={tasks} />
+        <div className="flex-1 min-h-0">
+          <ButlerTaskBoard tasks={tasks} onOpenThread={(threadId) => void openTaskThread(threadId)} />
+        </div>
       </aside>
     </div>
   )

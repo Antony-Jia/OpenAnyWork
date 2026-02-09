@@ -1,4 +1,3 @@
-import { BrowserWindow } from "electron"
 import { v4 as uuid } from "uuid"
 import { createThread as dbCreateThread, getThread as dbGetThread, updateThread as dbUpdateThread } from "../db"
 import { ensureDockerRunning, getDockerRuntimeConfig } from "../docker/session"
@@ -7,6 +6,7 @@ import { buildEmailModePrompt } from "../email/prompt"
 import { emitTaskCompleted } from "../tasks/lifecycle"
 import { loopManager } from "../loop/manager"
 import { broadcastThreadsChanged } from "../ipc/events"
+import { getPreferredMainWindow } from "../window-target"
 import { createButlerTaskFolder } from "./task-folder"
 import type { ButlerTask, ButlerTaskHandoff, LoopConfig, ThreadMode } from "../types"
 
@@ -117,7 +117,7 @@ export async function executeButlerTask(task: ButlerTask): Promise<ExecuteResult
       return { result }
     }
 
-    const window = BrowserWindow.getAllWindows()[0]
+    const window = getPreferredMainWindow()
     if (!window) {
       throw new Error("No active window available for task execution.")
     }

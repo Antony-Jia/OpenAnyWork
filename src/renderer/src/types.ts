@@ -58,6 +58,10 @@ export interface Thread {
   title?: string
 }
 
+export interface ThreadDeleteOptions {
+  deleteMemory?: boolean
+}
+
 export interface ThreadMetadata {
   mode?: ThreadMode
   createdBy?: "user" | "quick-input" | "butler"
@@ -336,11 +340,18 @@ export interface ButlerRound {
   ts: string
 }
 
+export interface ButlerPendingDispatchChoice {
+  id: string
+  awaiting: boolean
+  createdAt: string
+}
+
 export interface ButlerState {
   mainThreadId: string
   recentRounds: ButlerRound[]
   totalMessageCount: number
   activeTaskCount: number
+  pendingDispatchChoice?: ButlerPendingDispatchChoice
 }
 
 export interface TaskCompletionNotice {
@@ -375,6 +386,24 @@ export interface DailyProfile {
   profileText: string
   comparisonText: string
   previousProfileDay?: string
+}
+
+export interface PromptTemplate {
+  id: string
+  name: string
+  content: string
+  createdAt: string
+  updatedAt: string
+}
+
+export interface PromptCreateInput {
+  name: string
+  content: string
+}
+
+export interface PromptUpdateInput {
+  name?: string
+  content?: string
 }
 
 export interface SpeechSttRequest {

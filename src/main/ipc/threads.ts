@@ -13,7 +13,9 @@ import { generateTitle } from "../services/title-generator"
 import { broadcastThreadsChanged } from "./events"
 import { readRalphLogTail } from "../ralph-log"
 import { loopManager } from "../loop/manager"
-import type { Thread, ThreadUpdateParams } from "../types"
+import { butlerManager } from "../butler/manager"
+import { removeConversationMemoryByThread } from "../memory"
+import type { Thread, ThreadDeleteOptions, ThreadUpdateParams } from "../types"
 
 export function registerThreadHandlers(ipcMain: IpcMain): void {
   // List all threads
@@ -101,31 +103,54 @@ export function registerThreadHandlers(ipcMain: IpcMain): void {
   })
 
   // Delete a thread
-  ipcMain.handle("threads:delete", async (_event, threadId: string) => {
-    console.log("[Threads] Deleting thread:", threadId)
-    loopManager.cleanupThread(threadId)
+  ipcMain.handle(
+    "threads:delete",
+    async (
+      _event,
+      payload: string | { threadId: string; options?: ThreadDeleteOptions }
+    ) => {
+      const inputThreadId = typeof payload === "string" ? payload : payload?.threadId
+      const options = typeof payload === "string" ? undefined : payload?.options
+      const threadId = inputThreadId?.trim() || ""
+      if (!threadId) {
+        throw new Error("Thread id is required.")
+      }
 
-    // Delete from our metadata store
-    dbDeleteThread(threadId)
-    console.log("[Threads] Deleted from metadata store")
+      if (options?.deleteMemory) {
+        removeConversationMemoryByThread(threadId)
+      }
 
-    // Close any open checkpointer for this thread
-    try {
-      await closeCheckpointer(threadId)
-      console.log("[Threads] Closed checkpointer")
-    } catch (e) {
-      console.warn("[Threads] Failed to close checkpointer:", e)
+      console.log("[Threads] Deleting thread:", threadId)
+      loopManager.cleanupThread(threadId)
+
+      // Delete from our metadata store
+      dbDeleteThread(threadId)
+      console.log("[Threads] Deleted from metadata store")
+      try {
+        await butlerManager.removeTasksByThreadId(threadId)
+        console.log("[Threads] Synced Butler task cards for deleted thread")
+      } catch (e) {
+        console.warn("[Threads] Failed to sync Butler tasks:", e)
+      }
+
+      // Close any open checkpointer for this thread
+      try {
+        await closeCheckpointer(threadId)
+        console.log("[Threads] Closed checkpointer")
+      } catch (e) {
+        console.warn("[Threads] Failed to close checkpointer:", e)
+      }
+
+      // Delete the thread's checkpoint file
+      try {
+        deleteThreadCheckpoint(threadId)
+        console.log("[Threads] Deleted checkpoint file")
+      } catch (e) {
+        console.warn("[Threads] Failed to delete checkpoint file:", e)
+      }
+      broadcastThreadsChanged()
     }
-
-    // Delete the thread's checkpoint file
-    try {
-      deleteThreadCheckpoint(threadId)
-      console.log("[Threads] Deleted checkpoint file")
-    } catch (e) {
-      console.warn("[Threads] Failed to delete checkpoint file:", e)
-    }
-    broadcastThreadsChanged()
-  })
+  )
 
   // Get thread history (checkpoints)
   ipcMain.handle("threads:history", async (_event, threadId: string) => {

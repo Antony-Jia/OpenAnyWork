@@ -30,7 +30,13 @@ import type {
   LoopConfig,
   ButlerState,
   ButlerTask,
-  TaskCompletionNotice
+  TaskCompletionNotice,
+  ThreadDeleteOptions,
+  PromptTemplate,
+  PromptCreateInput,
+  PromptUpdateInput,
+  MemorySummary,
+  DailyProfile
 } from "../main/types"
 
 // Simple electron API - replaces @electron-toolkit/preload
@@ -151,7 +157,10 @@ const api = {
     update: (threadId: string, updates: Partial<Thread>): Promise<Thread> => {
       return ipcRenderer.invoke("threads:update", { threadId, updates })
     },
-    delete: (threadId: string): Promise<void> => {
+    delete: (threadId: string, options?: ThreadDeleteOptions): Promise<void> => {
+      if (options) {
+        return ipcRenderer.invoke("threads:delete", { threadId, options })
+      }
       return ipcRenderer.invoke("threads:delete", threadId)
     },
     getHistory: (threadId: string): Promise<unknown[]> => {
@@ -191,6 +200,12 @@ const api = {
     listTasks: (): Promise<ButlerTask[]> => {
       return ipcRenderer.invoke("butler:listTasks")
     },
+    clearHistory: (): Promise<ButlerState> => {
+      return ipcRenderer.invoke("butler:clearHistory")
+    },
+    clearTasks: (): Promise<ButlerTask[]> => {
+      return ipcRenderer.invoke("butler:clearTasks")
+    },
     onTaskUpdate: (callback: (tasks: ButlerTask[]) => void): (() => void) => {
       const handler = (_: unknown, tasks: ButlerTask[]): void => callback(tasks)
       ipcRenderer.on("butler:tasks-changed", handler)
@@ -202,6 +217,34 @@ const api = {
       const handler = (_: unknown, card: TaskCompletionNotice): void => callback(card)
       ipcRenderer.on("app:task-card", handler)
       return () => ipcRenderer.removeListener("app:task-card", handler)
+    }
+  },
+  prompts: {
+    list: (query?: string): Promise<PromptTemplate[]> => {
+      return ipcRenderer.invoke("prompts:list", query)
+    },
+    get: (id: string): Promise<PromptTemplate | null> => {
+      return ipcRenderer.invoke("prompts:get", id)
+    },
+    create: (input: PromptCreateInput): Promise<PromptTemplate> => {
+      return ipcRenderer.invoke("prompts:create", input)
+    },
+    update: (id: string, updates: PromptUpdateInput): Promise<PromptTemplate> => {
+      return ipcRenderer.invoke("prompts:update", { id, updates })
+    },
+    delete: (id: string): Promise<void> => {
+      return ipcRenderer.invoke("prompts:delete", id)
+    }
+  },
+  memory: {
+    listConversationSummaries: (limit?: number): Promise<MemorySummary[]> => {
+      return ipcRenderer.invoke("memory:listConversationSummaries", limit)
+    },
+    listDailyProfiles: (limit?: number): Promise<DailyProfile[]> => {
+      return ipcRenderer.invoke("memory:listDailyProfiles", limit)
+    },
+    clearAll: (): Promise<void> => {
+      return ipcRenderer.invoke("memory:clearAll")
     }
   },
   models: {

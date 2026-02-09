@@ -179,6 +179,7 @@ function MainApp(): React.JSX.Element {
     const cleanup = window.electron.ipcRenderer.on("app:task-card", (...args: unknown[]) => {
       const card = args[0] as TaskNoticeCard
       if (!card?.id || !card.threadId) return
+      if (useAppStore.getState().appMode === "butler") return
       setTaskCards((prev) => {
         const next = prev.filter((item) => item.id !== card.id)
         return [card, ...next]
@@ -188,6 +189,12 @@ function MainApp(): React.JSX.Element {
       if (typeof cleanup === "function") cleanup()
     }
   }, [])
+
+  useEffect(() => {
+    if (appMode === "butler") {
+      setTaskCards([])
+    }
+  }, [appMode])
 
   if (isLoading) {
     return (
@@ -200,11 +207,13 @@ function MainApp(): React.JSX.Element {
   return (
     <ThreadProvider>
       <ToastContainer toasts={toasts} onClose={removeToast} />
-      <TaskNoticeContainer
-        cards={taskCards}
-        onClose={removeTaskCard}
-        onOpenThread={(threadId) => void openTaskCardThread(threadId)}
-      />
+      {appMode !== "butler" && (
+        <TaskNoticeContainer
+          cards={taskCards}
+          onClose={removeTaskCard}
+          onOpenThread={(threadId) => void openTaskCardThread(threadId)}
+        />
+      )}
       <div className="flex h-screen w-screen flex-col overflow-hidden bg-background text-foreground">
         {/* Global Window Title Bar */}
         <TitleBar threadId={currentThreadId} />

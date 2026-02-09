@@ -164,6 +164,38 @@ function normalizeMode(mode: string): ThreadMode {
   return "default"
 }
 
+interface TaskSummaryDbRow {
+  id: string
+  thread_id: string
+  mode: string
+  title?: string | null
+  summary_brief: string
+  summary_detail: string
+  task_direction?: string | null
+  usage_habits?: string | null
+  hobbies?: string | null
+  research_process?: string | null
+  report_preference?: string | null
+  created_at: string
+}
+
+function mapTaskSummaryRow(row: TaskSummaryDbRow): MemoryTaskSummaryRow {
+  return {
+    id: row.id,
+    threadId: row.thread_id,
+    mode: normalizeMode(row.mode),
+    title: row.title ?? undefined,
+    summaryBrief: row.summary_brief,
+    summaryDetail: row.summary_detail,
+    taskDirection: row.task_direction ?? undefined,
+    usageHabits: row.usage_habits ?? undefined,
+    hobbies: row.hobbies ?? undefined,
+    researchProcess: row.research_process ?? undefined,
+    reportPreference: row.report_preference ?? undefined,
+    createdAt: row.created_at
+  }
+}
+
 export function insertTaskSummary(input: MemoryTaskSummaryInput): MemoryTaskSummaryRow {
   const row: MemoryTaskSummaryRow = {
     id: randomUUID(),
@@ -201,6 +233,27 @@ export function insertTaskSummary(input: MemoryTaskSummaryInput): MemoryTaskSumm
   )
   scheduleSave()
   return row
+}
+
+export function listTaskSummaries(limit = 200): MemoryTaskSummaryRow[] {
+  const rows = readRows<TaskSummaryDbRow>(
+    `SELECT * FROM memory_task_summaries
+      ORDER BY created_at DESC
+      LIMIT ?`,
+    [limit]
+  )
+
+  return rows.map(mapTaskSummaryRow)
+}
+
+export function deleteTaskSummariesByThread(threadId: string): void {
+  getMemoryDb().run("DELETE FROM memory_task_summaries WHERE thread_id = ?", [threadId])
+  scheduleSave()
+}
+
+export function clearAllTaskSummaries(): void {
+  getMemoryDb().run("DELETE FROM memory_task_summaries")
+  scheduleSave()
 }
 
 export function listTaskSummariesByThread(threadId: string): MemoryTaskSummaryRow[] {
@@ -335,6 +388,29 @@ export function getDailyProfile(day: string): DailyProfileRow | null {
   }
 }
 
+export function listDailyProfiles(limit = 60): DailyProfileRow[] {
+  const rows = readRows<{
+    day: string
+    profile_text: string
+    comparison_text: string
+    previous_profile_day?: string | null
+    created_at: string
+  }>(
+    `SELECT * FROM memory_daily_profiles
+      ORDER BY day DESC
+      LIMIT ?`,
+    [limit]
+  )
+
+  return rows.map((row) => ({
+    day: row.day,
+    profileText: row.profile_text,
+    comparisonText: row.comparison_text,
+    previousProfileDay: row.previous_profile_day ?? undefined,
+    createdAt: row.created_at
+  }))
+}
+
 export function getPreviousDailyProfile(beforeDay: string): DailyProfileRow | null {
   const row = readSingleRow<{
     day: string
@@ -402,6 +478,11 @@ export function setRunMarker(key: string, value = ""): void {
   scheduleSave()
 }
 
+export function clearRunMarkers(): void {
+  getMemoryDb().run("DELETE FROM memory_runs")
+  scheduleSave()
+}
+
 export function appendButlerMessage(input: ButlerMessageInput): void {
   getMemoryDb().run("INSERT OR REPLACE INTO butler_messages (id, role, content, ts) VALUES (?, ?, ?, ?)", [
     input.id,
@@ -416,6 +497,11 @@ export function listButlerMessages(): ButlerMessageRow[] {
   return readRows<ButlerMessageRow>(
     "SELECT id, role, content, ts FROM butler_messages ORDER BY ts ASC"
   )
+}
+
+export function clearButlerMessages(): void {
+  getMemoryDb().run("DELETE FROM butler_messages")
+  scheduleSave()
 }
 
 export function upsertButlerTask(task: ButlerTask): void {
@@ -438,4 +524,16 @@ export function listButlerTasks(): ButlerTaskRow[] {
       return []
     }
   })
+}
+
+export function deleteButlerTasksByIds(taskIds: string[]): void {
+  if (taskIds.length === 0) return
+  const placeholders = taskIds.map(() => "?").join(", ")
+  getMemoryDb().run(`DELETE FROM butler_tasks WHERE id IN (${placeholders})`, taskIds)
+  scheduleSave()
+}
+
+export function clearDailyProfiles(): void {
+  getMemoryDb().run("DELETE FROM memory_daily_profiles")
+  scheduleSave()
 }

@@ -11,6 +11,7 @@ import { buildEmailModePrompt } from "../email/prompt"
 import { ensureDockerRunning, getDockerRuntimeConfig } from "../docker/session"
 import { appendRalphLogEntry } from "../ralph-log"
 import { runAgentStream } from "../agent/run"
+import { extractAssistantChunkText } from "../agent/stream-utils"
 import { emitTaskCompleted } from "../tasks/lifecycle"
 import type {
   AgentInvokeParams,
@@ -129,6 +130,15 @@ function extractTextFromContent(content: string | ContentBlock[]): string {
   return content
     .map((block) => (block.type === "text" && block.text ? block.text : ""))
     .join("")
+}
+
+function appendAssistantOutput(current: string, chunk: unknown): string {
+  const content = extractAssistantChunkText(chunk)
+  if (!content) return current
+  if (content.startsWith(current)) {
+    return content
+  }
+  return current + content
 }
 
 
@@ -515,11 +525,15 @@ export function registerAgentHandlers(ipcMain: IpcMain): void {
       const decisionType = command?.resume?.decision || "approve"
       const resumeValue = { decisions: [{ type: decisionType }] }
       const stream = await agent.stream(new Command({ resume: resumeValue }), config)
+      let lastAssistant = ""
 
       for await (const chunk of stream) {
         if (abortController.signal.aborted) break
 
         const [mode, data] = chunk as unknown as [string, unknown]
+        if (mode === "messages") {
+          lastAssistant = appendAssistantOutput(lastAssistant, data)
+        }
         window.webContents.send(channel, {
           type: "stream",
           mode,
@@ -528,6 +542,11 @@ export function registerAgentHandlers(ipcMain: IpcMain): void {
       }
 
       if (!abortController.signal.aborted) {
+        emitTaskCompleted({
+          threadId,
+          result: lastAssistant.trim() || "Agent resume completed.",
+          source: "agent"
+        })
         window.webContents.send(channel, { type: "done" })
       }
     } catch (error) {
@@ -539,6 +558,11 @@ export function registerAgentHandlers(ipcMain: IpcMain): void {
 
       if (!isAbortError) {
         console.error("[Agent] Resume error:", error)
+        emitTaskCompleted({
+          threadId,
+          error: error instanceof Error ? error.message : "Unknown error",
+          source: "agent"
+        })
         window.webContents.send(channel, {
           type: "error",
           error: error instanceof Error ? error.message : "Unknown error"
@@ -605,11 +629,15 @@ export function registerAgentHandlers(ipcMain: IpcMain): void {
       if (decision.type === "approve") {
         // Resume execution by invoking with null (continues from checkpoint)
         const stream = await agent.stream(null, config)
+        let lastAssistant = ""
 
         for await (const chunk of stream) {
           if (abortController.signal.aborted) break
 
           const [mode, data] = chunk as unknown as [string, unknown]
+          if (mode === "messages") {
+            lastAssistant = appendAssistantOutput(lastAssistant, data)
+          }
           window.webContents.send(channel, {
             type: "stream",
             mode,
@@ -618,11 +646,19 @@ export function registerAgentHandlers(ipcMain: IpcMain): void {
         }
 
         if (!abortController.signal.aborted) {
+          emitTaskCompleted({
+            threadId,
+            result: lastAssistant.trim() || "Agent interrupt approval completed.",
+            source: "agent"
+          })
           window.webContents.send(channel, { type: "done" })
         }
       } else if (decision.type === "reject") {
-        // For reject, we need to send a Command with reject decision
-        // For now, just send done - the agent will see no resumption happened
+        emitTaskCompleted({
+          threadId,
+          result: "用户拒绝本次工具执行，流程结束。",
+          source: "agent"
+        })
         window.webContents.send(channel, { type: "done" })
       }
       // edit case handled similarly to approve with modified args
@@ -635,6 +671,11 @@ export function registerAgentHandlers(ipcMain: IpcMain): void {
 
       if (!isAbortError) {
         console.error("[Agent] Interrupt error:", error)
+        emitTaskCompleted({
+          threadId,
+          error: error instanceof Error ? error.message : "Unknown error",
+          source: "agent"
+        })
         window.webContents.send(channel, {
           type: "error",
           error: error instanceof Error ? error.message : "Unknown error"

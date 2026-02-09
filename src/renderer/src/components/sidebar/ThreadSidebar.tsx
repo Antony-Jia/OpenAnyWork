@@ -7,6 +7,7 @@ import { useThreadStream } from "@/lib/thread-context"
 import { cn, formatRelativeTime, truncate } from "@/lib/utils"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { LoopConfigDialog } from "@/components/loop/LoopConfigDialog"
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import {
   ContextMenu,
   ContextMenuContent,
@@ -157,6 +158,9 @@ export function ThreadSidebar(): React.JSX.Element {
   const [editingTitle, setEditingTitle] = useState("")
   const [newThreadOpen, setNewThreadOpen] = useState(false)
   const [loopDialogOpen, setLoopDialogOpen] = useState(false)
+  const [deleteTarget, setDeleteTarget] = useState<Thread | null>(null)
+  const [deleteMemory, setDeleteMemory] = useState(false)
+  const [deleting, setDeleting] = useState(false)
 
   const startEditing = (threadId: string, currentTitle: string): void => {
     setEditingThreadId(threadId)
@@ -186,6 +190,29 @@ export function ThreadSidebar(): React.JSX.Element {
     }
     await createThread(metadata)
     setNewThreadOpen(false)
+  }
+
+  const requestDeleteThread = (thread: Thread): void => {
+    setDeleteTarget(thread)
+    setDeleteMemory(false)
+  }
+
+  const closeDeleteDialog = (): void => {
+    if (deleting) return
+    setDeleteTarget(null)
+    setDeleteMemory(false)
+  }
+
+  const confirmDeleteThread = async (): Promise<void> => {
+    if (!deleteTarget || deleting) return
+    setDeleting(true)
+    try {
+      await deleteThread(deleteTarget.thread_id, { deleteMemory })
+      setDeleteTarget(null)
+      setDeleteMemory(false)
+    } finally {
+      setDeleting(false)
+    }
   }
 
   const filteredThreads = threads.filter((thread) => {
@@ -306,7 +333,7 @@ export function ThreadSidebar(): React.JSX.Element {
               isEditing={editingThreadId === thread.thread_id}
               editingTitle={editingTitle}
               onSelect={() => selectThread(thread.thread_id)}
-              onDelete={() => deleteThread(thread.thread_id)}
+              onDelete={() => requestDeleteThread(thread)}
               onStartEditing={() => startEditing(thread.thread_id, thread.title || "")}
               onSaveTitle={saveTitle}
               onCancelEditing={cancelEditing}
@@ -323,6 +350,52 @@ export function ThreadSidebar(): React.JSX.Element {
       </ScrollArea>
 
       <LoopConfigDialog open={loopDialogOpen} onOpenChange={setLoopDialogOpen} mode="create" />
+
+      <Dialog
+        open={!!deleteTarget}
+        onOpenChange={(open) => {
+          if (!open) {
+            closeDeleteDialog()
+          }
+        }}
+      >
+        <DialogContent className="w-[420px] max-w-[90vw]">
+          <DialogHeader>
+            <DialogTitle>{t("sidebar.delete_confirm_title")}</DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-3">
+            <div className="text-sm text-muted-foreground">
+              {t("sidebar.delete_confirm_desc")}
+            </div>
+            <div className="rounded-sm border border-border px-3 py-2 text-xs text-muted-foreground break-all">
+              {deleteTarget?.title?.trim() || deleteTarget?.thread_id}
+            </div>
+            <label className="flex items-center gap-2 text-xs text-foreground">
+              <input
+                type="checkbox"
+                checked={deleteMemory}
+                onChange={(event) => setDeleteMemory(event.target.checked)}
+                disabled={deleting}
+              />
+              {t("sidebar.delete_with_memory")}
+            </label>
+          </div>
+
+          <DialogFooter className="pt-2">
+            <Button variant="ghost" onClick={closeDeleteDialog} disabled={deleting}>
+              {t("common.cancel")}
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => void confirmDeleteThread()}
+              disabled={deleting}
+            >
+              {deleting ? t("sidebar.deleting") : t("sidebar.delete")}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </aside>
   )
 }

@@ -7,10 +7,12 @@ import { getSettings } from "../settings"
 import { emitTaskCompleted, onTaskCompleted, type TaskCompletionPayload } from "../tasks/lifecycle"
 import {
   appendButlerHistoryMessage,
+  clearButlerHistoryMessages,
   getLatestDailyProfile,
   loadButlerMessages,
   loadButlerTasks,
   persistButlerTask,
+  removeButlerTasks,
   searchMemoryByTask
 } from "../memory"
 import { broadcastThreadsChanged } from "../ipc/events"
@@ -19,12 +21,15 @@ import {
   buildCapabilitySummaryLine,
   getButlerCapabilitySnapshot
 } from "./capabilities"
+import { detectOversplitByModel } from "./granularity"
 import { runButlerOrchestratorTurn } from "./runtime"
+import type { ButlerPromptContext } from "./prompt"
 import { createButlerTaskThread, executeButlerTask } from "./task-dispatcher"
 import { renderTaskPrompt, type ButlerDispatchIntent } from "./tools"
 import type {
   ButlerRound,
   ButlerTask,
+  ButlerState,
   ButlerTaskStatus,
   TaskCompletionNotice,
   ThreadMode
@@ -41,12 +46,23 @@ interface PendingTask {
   taskId: string
 }
 
-interface ButlerState {
-  mainThreadId: string
-  recentRounds: ButlerRound[]
-  totalMessageCount: number
-  activeTaskCount: number
+interface PendingDispatchOption {
+  kind: "dispatch" | "cancel"
+  intents: ButlerDispatchIntent[]
+  assistantText: string
+  summary: string
 }
+
+interface PendingDispatchChoiceState {
+  id: string
+  createdAt: string
+  reason: string
+  confidence: number
+  optionA: PendingDispatchOption
+  optionB: PendingDispatchOption
+}
+
+const TASK_NOTICE_MARKER = "[TASK_NOTICE_JSON]"
 
 function nowIso(): string {
   return new Date().toISOString()
@@ -123,12 +139,14 @@ class ButlerManager {
   private runningThreadIds = new Set<string>()
   private dependencyChildren = new Map<string, Set<string>>()
   private unresolvedDeps = new Map<string, Set<string>>()
+  private pendingDispatchChoice: PendingDispatchChoiceState | null = null
   private taskCompletionUnsubscribe: (() => void) | null = null
 
   async initialize(): Promise<void> {
     if (this.initialized) return
 
     this.mainThreadId = this.ensureMainThread()
+    const existingThreadIds = new Set(getAllThreads().map((row) => row.thread_id))
     this.messages = loadButlerMessages().map((entry) => ({
       id: entry.id,
       role: entry.role,
@@ -136,7 +154,12 @@ class ButlerManager {
       ts: entry.ts
     }))
 
+    const orphanTaskIds: string[] = []
     for (const task of loadButlerTasks()) {
+      if (!existingThreadIds.has(task.threadId)) {
+        orphanTaskIds.push(task.id)
+        continue
+      }
       if (task.status === "running" || task.status === "queued") {
         task.status = "failed"
         task.completedAt = nowIso()
@@ -145,6 +168,9 @@ class ButlerManager {
         persistButlerTask(task)
       }
       this.tasks.set(task.id, task)
+    }
+    if (orphanTaskIds.length > 0) {
+      removeButlerTasks(orphanTaskIds)
     }
 
     this.taskCompletionUnsubscribe = onTaskCompleted((payload) => {
@@ -172,7 +198,14 @@ class ButlerManager {
       totalMessageCount: this.messages.length,
       activeTaskCount: Array.from(this.tasks.values()).filter(
         (task) => task.status === "queued" || task.status === "running"
-      ).length
+      ).length,
+      pendingDispatchChoice: this.pendingDispatchChoice
+        ? {
+            id: this.pendingDispatchChoice.id,
+            awaiting: true,
+            createdAt: this.pendingDispatchChoice.createdAt
+          }
+        : undefined
     }
   }
 
@@ -180,12 +213,81 @@ class ButlerManager {
     return Array.from(this.tasks.values()).sort((a, b) => b.createdAt.localeCompare(a.createdAt))
   }
 
+  async clearHistory(): Promise<ButlerState> {
+    await this.initialize()
+    this.messages = []
+    this.pendingDispatchChoice = null
+    clearButlerHistoryMessages()
+    this.broadcastState()
+    return this.getState()
+  }
+
+  async clearTasks(): Promise<ButlerTask[]> {
+    await this.initialize()
+    const removableIds = Array.from(this.tasks.values())
+      .filter((task) => task.status !== "queued" && task.status !== "running")
+      .map((task) => task.id)
+
+    return this.removeTaskRecords(removableIds)
+  }
+
+  async removeTasksByThreadId(threadId: string): Promise<ButlerTask[]> {
+    await this.initialize()
+    const normalized = threadId.trim()
+    if (!normalized) return this.listTasks()
+
+    const removableIds = Array.from(this.tasks.values())
+      .filter((task) => task.threadId === normalized)
+      .map((task) => task.id)
+
+    return this.removeTaskRecords(removableIds)
+  }
+
+  private removeTaskRecords(taskIds: string[]): ButlerTask[] {
+    const removableIds = Array.from(new Set(taskIds.filter((taskId) => taskId.trim().length > 0)))
+    if (removableIds.length === 0) {
+      return this.listTasks()
+    }
+
+    const removableIdSet = new Set(removableIds)
+    for (const taskId of removableIds) {
+      const task = this.tasks.get(taskId)
+      this.tasks.delete(taskId)
+      this.unresolvedDeps.delete(taskId)
+      this.dependencyChildren.delete(taskId)
+      this.running.delete(taskId)
+      if (task?.threadId) {
+        this.runningThreadIds.delete(task.threadId)
+      }
+    }
+
+    this.queue = this.queue.filter((pending) => !removableIdSet.has(pending.taskId))
+
+    for (const unresolved of this.unresolvedDeps.values()) {
+      for (const taskId of removableIds) {
+        unresolved.delete(taskId)
+      }
+    }
+
+    for (const children of this.dependencyChildren.values()) {
+      for (const taskId of removableIds) {
+        children.delete(taskId)
+      }
+    }
+
+    removeButlerTasks(removableIds)
+    this.broadcastTasks()
+    this.broadcastState()
+    return this.listTasks()
+  }
+
   notifyCompletionNotice(notice: TaskCompletionNotice): void {
     const content = [
       `任务完成通知：${notice.title}`,
       `模式: ${notice.mode} | 来源: ${notice.source}`,
       `线程: ${notice.threadId}`,
-      `摘要: ${notice.resultBrief || "任务已完成。"}`
+      `摘要: ${notice.resultBrief || "任务已完成。"}`,
+      `${TASK_NOTICE_MARKER}${JSON.stringify(notice)}`
     ].join("\n")
 
     this.pushMessage({
@@ -213,6 +315,11 @@ class ButlerManager {
     const capabilitySnapshot = getButlerCapabilitySnapshot()
     const capabilityCatalog = buildCapabilityPromptBlock(capabilitySnapshot)
     const capabilitySummary = buildCapabilitySummaryLine(capabilitySnapshot)
+
+    if (this.pendingDispatchChoice) {
+      return this.handlePendingDispatchChoice(trimmed, capabilitySummary)
+    }
+
     const memoryHints = searchMemoryByTask(trimmed, 5)
     const profile = getLatestDailyProfile()
     const previousUserMessage = this.findPreviousUserMessage(userMessage.id)?.content
@@ -226,22 +333,26 @@ class ButlerManager {
         threadId: task.threadId,
         createdAt: task.createdAt
       }))
+    const promptContextBase: Omit<ButlerPromptContext, "dispatchPolicy"> = {
+      userMessage: trimmed,
+      capabilityCatalog,
+      capabilitySummary,
+      profileText: profile?.profileText,
+      comparisonText: profile?.comparisonText,
+      previousUserMessage,
+      memoryHints: memoryHints.map((item) => ({
+        threadId: item.threadId,
+        title: item.title,
+        summaryBrief: item.summaryBrief
+      })),
+      recentTasks
+    }
 
     const orchestrator = await runButlerOrchestratorTurn({
       threadId: this.mainThreadId,
       promptContext: {
-        userMessage: trimmed,
-        capabilityCatalog,
-        capabilitySummary,
-        profileText: profile?.profileText,
-        comparisonText: profile?.comparisonText,
-        previousUserMessage,
-        memoryHints: memoryHints.map((item) => ({
-          threadId: item.threadId,
-          title: item.title,
-          summaryBrief: item.summaryBrief
-        })),
-        recentTasks
+        ...promptContextBase,
+        dispatchPolicy: "standard"
       }
     })
 
@@ -258,10 +369,212 @@ class ButlerManager {
       return this.getState()
     }
 
-    const graphValidation = this.validateDispatchGraph(orchestrator.dispatchIntents)
+    if (orchestrator.dispatchIntents.length <= 1) {
+      return this.dispatchIntentsAndReply({
+        intents: orchestrator.dispatchIntents,
+        assistantText: orchestrator.assistantText || "已完成任务编排并开始执行。",
+        capabilitySummary
+      })
+    }
+
+    const detection = await detectOversplitByModel({
+      userMessage: trimmed,
+      intents: orchestrator.dispatchIntents
+    })
+    if (detection.verdict === "valid_multi") {
+      return this.dispatchIntentsAndReply({
+        intents: orchestrator.dispatchIntents,
+        assistantText: orchestrator.assistantText || "已完成任务编排并开始执行。",
+        capabilitySummary
+      })
+    }
+
+    let optionA: PendingDispatchOption
+    try {
+      const replanned = await runButlerOrchestratorTurn({
+        threadId: this.mainThreadId,
+        promptContext: {
+          ...promptContextBase,
+          dispatchPolicy: "single_task_first"
+        }
+      })
+
+      const canUseReplan =
+        replanned.dispatchIntents.length === 1 &&
+        this.validateDispatchGraph(replanned.dispatchIntents).ok
+      if (canUseReplan) {
+        optionA = {
+          kind: "dispatch",
+          intents: replanned.dispatchIntents,
+          assistantText: replanned.assistantText || "已按方案A（单任务优先）执行。",
+          summary: this.buildDispatchOptionSummary(replanned.dispatchIntents)
+        }
+      } else {
+        optionA = {
+          kind: "cancel",
+          intents: [],
+          assistantText: "已取消本次执行，请重述需求后我会重新编排。",
+          summary: "单任务重编排未产生可执行的单任务方案。"
+        }
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      optionA = {
+        kind: "cancel",
+        intents: [],
+        assistantText: "已取消本次执行，请重述需求后我会重新编排。",
+        summary: `单任务重编排失败：${message}`
+      }
+    }
+
+    const optionB: PendingDispatchOption = {
+      kind: "dispatch",
+      intents: orchestrator.dispatchIntents,
+      assistantText: orchestrator.assistantText || "已按方案B（原始拆分）执行。",
+      summary: this.buildDispatchOptionSummary(orchestrator.dispatchIntents)
+    }
+
+    this.pendingDispatchChoice = {
+      id: uuid(),
+      createdAt: nowIso(),
+      reason: detection.reason,
+      confidence: detection.confidence,
+      optionA,
+      optionB
+    }
+
+    this.pushMessage({
+      id: uuid(),
+      role: "assistant",
+      content: this.buildDispatchChoicePrompt(optionA, optionB, detection.reason, detection.confidence),
+      ts: nowIso()
+    })
+    this.broadcastState()
+    return this.getState()
+  }
+
+  private handlePendingDispatchChoice(choiceText: string, capabilitySummary: string): ButlerState {
+    const pending = this.pendingDispatchChoice
+    if (!pending) return this.getState()
+
+    const choice = this.parseChoiceText(choiceText)
+    if (!choice) {
+      this.pushMessage({
+        id: uuid(),
+        role: "assistant",
+        content: [
+          "当前存在待确认的编排方案。",
+          "请回复 A 或 B 进行选择。",
+          "A: 单任务优先方案",
+          "B: 原始拆分方案"
+        ].join("\n"),
+        ts: nowIso()
+      })
+      this.broadcastState()
+      return this.getState()
+    }
+
+    const selected = choice === "A" ? pending.optionA : pending.optionB
+    this.pendingDispatchChoice = null
+
+    if (selected.kind === "cancel") {
+      this.pushMessage({
+        id: uuid(),
+        role: "assistant",
+        content: selected.assistantText,
+        ts: nowIso()
+      })
+      this.broadcastState()
+      return this.getState()
+    }
+
+    if (selected.intents.length === 0) {
+      this.pushMessage({
+        id: uuid(),
+        role: "assistant",
+        content: "所选方案没有可执行任务，请重新描述需求。",
+        ts: nowIso()
+      })
+      this.broadcastState()
+      return this.getState()
+    }
+
+    return this.dispatchIntentsAndReply({
+      intents: selected.intents,
+      assistantText: selected.assistantText,
+      capabilitySummary
+    })
+  }
+
+  private parseChoiceText(raw: string): "A" | "B" | null {
+    const normalized = raw.trim().toLowerCase().replace(/\s+/g, "")
+    if (!normalized) return null
+
+    const optionA = new Set(["a", "1", "方案a", "选a", "a方案", "选择a", "a执行"])
+    if (optionA.has(normalized)) return "A"
+
+    const optionB = new Set(["b", "2", "方案b", "选b", "b方案", "选择b", "b执行"])
+    if (optionB.has(normalized)) return "B"
+
+    return null
+  }
+
+  private buildDispatchChoicePrompt(
+    optionA: PendingDispatchOption,
+    optionB: PendingDispatchOption,
+    reason: string,
+    confidence: number
+  ): string {
+    const confidencePct = `${Math.round(Math.max(0, Math.min(1, confidence)) * 100)}%`
+    return [
+      "检测到当前计划可能过度拆分，需你确认执行方案。",
+      `判定原因: ${reason}`,
+      `判定置信度: ${confidencePct}`,
+      "",
+      "方案A（单任务优先）",
+      optionA.summary,
+      "",
+      "方案B（原始拆分）",
+      optionB.summary,
+      "",
+      "请回复 A 或 B。"
+    ].join("\n")
+  }
+
+  private buildDispatchOptionSummary(intents: ButlerDispatchIntent[]): string {
+    if (intents.length === 0) return "无任务。"
+
+    const modeCounter = new Map<ButlerDispatchIntent["mode"], number>()
+    for (const intent of intents) {
+      const current = modeCounter.get(intent.mode) ?? 0
+      modeCounter.set(intent.mode, current + 1)
+    }
+    const modeDistribution = Array.from(modeCounter.entries())
+      .map(([mode, count]) => `${mode}:${count}`)
+      .join(", ")
+    const dependentCount = intents.filter((intent) => intent.dependsOn.length > 0).length
+    const detailLines = intents.map((intent, index) => {
+      const deps = intent.dependsOn.length > 0 ? `dependsOn=${intent.dependsOn.join(",")}` : "independent"
+      return `${index + 1}. [${intent.mode}] ${intent.title} (${deps})`
+    })
+
+    return [
+      `任务数: ${intents.length}`,
+      `模式分布: ${modeDistribution}`,
+      `依赖任务: ${dependentCount}/${intents.length}`,
+      ...detailLines
+    ].join("\n")
+  }
+
+  private dispatchIntentsAndReply(params: {
+    intents: ButlerDispatchIntent[]
+    assistantText: string
+    capabilitySummary: string
+  }): ButlerState {
+    const graphValidation = this.validateDispatchGraph(params.intents)
     if (!graphValidation.ok) {
       const clarificationText = [
-        orchestrator.assistantText || "当前任务计划无法派发。",
+        params.assistantText || "当前任务计划无法派发。",
         `原因: ${graphValidation.error}`,
         "请补充或修正任务依赖关系后重试。"
       ].join("\n")
@@ -278,10 +591,11 @@ class ButlerManager {
     const groupId = uuid()
     const sourceTurnId = uuid()
     const created = this.createTasksFromIntents({
-      intents: orchestrator.dispatchIntents,
+      intents: params.intents,
       groupId,
       sourceTurnId
     })
+    this.pendingDispatchChoice = null
 
     for (const taskId of created.readyTaskIds) {
       this.enqueueTask(taskId)
@@ -294,11 +608,11 @@ class ButlerManager {
     })
 
     const replyLines = [
-      orchestrator.assistantText || "已完成任务编排并开始执行。",
+      params.assistantText || "已完成任务编排并开始执行。",
       `任务组: ${groupId}`,
       `共创建 ${created.tasks.length} 个任务。`,
       ...dispatchedLines,
-      capabilitySummary
+      params.capabilitySummary
     ]
     if (created.notes.length > 0) {
       replyLines.push("[调度说明]")
@@ -564,7 +878,7 @@ class ButlerManager {
 
   private writeFilesystemHandoff(task: ButlerTask): void {
     if (!task.dependsOnTaskIds || task.dependsOnTaskIds.length === 0) return
-    const method = task.handoff?.method
+    const method = task.handoff?.method ?? "both"
     if (method !== "filesystem" && method !== "both") return
 
     const upstream = task.dependsOnTaskIds
@@ -606,7 +920,7 @@ class ButlerManager {
       return task.prompt
     }
 
-    const method = task.handoff?.method
+    const method = task.handoff?.method ?? "both"
     const withContext = method === "context" || method === "both"
     const prefix = withContext ? this.buildContextPrefix(task) : ""
     this.writeFilesystemHandoff(task)

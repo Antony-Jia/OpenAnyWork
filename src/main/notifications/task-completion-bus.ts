@@ -4,6 +4,7 @@ import type { TaskCompletionNotice } from "../types"
 export interface TaskCompletionBusDeps {
   notifyButler: (notice: TaskCompletionNotice) => void
   notifyInAppCard: (notice: TaskCompletionNotice) => void
+  notifyThreadHistoryUpdated: (threadId: string) => void
   shouldShowDesktopPopup: () => boolean
   enqueueDesktopPopup: (notice: TaskCompletionNotice) => void
 }
@@ -80,6 +81,9 @@ export class TaskCompletionBus {
     const notice = buildNotice(payload)
     this.deps.notifyButler(notice)
     this.deps.notifyInAppCard(notice)
+    if (payload.source !== "agent") {
+      this.deps.notifyThreadHistoryUpdated(payload.threadId)
+    }
 
     if (this.deps.shouldShowDesktopPopup()) {
       this.deps.enqueueDesktopPopup(notice)
@@ -99,4 +103,3 @@ export class TaskCompletionBus {
     this.seenEventIds.delete(staleId)
   }
 }
-

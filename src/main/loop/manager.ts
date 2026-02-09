@@ -1,4 +1,3 @@
-import { BrowserWindow } from "electron"
 import * as fs from "node:fs"
 import * as fsp from "node:fs/promises"
 import * as path from "node:path"
@@ -8,6 +7,7 @@ import { getAllThreads, getThread, updateThread as dbUpdateThread } from "../db"
 import { broadcastThreadsChanged, broadcastToast } from "../ipc/events"
 import { ensureDockerRunning, getDockerRuntimeConfig } from "../docker/session"
 import { emitTaskCompleted } from "../tasks/lifecycle"
+import { getPreferredMainWindow } from "../window-target"
 import type {
   LoopConfig,
   LoopConditionOp,
@@ -225,11 +225,6 @@ function matchesSuffix(filePath: string, suffixes?: string[]): boolean {
   if (!suffixes || suffixes.length === 0) return true
   const lower = filePath.toLowerCase()
   return suffixes.some((suffix) => lower.endsWith(suffix.toLowerCase()))
-}
-
-function getWindowForThread(): BrowserWindow | null {
-  const windows = BrowserWindow.getAllWindows()
-  return windows[0] || null
 }
 
 export class LoopManager {
@@ -536,7 +531,7 @@ export class LoopManager {
       const dockerRuntime = getDockerRuntimeConfig()
       const dockerConfig = dockerRuntime.config ?? undefined
       const dockerContainerId = dockerRuntime.containerId ?? undefined
-      const window = getWindowForThread()
+      const window = getPreferredMainWindow()
       if (!window) {
         throw new Error("No active window to stream loop output.")
       }

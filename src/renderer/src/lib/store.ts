@@ -1,5 +1,5 @@
 import { create } from "zustand"
-import type { Thread, ModelConfig, Provider } from "@/types"
+import type { Thread, ModelConfig, Provider, ThreadDeleteOptions } from "@/types"
 
 export type AppMode = "classic" | "butler"
 export type ThreadOriginFilter = "all" | "manual" | "butler"
@@ -30,7 +30,7 @@ interface AppState {
   loadThreads: () => Promise<void>
   createThread: (metadata?: Record<string, unknown>) => Promise<Thread>
   selectThread: (threadId: string) => Promise<void>
-  deleteThread: (threadId: string) => Promise<void>
+  deleteThread: (threadId: string, options?: ThreadDeleteOptions) => Promise<void>
   updateThread: (threadId: string, updates: Partial<Thread>) => Promise<void>
   generateTitleForFirstMessage: (threadId: string, content: string) => Promise<void>
 
@@ -103,10 +103,10 @@ export const useAppStore = create<AppState>((set, get) => ({
     set({ currentThreadId: threadId })
   },
 
-  deleteThread: async (threadId: string) => {
+  deleteThread: async (threadId: string, options?: ThreadDeleteOptions) => {
     console.log("[Store] Deleting thread:", threadId)
     try {
-      await window.api.threads.delete(threadId)
+      await window.api.threads.delete(threadId, options)
       console.log("[Store] Thread deleted from backend")
 
       set((state) => {

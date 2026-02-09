@@ -11,7 +11,7 @@ import {
 } from "electron"
 import { join } from "path"
 import { registerAgentHandlers, getActiveRunCount } from "./ipc/agent"
-import { broadcastTaskCard, broadcastToast } from "./ipc/events"
+import { broadcastTaskCard, broadcastThreadHistoryUpdated, broadcastToast } from "./ipc/events"
 
 // Prevent Windows error dialog boxes for unhandled errors
 process.on("uncaughtException", (error) => {
@@ -37,6 +37,8 @@ import { initializeDatabase } from "./db"
 import { registerMcpHandlers } from "./ipc/mcp"
 import { registerLoopHandlers } from "./ipc/loop"
 import { registerButlerHandlers } from "./ipc/butler"
+import { registerPromptHandlers } from "./ipc/prompts"
+import { registerMemoryHandlers } from "./ipc/memory"
 import { startAutoMcpServers } from "./mcp/service"
 import { registerSettingsHandlers } from "./ipc/settings"
 import { registerSpeechHandlers } from "./ipc/speech"
@@ -326,6 +328,8 @@ app.whenReady().then(async () => {
   registerSpeechHandlers(ipcMain)
   registerLoopHandlers(ipcMain)
   registerButlerHandlers(ipcMain)
+  registerPromptHandlers(ipcMain)
+  registerMemoryHandlers(ipcMain)
 
   await startAutoMcpServers()
 
@@ -351,9 +355,12 @@ app.whenReady().then(async () => {
     notifyInAppCard: (notice) => {
       broadcastTaskCard(notice)
     },
+    notifyThreadHistoryUpdated: (threadId) => {
+      broadcastThreadHistoryUpdated(threadId)
+    },
     shouldShowDesktopPopup: () => {
       if (!mainWindow) return false
-      return !mainWindow.isVisible()
+      return !mainWindow.isVisible() || mainWindow.isMinimized()
     },
     enqueueDesktopPopup: (notice) => {
       taskPopupController?.enqueue(notice)

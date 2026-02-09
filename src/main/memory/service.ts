@@ -5,13 +5,21 @@ import { buildDailyProfileInput, getTodayLocalDay, getYesterdayLocalDay } from "
 import { summarizeTaskMemory } from "./summarizer"
 import {
   appendButlerMessage,
+  clearAllTaskSummaries,
+  clearButlerMessages,
+  clearDailyProfiles,
+  clearRunMarkers,
+  deleteButlerTasksByIds,
+  deleteTaskSummariesByThread,
   getDailyProfile,
   getPreviousDailyProfile,
   hasRunMarker,
   initializeMemoryDatabase,
   insertTaskSummary,
+  listDailyProfiles as listDailyProfilesFromStorage,
   listButlerMessages,
   listButlerTasks,
+  listTaskSummaries,
   listTaskSummariesByDay,
   searchTaskSummaries,
   setRunMarker,
@@ -19,7 +27,7 @@ import {
   upsertDailyProfile
 } from "./storage"
 import type { ButlerMessageInput, ButlerTaskRow, DailyProfileRow, MemoryTaskSummaryRow } from "./types"
-import type { ButlerTask } from "../types"
+import type { ButlerTask, DailyProfile, MemorySummary } from "../types"
 
 let memoryServiceStarted = false
 let unsubscribeTaskCompleted: (() => void) | null = null
@@ -153,6 +161,26 @@ export function searchMemoryByTask(query: string, limit = 20): MemoryTaskSummary
   return searchTaskSummaries(query, limit)
 }
 
+export function listConversationSummaries(limit = 200): MemorySummary[] {
+  return listTaskSummaries(limit)
+}
+
+export function listDailyProfiles(limit = 60): DailyProfile[] {
+  return listDailyProfilesFromStorage(limit)
+}
+
+export function removeConversationMemoryByThread(threadId: string): void {
+  const normalized = threadId.trim()
+  if (!normalized) return
+  deleteTaskSummariesByThread(normalized)
+}
+
+export function clearAllMemory(): void {
+  clearAllTaskSummaries()
+  clearDailyProfiles()
+  clearRunMarkers()
+}
+
 export async function generateDailyProfileOnStartup(now = new Date()): Promise<DailyProfileRow | null> {
   const today = getTodayLocalDay(now)
   const runKey = `daily-profile:${today}`
@@ -189,6 +217,10 @@ export function appendButlerHistoryMessage(message: ButlerMessageInput): void {
   appendButlerMessage(message)
 }
 
+export function clearButlerHistoryMessages(): void {
+  clearButlerMessages()
+}
+
 export function persistButlerTask(task: ButlerTask): void {
   upsertButlerTask(task)
 }
@@ -196,6 +228,10 @@ export function persistButlerTask(task: ButlerTask): void {
 export function loadButlerTasks(): ButlerTask[] {
   const rows: ButlerTaskRow[] = listButlerTasks()
   return rows.map((row) => row.payload)
+}
+
+export function removeButlerTasks(taskIds: string[]): void {
+  deleteButlerTasksByIds(taskIds)
 }
 
 export function getThreadContextByMemory(threadId: string): { threadId: string; title?: string } | null {

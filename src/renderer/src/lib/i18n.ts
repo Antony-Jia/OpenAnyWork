@@ -68,6 +68,8 @@ const translations = {
     "titlebar.tools": "Tools",
     "titlebar.mcp": "MCP",
     "titlebar.container": "Container",
+    "titlebar.prompts": "Prompts",
+    "titlebar.memory": "Memory",
 
     // Provider Configuration
     "provider.title": "MODEL PROVIDER",
@@ -118,8 +120,13 @@ const translations = {
     "sidebar.new_thread.loop_desc": "Scheduled, API, or file-triggered loop",
     "sidebar.no_threads": "No threads yet",
     "sidebar.delete": "Delete",
+    "sidebar.deleting": "Deleting...",
     "sidebar.rename": "Rename",
     "sidebar.search": "Search threads...",
+    "sidebar.delete_confirm_title": "Delete Conversation",
+    "sidebar.delete_confirm_desc":
+      "Delete this conversation thread. You can optionally remove its memory summaries as well.",
+    "sidebar.delete_with_memory": "Delete this conversation's memory summaries as well",
 
     // Chat
     "chat.new_thread": "NEW THREAD",
@@ -289,6 +296,47 @@ const translations = {
     "skills.delete": "Delete",
     "skills.disabled_hint": "Disabled skills are not injected into agents.",
 
+    // Prompts
+    "prompts.title": "PROMPT TEMPLATES",
+    "prompts.search_placeholder": "Search prompts...",
+    "prompts.create": "Create",
+    "prompts.empty": "No prompt templates yet",
+    "prompts.view": "View",
+    "prompts.edit": "Edit",
+    "prompts.copy": "Copy",
+    "prompts.delete": "Delete",
+    "prompts.delete_confirm": "Delete this prompt template?",
+    "prompts.delete_failed": "Failed to delete prompt template",
+    "prompts.copied": "Prompt copied",
+    "prompts.copy_failed": "Failed to copy prompt",
+    "prompts.load_failed": "Failed to load prompt templates",
+    "prompts.save_failed": "Failed to save prompt template",
+    "prompts.save": "Save",
+    "prompts.saving": "Saving...",
+    "prompts.back": "Back",
+    "prompts.cancel": "Cancel",
+    "prompts.name": "Name",
+    "prompts.name_placeholder": "Prompt name",
+    "prompts.content": "Detailed Content",
+    "prompts.content_placeholder": "Enter prompt details...",
+
+    // Memory
+    "memory.title": "MEMORY",
+    "memory.refresh": "Refresh",
+    "memory.clear_all": "Clear Memory",
+    "memory.clearing": "Clearing...",
+    "memory.clear_confirm":
+      "This will delete all conversation memories and daily profiles. Continue?",
+    "memory.cleared": "Memory cleared",
+    "memory.clear_failed": "Failed to clear memory",
+    "memory.load_failed": "Failed to load memory",
+    "memory.section.conversation": "Conversation Memory",
+    "memory.section.global": "Butler Global Memory (Daily Profile)",
+    "memory.empty_conversation": "No conversation memory yet",
+    "memory.empty_global": "No daily profile yet",
+    "memory.items": "items",
+    "memory.thread_fallback": "Thread",
+
     // Tools
     "tools.title": "TOOLS",
     "tools.empty": "No tools available",
@@ -417,6 +465,8 @@ const translations = {
     "titlebar.tools": "工具",
     "titlebar.mcp": "MCP",
     "titlebar.container": "容器",
+    "titlebar.prompts": "提示词",
+    "titlebar.memory": "记忆",
 
     // Provider Configuration
     "provider.title": "模型提供者",
@@ -466,8 +516,12 @@ const translations = {
     "sidebar.new_thread.loop_desc": "定时 / API / 文件触发循环",
     "sidebar.no_threads": "暂无对话",
     "sidebar.delete": "删除",
+    "sidebar.deleting": "删除中...",
     "sidebar.rename": "重命名",
     "sidebar.search": "搜索对话...",
+    "sidebar.delete_confirm_title": "删除对话",
+    "sidebar.delete_confirm_desc": "将删除该对话线程。你可以选择是否同时删除该线程的记忆摘要。",
+    "sidebar.delete_with_memory": "同时删除该对话记忆摘要",
 
     // Chat
     "chat.new_thread": "新对话",
@@ -634,6 +688,46 @@ const translations = {
     "skills.edit": "编辑",
     "skills.delete": "删除",
     "skills.disabled_hint": "已禁用的技能不会注入到智能体。",
+
+    // Prompts
+    "prompts.title": "提示词模板",
+    "prompts.search_placeholder": "搜索提示词...",
+    "prompts.create": "新建",
+    "prompts.empty": "暂无提示词模板",
+    "prompts.view": "查看",
+    "prompts.edit": "编辑",
+    "prompts.copy": "复制",
+    "prompts.delete": "删除",
+    "prompts.delete_confirm": "确认删除该提示词模板？",
+    "prompts.delete_failed": "删除提示词模板失败",
+    "prompts.copied": "已复制提示词",
+    "prompts.copy_failed": "复制提示词失败",
+    "prompts.load_failed": "加载提示词模板失败",
+    "prompts.save_failed": "保存提示词模板失败",
+    "prompts.save": "保存",
+    "prompts.saving": "保存中...",
+    "prompts.back": "返回",
+    "prompts.cancel": "取消",
+    "prompts.name": "名称",
+    "prompts.name_placeholder": "请输入名称",
+    "prompts.content": "详细内容",
+    "prompts.content_placeholder": "请输入详细内容...",
+
+    // Memory
+    "memory.title": "记忆管理",
+    "memory.refresh": "刷新",
+    "memory.clear_all": "清除记忆",
+    "memory.clearing": "清除中...",
+    "memory.clear_confirm": "将删除所有对话记忆和日画像，是否继续？",
+    "memory.cleared": "记忆已清除",
+    "memory.clear_failed": "清除记忆失败",
+    "memory.load_failed": "加载记忆失败",
+    "memory.section.conversation": "对话记忆",
+    "memory.section.global": "管家通用记忆（日画像）",
+    "memory.empty_conversation": "暂无对话记忆",
+    "memory.empty_global": "暂无日画像",
+    "memory.items": "条",
+    "memory.thread_fallback": "线程",
 
     // Tools
     "tools.title": "工具管理",

@@ -15,4 +15,12 @@ export function registerButlerHandlers(ipcMain: IpcMain): void {
     await butlerManager.initialize()
     return butlerManager.listTasks()
   })
+
+  ipcMain.handle("butler:clearHistory", async () => {
+    return butlerManager.clearHistory()
+  })
+
+  ipcMain.handle("butler:clearTasks", async () => {
+    return butlerManager.clearTasks()
+  })
 }

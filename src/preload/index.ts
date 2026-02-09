@@ -31,6 +31,17 @@ import type {
   ButlerState,
   ButlerTask,
   TaskCompletionNotice,
+  CalendarWatchEvent,
+  CalendarWatchEventCreateInput,
+  CalendarWatchEventUpdateInput,
+  CountdownWatchItem,
+  CountdownWatchItemCreateInput,
+  CountdownWatchItemUpdateInput,
+  MailWatchRule,
+  MailWatchRuleCreateInput,
+  MailWatchRuleUpdateInput,
+  MailWatchMessage,
+  ButlerMonitorSnapshot,
   ThreadDeleteOptions,
   PromptTemplate,
   PromptCreateInput,
@@ -217,6 +228,61 @@ const api = {
       const handler = (_: unknown, card: TaskCompletionNotice): void => callback(card)
       ipcRenderer.on("app:task-card", handler)
       return () => ipcRenderer.removeListener("app:task-card", handler)
+    }
+  },
+  butlerMonitor: {
+    getSnapshot: (): Promise<ButlerMonitorSnapshot> => {
+      return ipcRenderer.invoke("butler-monitor:getSnapshot")
+    },
+    listCalendarEvents: (): Promise<CalendarWatchEvent[]> => {
+      return ipcRenderer.invoke("butler-monitor:calendar:list")
+    },
+    createCalendarEvent: (input: CalendarWatchEventCreateInput): Promise<CalendarWatchEvent> => {
+      return ipcRenderer.invoke("butler-monitor:calendar:create", input)
+    },
+    updateCalendarEvent: (
+      id: string,
+      updates: CalendarWatchEventUpdateInput
+    ): Promise<CalendarWatchEvent> => {
+      return ipcRenderer.invoke("butler-monitor:calendar:update", { id, updates })
+    },
+    deleteCalendarEvent: (id: string): Promise<void> => {
+      return ipcRenderer.invoke("butler-monitor:calendar:delete", id)
+    },
+    listCountdownTimers: (): Promise<CountdownWatchItem[]> => {
+      return ipcRenderer.invoke("butler-monitor:countdown:list")
+    },
+    createCountdownTimer: (
+      input: CountdownWatchItemCreateInput
+    ): Promise<CountdownWatchItem> => {
+      return ipcRenderer.invoke("butler-monitor:countdown:create", input)
+    },
+    updateCountdownTimer: (
+      id: string,
+      updates: CountdownWatchItemUpdateInput
+    ): Promise<CountdownWatchItem> => {
+      return ipcRenderer.invoke("butler-monitor:countdown:update", { id, updates })
+    },
+    deleteCountdownTimer: (id: string): Promise<void> => {
+      return ipcRenderer.invoke("butler-monitor:countdown:delete", id)
+    },
+    listMailRules: (): Promise<MailWatchRule[]> => {
+      return ipcRenderer.invoke("butler-monitor:mail:listRules")
+    },
+    createMailRule: (input: MailWatchRuleCreateInput): Promise<MailWatchRule> => {
+      return ipcRenderer.invoke("butler-monitor:mail:createRule", input)
+    },
+    updateMailRule: (id: string, updates: MailWatchRuleUpdateInput): Promise<MailWatchRule> => {
+      return ipcRenderer.invoke("butler-monitor:mail:updateRule", { id, updates })
+    },
+    deleteMailRule: (id: string): Promise<void> => {
+      return ipcRenderer.invoke("butler-monitor:mail:deleteRule", id)
+    },
+    listRecentMails: (limit?: number): Promise<MailWatchMessage[]> => {
+      return ipcRenderer.invoke("butler-monitor:mail:listMessages", limit)
+    },
+    pullMailNow: (): Promise<MailWatchMessage[]> => {
+      return ipcRenderer.invoke("butler-monitor:mail:pullNow")
     }
   },
   prompts: {

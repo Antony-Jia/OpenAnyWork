@@ -22,11 +22,12 @@ import {
   getButlerCapabilitySnapshot
 } from "./capabilities"
 import { detectOversplitByModel } from "./granularity"
-import { runButlerOrchestratorTurn } from "./runtime"
+import { runButlerOrchestratorTurn, runButlerPerceptionTurn } from "./runtime"
 import type { ButlerPromptContext } from "./prompt"
 import { createButlerTaskThread, executeButlerTask } from "./task-dispatcher"
 import { renderTaskPrompt, type ButlerDispatchIntent } from "./tools"
 import type {
+  ButlerPerceptionInput,
   ButlerRound,
   ButlerTask,
   ButlerState,
@@ -141,6 +142,11 @@ class ButlerManager {
   private unresolvedDeps = new Map<string, Set<string>>()
   private pendingDispatchChoice: PendingDispatchChoiceState | null = null
   private taskCompletionUnsubscribe: (() => void) | null = null
+  private perceptionQueue: Array<{
+    input: ButlerPerceptionInput
+    resolve: (notice: TaskCompletionNotice) => void
+  }> = []
+  private perceptionQueueRunning = false
 
   async initialize(): Promise<void> {
     if (this.initialized) return
@@ -297,6 +303,102 @@ class ButlerManager {
       ts: nowIso()
     })
     this.broadcastState()
+  }
+
+  async ingestPerception(input: ButlerPerceptionInput): Promise<TaskCompletionNotice> {
+    await this.initialize()
+    return new Promise((resolve) => {
+      this.perceptionQueue.push({ input, resolve })
+      void this.pumpPerceptionQueue()
+    })
+  }
+
+  private async pumpPerceptionQueue(): Promise<void> {
+    if (this.perceptionQueueRunning) return
+    this.perceptionQueueRunning = true
+
+    try {
+      while (this.perceptionQueue.length > 0) {
+        const job = this.perceptionQueue.shift()
+        if (!job) break
+        const notice = await this.processPerception(job.input)
+        job.resolve(notice)
+      }
+    } finally {
+      this.perceptionQueueRunning = false
+    }
+  }
+
+  private async processPerception(input: ButlerPerceptionInput): Promise<TaskCompletionNotice> {
+    let reminderText = ""
+    try {
+      const result = await runButlerPerceptionTurn({
+        threadId: this.mainThreadId,
+        perception: input
+      })
+      reminderText = result.reminderText.trim()
+    } catch (error) {
+      console.warn("[Butler] runButlerPerceptionTurn failed:", error)
+    }
+
+    const finalReminder = reminderText || this.buildPerceptionFallbackText(input)
+    const completedAt = nowIso()
+    const notice: TaskCompletionNotice = {
+      id: `event:${input.id}:${completedAt}`,
+      threadId: this.mainThreadId,
+      title: input.title,
+      resultBrief: finalReminder,
+      resultDetail: this.buildPerceptionResultDetail(input, finalReminder),
+      completedAt,
+      mode: "butler",
+      source: "butler",
+      noticeType: "event",
+      eventKind: input.kind
+    }
+
+    const content = [
+      `事件提醒：${notice.title}`,
+      `类型: ${input.kind}`,
+      `摘要: ${notice.resultBrief}`,
+      `${TASK_NOTICE_MARKER}${JSON.stringify(notice)}`
+    ].join("\n")
+
+    this.pushMessage({
+      id: uuid(),
+      role: "assistant",
+      content,
+      ts: completedAt
+    })
+    this.broadcastState()
+    return notice
+  }
+
+  private buildPerceptionFallbackText(input: ButlerPerceptionInput): string {
+    if (input.kind === "calendar_due_soon") {
+      return `你有一个日历事件将在 2 小时内开始：${input.title}。`
+    }
+    if (input.kind === "countdown_due") {
+      return `倒计时已到点：${input.title}。`
+    }
+    if (input.kind === "mail_new") {
+      return `收到一封新的邮件，请及时查看：${input.title}。`
+    }
+    return `检测到新的监听事件：${input.title}。`
+  }
+
+  private buildPerceptionResultDetail(input: ButlerPerceptionInput, reminder: string): string {
+    const snapshot = input.snapshot
+    return [
+      `提醒: ${reminder}`,
+      `事件类型: ${input.kind}`,
+      `触发时间: ${input.triggeredAt}`,
+      `事件详情: ${input.detail || "none"}`,
+      `[快照统计]`,
+      `日历事件: ${snapshot.calendarEvents.length}`,
+      `倒计时: ${snapshot.countdownTimers.length}`,
+      `邮件规则: ${snapshot.mailRules.length}`,
+      `最近邮件: ${snapshot.recentMails.length}`
+    ].join("\n")
   }
 
   async send(message: string): Promise<ButlerState> {

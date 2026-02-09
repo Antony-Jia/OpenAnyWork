@@ -183,12 +183,83 @@ export async function initializeDatabase(): Promise<SqlJsDatabase> {
     )
   `)
 
+  db.run(`
+    CREATE TABLE IF NOT EXISTS butler_calendar_events (
+      id TEXT PRIMARY KEY,
+      title TEXT NOT NULL,
+      description TEXT,
+      location TEXT,
+      start_at TEXT NOT NULL,
+      end_at TEXT,
+      enabled INTEGER NOT NULL DEFAULT 1,
+      reminder_sent_at TEXT,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    )
+  `)
+
+  db.run(`
+    CREATE TABLE IF NOT EXISTS butler_countdown_timers (
+      id TEXT PRIMARY KEY,
+      title TEXT NOT NULL,
+      description TEXT,
+      due_at TEXT NOT NULL,
+      status TEXT NOT NULL,
+      reminder_sent_at TEXT,
+      completed_at TEXT,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    )
+  `)
+
+  db.run(`
+    CREATE TABLE IF NOT EXISTS butler_mail_watch_rules (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      folder TEXT NOT NULL,
+      from_contains TEXT,
+      subject_contains TEXT,
+      enabled INTEGER NOT NULL DEFAULT 1,
+      last_seen_uid INTEGER,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    )
+  `)
+
+  db.run(`
+    CREATE TABLE IF NOT EXISTS butler_mail_watch_messages (
+      id TEXT PRIMARY KEY,
+      rule_id TEXT NOT NULL,
+      uid INTEGER NOT NULL,
+      subject TEXT NOT NULL,
+      sender TEXT NOT NULL,
+      text TEXT NOT NULL,
+      received_at TEXT NOT NULL,
+      created_at TEXT NOT NULL
+    )
+  `)
+
   db.run(`CREATE INDEX IF NOT EXISTS idx_threads_updated_at ON threads(updated_at)`)
   db.run(`CREATE INDEX IF NOT EXISTS idx_runs_thread_id ON runs(thread_id)`)
   db.run(`CREATE INDEX IF NOT EXISTS idx_runs_status ON runs(status)`)
   db.run(`CREATE INDEX IF NOT EXISTS idx_prompt_templates_updated_at ON prompt_templates(updated_at)`)
   db.run(
     `CREATE UNIQUE INDEX IF NOT EXISTS idx_prompt_templates_name ON prompt_templates(name COLLATE NOCASE)`
+  )
+  db.run(
+    `CREATE INDEX IF NOT EXISTS idx_butler_calendar_events_start_at ON butler_calendar_events(start_at)`
+  )
+  db.run(
+    `CREATE INDEX IF NOT EXISTS idx_butler_countdown_timers_due_at ON butler_countdown_timers(due_at)`
+  )
+  db.run(
+    `CREATE INDEX IF NOT EXISTS idx_butler_mail_watch_rules_enabled ON butler_mail_watch_rules(enabled)`
+  )
+  db.run(
+    `CREATE INDEX IF NOT EXISTS idx_butler_mail_watch_messages_rule_created ON butler_mail_watch_messages(rule_id, created_at DESC)`
+  )
+  db.run(
+    `CREATE UNIQUE INDEX IF NOT EXISTS idx_butler_mail_watch_messages_rule_uid ON butler_mail_watch_messages(rule_id, uid)`
   )
 
   if (!tableHasColumn(db, "subagents", "model_provider")) {

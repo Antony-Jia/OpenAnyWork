@@ -37,6 +37,7 @@ import { initializeDatabase } from "./db"
 import { registerMcpHandlers } from "./ipc/mcp"
 import { registerLoopHandlers } from "./ipc/loop"
 import { registerButlerHandlers } from "./ipc/butler"
+import { registerButlerMonitorHandlers } from "./ipc/butler-monitor"
 import { registerPromptHandlers } from "./ipc/prompts"
 import { registerMemoryHandlers } from "./ipc/memory"
 import { startAutoMcpServers } from "./mcp/service"
@@ -51,6 +52,7 @@ import {
   flushMemoryDatabase
 } from "./memory"
 import { butlerManager } from "./butler/manager"
+import { ButlerMonitorManager } from "./butler/monitoring/manager"
 import { TaskPopupController } from "./notifications/popup-controller"
 import { TaskCompletionBus } from "./notifications/task-completion-bus"
 
@@ -59,6 +61,7 @@ let quickInputWindow: BrowserWindow | null = null
 let tray: Tray | null = null
 let taskPopupController: TaskPopupController | null = null
 let taskCompletionBus: TaskCompletionBus | null = null
+let butlerMonitorManager: ButlerMonitorManager | null = null
 let isQuitting = false
 
 // Simple dev check - replaces @electron-toolkit/utils is.dev
@@ -311,6 +314,19 @@ app.whenReady().then(async () => {
   await initializeMemoryService()
   await generateDailyProfileOnStartup()
   await butlerManager.initialize()
+  butlerMonitorManager = new ButlerMonitorManager({
+    perceptionGateway: {
+      ingest: async (input) => {
+        return butlerManager.ingestPerception(input)
+      }
+    },
+    onNotice: (notice) => {
+      broadcastTaskCard(notice)
+      if (!mainWindow || !mainWindow.isVisible() || mainWindow.isMinimized()) {
+        taskPopupController?.enqueue(notice)
+      }
+    }
+  })
   loopManager.resetAllOnStartup()
 
   // Register IPC handlers
@@ -324,10 +340,17 @@ app.whenReady().then(async () => {
   registerDockerHandlers(ipcMain)
   registerAttachmentHandlers(ipcMain)
   registerMcpHandlers(ipcMain)
-  registerSettingsHandlers(ipcMain)
+  registerSettingsHandlers(ipcMain, {
+    onSettingsUpdated: () => {
+      butlerMonitorManager?.refreshEmailPollingInterval()
+    }
+  })
   registerSpeechHandlers(ipcMain)
   registerLoopHandlers(ipcMain)
   registerButlerHandlers(ipcMain)
+  if (butlerMonitorManager) {
+    registerButlerMonitorHandlers(ipcMain, butlerMonitorManager)
+  }
   registerPromptHandlers(ipcMain)
   registerMemoryHandlers(ipcMain)
 
@@ -367,6 +390,7 @@ app.whenReady().then(async () => {
     }
   })
   taskCompletionBus.start()
+  butlerMonitorManager?.start()
 
   ipcMain.on("app:show-main", () => {
     showMainWindow()
@@ -468,6 +492,8 @@ app.on("before-quit", () => {
   taskPopupController?.dispose()
   taskPopupController = null
   stopEmailPolling()
+  butlerMonitorManager?.stop()
+  butlerMonitorManager = null
   loopManager.stopAll()
   butlerManager.shutdown()
   void stopMemoryService()

@@ -38,6 +38,11 @@ export function DesktopTaskPopup(): React.JSX.Element {
 
   const openThread = useCallback(() => {
     if (!notice) return
+    if (notice.noticeType === "event") {
+      window.electron.ipcRenderer.send("app:open-butler")
+      window.electron.ipcRenderer.send("task-popup:dismiss", { noticeId: notice.id })
+      return
+    }
     window.electron.ipcRenderer.send("task-popup:open-thread", {
       noticeId: notice.id,
       threadId: notice.threadId
@@ -74,7 +79,9 @@ export function DesktopTaskPopup(): React.JSX.Element {
         >
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
-              <div className="text-[10px] uppercase tracking-[0.16em] text-blue-500">Task Completed</div>
+              <div className="text-[10px] uppercase tracking-[0.16em] text-blue-500">
+                {notice.noticeType === "event" ? "事件提醒" : "Task Completed"}
+              </div>
               <div className="truncate text-sm font-semibold">{notice.title}</div>
             </div>
             <button
@@ -90,7 +97,9 @@ export function DesktopTaskPopup(): React.JSX.Element {
           </div>
           <div className="mt-3 flex items-center justify-between text-[10px] text-muted-foreground">
             <span className="uppercase tracking-[0.12em]">
-              {notice.mode} / {notice.source}
+              {notice.noticeType === "event" && notice.eventKind
+                ? `${notice.eventKind} / ${notice.source}`
+                : `${notice.mode} / ${notice.source}`}
             </span>
             <span>{new Date(notice.completedAt).toLocaleTimeString()}</span>
           </div>
@@ -99,4 +108,3 @@ export function DesktopTaskPopup(): React.JSX.Element {
     </div>
   )
 }
-

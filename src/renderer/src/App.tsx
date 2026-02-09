@@ -43,10 +43,16 @@ function MainApp(): React.JSX.Element {
   }, [])
 
   const openTaskCardThread = useCallback(
-    async (threadId: string) => {
+    async (card: TaskNoticeCard) => {
+      if (card.noticeType === "event") {
+        setAppMode("butler")
+        setTaskCards((prev) => prev.filter((item) => item.id !== card.id))
+        return
+      }
+
       setAppMode("classic")
-      await useAppStore.getState().selectThread(threadId)
-      setTaskCards((prev) => prev.filter((card) => card.threadId !== threadId))
+      await useAppStore.getState().selectThread(card.threadId)
+      setTaskCards((prev) => prev.filter((item) => item.threadId !== card.threadId))
     },
     [setAppMode]
   )
@@ -220,7 +226,7 @@ function MainApp(): React.JSX.Element {
         <TaskNoticeContainer
           cards={taskCards}
           onClose={removeTaskCard}
-          onOpenThread={(threadId) => void openTaskCardThread(threadId)}
+          onOpenThread={(card) => void openTaskCardThread(card)}
         />
       )}
       <div className="flex h-screen w-screen flex-col overflow-hidden bg-background text-foreground">

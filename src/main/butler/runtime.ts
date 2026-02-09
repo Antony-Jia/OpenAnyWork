@@ -1,4 +1,4 @@
-import { HumanMessage } from "@langchain/core/messages"
+import { HumanMessage, SystemMessage } from "@langchain/core/messages"
 import { ChatOpenAI } from "@langchain/openai"
 import { createDeepAgent } from "deepagents"
 import { LocalSandbox } from "../agent/local-sandbox"
@@ -8,11 +8,14 @@ import { getOpenworkDir } from "../storage"
 import type { ProviderConfig, ProviderState, SimpleProviderId } from "../types"
 import {
   buildButlerSystemPrompt,
+  buildButlerPerceptionSystemPrompt,
+  buildButlerPerceptionUserPrompt,
   buildButlerUserPrompt,
   parseButlerAssistantText,
   type ButlerPromptContext
 } from "./prompt"
 import { createButlerDispatchTools, type ButlerDispatchIntent } from "./tools"
+import type { ButlerPerceptionInput } from "../types"
 
 export interface ButlerOrchestratorTurnInput {
   threadId: string
@@ -23,6 +26,15 @@ export interface ButlerOrchestratorTurnResult {
   assistantText: string
   dispatchIntents: ButlerDispatchIntent[]
   clarification: boolean
+}
+
+export interface ButlerPerceptionTurnInput {
+  threadId: string
+  perception: ButlerPerceptionInput
+}
+
+export interface ButlerPerceptionTurnResult {
+  reminderText: string
 }
 
 const DAILY_PROFILE_MARKER = "[Daily Profile]"
@@ -167,5 +179,39 @@ export async function runButlerOrchestratorTurn(
     assistantText,
     dispatchIntents: intents,
     clarification: parsed.clarification
+  }
+}
+
+function extractTextContent(content: unknown): string {
+  if (typeof content === "string") {
+    return content.trim()
+  }
+  if (Array.isArray(content)) {
+    return content
+      .filter(
+        (item): item is { type?: string; text?: string } =>
+          !!item && typeof item === "object" && (item as { type?: string }).type === "text"
+      )
+      .map((item) => item.text?.trim() || "")
+      .filter(Boolean)
+      .join("")
+      .trim()
+  }
+  return ""
+}
+
+export async function runButlerPerceptionTurn(
+  input: ButlerPerceptionTurnInput
+): Promise<ButlerPerceptionTurnResult> {
+  const model = getModelInstance()
+  const systemPrompt = buildButlerPerceptionSystemPrompt()
+  const userPrompt = buildButlerPerceptionUserPrompt({
+    perception: input.perception
+  })
+
+  const result = await model.invoke([new SystemMessage(systemPrompt), new HumanMessage(userPrompt)])
+  const reminderText = extractTextContent(result.content)
+  return {
+    reminderText: reminderText || "检测到新的监听事件，请及时处理。"
   }
 }

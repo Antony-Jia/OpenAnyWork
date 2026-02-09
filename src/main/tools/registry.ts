@@ -3,6 +3,8 @@ import {
   createSkillFromConversationTool
 } from "./create-skill-from-conversation"
 import { internetSearchDefinition, internetSearchTool } from "./internet-search"
+import { addCalendarEventDefinition, addCalendarEventTool } from "./add-calendar-event"
+import { addCountdownTimerDefinition, addCountdownTimerTool } from "./add-countdown-timer"
 import { sendEmailDefinition, sendEmailTool } from "./send-email"
 import type { ToolDefinition } from "../types"
 
@@ -12,6 +14,8 @@ export const toolRegistry: Array<{
 }> = [
   { definition: createSkillFromConversationDefinition, instance: createSkillFromConversationTool },
   { definition: internetSearchDefinition, instance: internetSearchTool },
+  { definition: addCalendarEventDefinition, instance: addCalendarEventTool },
+  { definition: addCountdownTimerDefinition, instance: addCountdownTimerTool },
   { definition: sendEmailDefinition, instance: sendEmailTool }
 ]
 

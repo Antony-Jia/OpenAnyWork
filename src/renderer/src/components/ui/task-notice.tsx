@@ -5,7 +5,7 @@ export type TaskNoticeCard = TaskCompletionNotice
 export function TaskNoticeContainer(props: {
   cards: TaskNoticeCard[]
   onClose: (id: string) => void
-  onOpenThread: (threadId: string) => void
+  onOpenThread: (card: TaskNoticeCard) => void
 }): React.JSX.Element | null {
   const { cards, onClose, onOpenThread } = props
   if (cards.length === 0) return null
@@ -18,17 +18,19 @@ export function TaskNoticeContainer(props: {
           role="button"
           tabIndex={0}
           className="w-full rounded-lg border border-border bg-card px-3 py-3 text-left shadow-lg hover:border-blue-500/60"
-          onClick={() => onOpenThread(card.threadId)}
+          onClick={() => onOpenThread(card)}
           onKeyDown={(event) => {
             if (event.key === "Enter" || event.key === " ") {
               event.preventDefault()
-              onOpenThread(card.threadId)
+              onOpenThread(card)
             }
           }}
         >
           <div className="flex items-start justify-between gap-2">
             <div className="min-w-0">
-              <div className="text-xs text-muted-foreground uppercase tracking-[0.15em]">Task Done</div>
+              <div className="text-xs text-muted-foreground uppercase tracking-[0.15em]">
+                {card.noticeType === "event" ? "事件提醒" : "Task Done"}
+              </div>
               <div className="text-sm font-medium truncate">{card.title}</div>
             </div>
             <button

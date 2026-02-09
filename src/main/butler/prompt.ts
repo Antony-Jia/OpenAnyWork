@@ -1,4 +1,5 @@
 import type { ButlerDispatchIntent } from "./tools"
+import type { ButlerPerceptionInput } from "../types"
 
 export type ButlerDispatchPolicy = "standard" | "single_task_first"
 
@@ -27,6 +28,10 @@ export interface ButlerPromptContext {
   memoryHints: ButlerPromptMemoryHint[]
   previousUserMessage?: string
   recentTasks: ButlerPromptRecentTask[]
+}
+
+export interface ButlerPerceptionPromptContext {
+  perception: ButlerPerceptionInput
 }
 
 const CLARIFICATION_PREFIX = "CLARIFICATION_REQUIRED:"
@@ -69,6 +74,36 @@ function formatDispatchPolicy(policy?: ButlerDispatchPolicy): string {
 
 export function getClarificationPrefix(): string {
   return CLARIFICATION_PREFIX
+}
+
+function formatPerceptionSnapshot(context: ButlerPerceptionPromptContext): string {
+  const snapshot = context.perception.snapshot
+  const calendarLines = snapshot.calendarEvents
+    .slice(0, 5)
+    .map((event, index) => `${index + 1}. ${event.title} @ ${event.startAt}`)
+  const countdownLines = snapshot.countdownTimers
+    .slice(0, 5)
+    .map((timer, index) => `${index + 1}. ${timer.title} @ ${timer.dueAt} (${timer.status})`)
+  const mailLines = snapshot.recentMails
+    .slice(0, 5)
+    .map((mail, index) => `${index + 1}. ${mail.subject || "(无主题)"} | from=${mail.from || "unknown"}`)
+
+  return [
+    "[Snapshot Summary]",
+    `calendar_count=${snapshot.calendarEvents.length}`,
+    `countdown_count=${snapshot.countdownTimers.length}`,
+    `mail_rule_count=${snapshot.mailRules.length}`,
+    `recent_mail_count=${snapshot.recentMails.length}`,
+    "",
+    "[Calendar Top 5]",
+    calendarLines.length > 0 ? calendarLines.join("\n") : "none",
+    "",
+    "[Countdown Top 5]",
+    countdownLines.length > 0 ? countdownLines.join("\n") : "none",
+    "",
+    "[Recent Mail Top 5]",
+    mailLines.length > 0 ? mailLines.join("\n") : "none"
+  ].join("\n")
 }
 
 export function buildButlerSystemPrompt(): string {
@@ -156,6 +191,22 @@ Mode 要求：
 `.trim()
 }
 
+export function buildButlerPerceptionSystemPrompt(): string {
+  return `
+你是 OpenAnyWork 的 Butler 事件提醒助手。
+
+目标：
+1) 根据输入的监听事件（日历/倒计时/邮件）生成简洁中文提醒。
+2) 不要调用任何工具，不要派发任务。
+3) 仅输出提醒正文，不要输出 JSON、代码块、前后缀解释。
+
+要求：
+- 优先说明“发生了什么”“用户现在应做什么”。
+- 1 到 3 句话，控制在 120 字内。
+- 语气明确，不夸张。
+`.trim()
+}
+
 export function buildButlerUserPrompt(context: ButlerPromptContext): string {
   const sections = [
     "[User Request]",
@@ -188,6 +239,26 @@ export function buildButlerUserPrompt(context: ButlerPromptContext): string {
     "Use semantic reasoning. If dispatch is feasible, call creation tools with valid JSON. If not feasible, respond with clarification prefix."
   ]
   return sections.join("\n")
+}
+
+export function buildButlerPerceptionUserPrompt(context: ButlerPerceptionPromptContext): string {
+  const perception = context.perception
+  return [
+    "[Triggered Event]",
+    `id: ${perception.id}`,
+    `kind: ${perception.kind}`,
+    `triggeredAt: ${perception.triggeredAt}`,
+    `title: ${perception.title}`,
+    `detail: ${perception.detail || "none"}`,
+    "",
+    "[Payload]",
+    JSON.stringify(perception.payload, null, 2),
+    "",
+    formatPerceptionSnapshot(context),
+    "",
+    "[Instruction]",
+    "请直接输出提醒正文。"
+  ].join("\n")
 }
 
 export function parseButlerAssistantText(raw: string): {

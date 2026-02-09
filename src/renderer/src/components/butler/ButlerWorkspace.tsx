@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { useAppStore } from "@/lib/store"
 import { ButlerTaskBoard } from "./ButlerTaskBoard"
+import { ButlerMonitorBoard } from "./ButlerMonitorBoard"
 import type { ButlerState, ButlerTask, TaskCompletionNotice } from "@/types"
 
 const TASK_NOTICE_MARKER = "[TASK_NOTICE_JSON]"
@@ -154,6 +155,7 @@ export function ButlerWorkspace(): React.JSX.Element {
   const [sending, setSending] = useState(false)
   const [clearingHistory, setClearingHistory] = useState(false)
   const [clearingTasks, setClearingTasks] = useState(false)
+  const [rightTab, setRightTab] = useState<"tasks" | "monitor">("tasks")
 
   const load = useCallback(async () => {
     const [nextState, nextTasks] = await Promise.all([
@@ -378,24 +380,40 @@ export function ButlerWorkspace(): React.JSX.Element {
 
       <aside className="flex h-full min-h-0 w-[380px] shrink-0 flex-col">
         <header className="h-10 shrink-0 px-3 border-b border-border flex items-center justify-between gap-2">
-          <div className="flex items-center gap-2 min-w-0">
-            <span className="text-xs text-muted-foreground uppercase tracking-[0.18em]">执行任务</span>
-            <span className="text-[11px] text-muted-foreground">
-              {tasks.filter((task) => task.status === "running").length} Running
-            </span>
-          </div>
-          <Button
-            variant="ghost"
-            size="sm"
-            disabled={clearingTasks}
-            onClick={() => void handleClearTasks()}
-            className="h-7 px-2 text-xs"
+          <select
+            value={rightTab}
+            onChange={(event) => setRightTab(event.target.value as "tasks" | "monitor")}
+            className="h-7 min-w-[120px] rounded border border-border bg-background px-2 text-xs"
           >
-            {clearingTasks ? "清空中..." : "清空任务"}
-          </Button>
+            <option value="tasks">执行任务</option>
+            <option value="monitor">监听任务</option>
+          </select>
+
+          {rightTab === "tasks" ? (
+            <div className="flex items-center gap-2">
+              <span className="text-[11px] text-muted-foreground">
+                {tasks.filter((task) => task.status === "running").length} Running
+              </span>
+              <Button
+                variant="ghost"
+                size="sm"
+                disabled={clearingTasks}
+                onClick={() => void handleClearTasks()}
+                className="h-7 px-2 text-xs"
+              >
+                {clearingTasks ? "清空中..." : "清空任务"}
+              </Button>
+            </div>
+          ) : (
+            <span className="text-[11px] text-muted-foreground">监听规则与事件状态</span>
+          )}
         </header>
         <div className="flex-1 min-h-0">
-          <ButlerTaskBoard tasks={tasks} onOpenThread={(threadId) => void openTaskThread(threadId)} />
+          {rightTab === "tasks" ? (
+            <ButlerTaskBoard tasks={tasks} onOpenThread={(threadId) => void openTaskThread(threadId)} />
+          ) : (
+            <ButlerMonitorBoard />
+          )}
         </div>
       </aside>
     </div>

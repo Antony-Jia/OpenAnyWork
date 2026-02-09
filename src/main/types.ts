@@ -418,6 +418,126 @@ export interface ButlerState {
   pendingDispatchChoice?: ButlerPendingDispatchChoice
 }
 
+export type ButlerPerceptionKind = "calendar_due_soon" | "countdown_due" | "mail_new"
+
+export interface CalendarWatchEvent {
+  id: string
+  title: string
+  description?: string
+  location?: string
+  startAt: string
+  endAt?: string
+  enabled: boolean
+  reminderSentAt?: string
+  createdAt: string
+  updatedAt: string
+}
+
+export interface CalendarWatchEventCreateInput {
+  title: string
+  description?: string
+  location?: string
+  startAt: string
+  endAt?: string
+  enabled?: boolean
+}
+
+export interface CalendarWatchEventUpdateInput {
+  title?: string
+  description?: string
+  location?: string
+  startAt?: string
+  endAt?: string
+  enabled?: boolean
+  reminderSentAt?: string | null
+}
+
+export type CountdownWatchStatus = "running" | "completed" | "cancelled"
+
+export interface CountdownWatchItem {
+  id: string
+  title: string
+  description?: string
+  dueAt: string
+  status: CountdownWatchStatus
+  reminderSentAt?: string
+  completedAt?: string
+  createdAt: string
+  updatedAt: string
+}
+
+export interface CountdownWatchItemCreateInput {
+  title: string
+  description?: string
+  dueAt: string
+}
+
+export interface CountdownWatchItemUpdateInput {
+  title?: string
+  description?: string
+  dueAt?: string
+  status?: CountdownWatchStatus
+  reminderSentAt?: string | null
+  completedAt?: string | null
+}
+
+export interface MailWatchRule {
+  id: string
+  name: string
+  folder: string
+  fromContains?: string
+  subjectContains?: string
+  enabled: boolean
+  lastSeenUid?: number
+  createdAt: string
+  updatedAt: string
+}
+
+export interface MailWatchRuleCreateInput {
+  name: string
+  folder?: string
+  fromContains?: string
+  subjectContains?: string
+  enabled?: boolean
+}
+
+export interface MailWatchRuleUpdateInput {
+  name?: string
+  folder?: string
+  fromContains?: string
+  subjectContains?: string
+  enabled?: boolean
+  lastSeenUid?: number | null
+}
+
+export interface MailWatchMessage {
+  id: string
+  ruleId: string
+  uid: number
+  subject: string
+  from: string
+  text: string
+  receivedAt: string
+  createdAt: string
+}
+
+export interface ButlerMonitorSnapshot {
+  calendarEvents: CalendarWatchEvent[]
+  countdownTimers: CountdownWatchItem[]
+  mailRules: MailWatchRule[]
+  recentMails: MailWatchMessage[]
+}
+
+export interface ButlerPerceptionInput {
+  id: string
+  kind: ButlerPerceptionKind
+  triggeredAt: string
+  title: string
+  detail: string
+  payload: Record<string, unknown>
+  snapshot: ButlerMonitorSnapshot
+}
+
 export interface TaskCompletionNotice {
   id: string
   threadId: string
@@ -427,6 +547,8 @@ export interface TaskCompletionNotice {
   completedAt: string
   mode: ThreadMode
   source: "agent" | "loop" | "email" | "butler"
+  noticeType?: "task" | "event"
+  eventKind?: ButlerPerceptionKind
 }
 
 export interface MemorySummary {

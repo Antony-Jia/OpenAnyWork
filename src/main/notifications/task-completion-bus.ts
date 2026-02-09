@@ -44,7 +44,8 @@ function buildNotice(payload: TaskCompletionPayload): TaskCompletionNotice {
     resultDetail,
     completedAt: payload.finishedAt,
     mode: payload.mode,
-    source: payload.source
+    source: payload.source,
+    noticeType: "task"
   }
 }
 

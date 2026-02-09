@@ -32,6 +32,17 @@ import type {
   ButlerState,
   ButlerTask,
   TaskCompletionNotice,
+  CalendarWatchEvent,
+  CalendarWatchEventCreateInput,
+  CalendarWatchEventUpdateInput,
+  CountdownWatchItem,
+  CountdownWatchItemCreateInput,
+  CountdownWatchItemUpdateInput,
+  MailWatchRule,
+  MailWatchRuleCreateInput,
+  MailWatchRuleUpdateInput,
+  MailWatchMessage,
+  ButlerMonitorSnapshot,
   ThreadDeleteOptions,
   PromptTemplate,
   PromptCreateInput,
@@ -100,6 +111,29 @@ interface CustomAPI {
     clearTasks: () => Promise<ButlerTask[]>
     onTaskUpdate: (callback: (tasks: ButlerTask[]) => void) => () => void
     onTaskCompleted: (callback: (card: TaskCompletionNotice) => void) => () => void
+  }
+  butlerMonitor: {
+    getSnapshot: () => Promise<ButlerMonitorSnapshot>
+    listCalendarEvents: () => Promise<CalendarWatchEvent[]>
+    createCalendarEvent: (input: CalendarWatchEventCreateInput) => Promise<CalendarWatchEvent>
+    updateCalendarEvent: (
+      id: string,
+      updates: CalendarWatchEventUpdateInput
+    ) => Promise<CalendarWatchEvent>
+    deleteCalendarEvent: (id: string) => Promise<void>
+    listCountdownTimers: () => Promise<CountdownWatchItem[]>
+    createCountdownTimer: (input: CountdownWatchItemCreateInput) => Promise<CountdownWatchItem>
+    updateCountdownTimer: (
+      id: string,
+      updates: CountdownWatchItemUpdateInput
+    ) => Promise<CountdownWatchItem>
+    deleteCountdownTimer: (id: string) => Promise<void>
+    listMailRules: () => Promise<MailWatchRule[]>
+    createMailRule: (input: MailWatchRuleCreateInput) => Promise<MailWatchRule>
+    updateMailRule: (id: string, updates: MailWatchRuleUpdateInput) => Promise<MailWatchRule>
+    deleteMailRule: (id: string) => Promise<void>
+    listRecentMails: (limit?: number) => Promise<MailWatchMessage[]>
+    pullMailNow: () => Promise<MailWatchMessage[]>
   }
   prompts: {
     list: (query?: string) => Promise<PromptTemplate[]>

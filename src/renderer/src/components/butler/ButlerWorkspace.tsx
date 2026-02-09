@@ -207,19 +207,27 @@ export function ButlerWorkspace(): React.JSX.Element {
     [setAppMode]
   )
 
-  const handleSend = async (): Promise<void> => {
+  const handleSend = (): void => {
     const message = input.trim()
     if (!message || sending) return
+    setInput("")
     setSending(true)
-    try {
-      const nextState = await window.api.butler.send(message)
-      setInput("")
-      setState(nextState)
-      const nextTasks = await window.api.butler.listTasks()
-      setTasks(nextTasks)
-    } finally {
-      setSending(false)
-    }
+
+    window.api.butler
+      .send(message)
+      .then((nextState) => {
+        setState(nextState)
+        return window.api.butler.listTasks()
+      })
+      .then((nextTasks) => {
+        setTasks(nextTasks)
+      })
+      .catch((error: unknown) => {
+        console.error("[Butler] send failed:", error)
+      })
+      .finally(() => {
+        setSending(false)
+      })
   }
 
   const handleClearHistory = async (): Promise<void> => {

@@ -65,6 +65,7 @@ export async function runAgentStream({
   )
 
   let lastAssistant = ""
+  let lastValuesAiContent = ""
   const runId = randomUUID()
   const seenMessageIds = new Set<string>()
   const seenToolCallIds = new Set<string>()
@@ -167,7 +168,7 @@ export async function runAgentStream({
     if (abortController.signal.aborted) break
     const [mode, data] = chunk as [string, unknown]
 
-    if (mode === "values" && ralphLog?.enabled) {
+    if (mode === "values") {
       const state = data as { messages?: unknown[] }
       if (Array.isArray(state.messages)) {
         for (const rawMsg of state.messages) {
@@ -186,7 +187,10 @@ export async function runAgentStream({
 
           if (role === "ai") {
             if (messageId) seenMessageIds.add(messageId)
-            if (content || toolCalls.length > 0) {
+            if (content) {
+              lastValuesAiContent = content
+            }
+            if (ralphLog?.enabled && (content || toolCalls.length > 0)) {
               appendLog({
                 role: "ai",
                 content,
@@ -203,24 +207,28 @@ export async function runAgentStream({
               } catch {
                 argsText = ""
               }
-              appendLog({
-                role: "tool_call",
-                content: `${tc.name || "tool"}(${argsText})`,
-                toolCallId: tc.id,
-                toolName: tc.name,
-                toolArgs: tc.args
-              })
+              if (ralphLog?.enabled) {
+                appendLog({
+                  role: "tool_call",
+                  content: `${tc.name || "tool"}(${argsText})`,
+                  toolCallId: tc.id,
+                  toolName: tc.name,
+                  toolArgs: tc.args
+                })
+              }
             }
           } else if (role === "tool") {
             if (messageId) seenMessageIds.add(messageId)
-            const meta = getToolMessageMeta(msg)
-            appendLog({
-              role: "tool",
-              content,
-              messageId,
-              toolCallId: meta.toolCallId,
-              toolName: meta.toolName
-            })
+            if (ralphLog?.enabled) {
+              const meta = getToolMessageMeta(msg)
+              appendLog({
+                role: "tool",
+                content,
+                messageId,
+                toolCallId: meta.toolCallId,
+                toolName: meta.toolName
+              })
+            }
           }
         }
       }
@@ -251,5 +259,5 @@ export async function runAgentStream({
     })
   }
 
-  return lastAssistant.trim()
+  return lastAssistant.trim() || lastValuesAiContent.trim()
 }

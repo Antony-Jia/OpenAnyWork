@@ -5,6 +5,7 @@ import {
   getSkillContent,
   installSkillFromPath,
   listAppSkills,
+  scanAndImportAgentUserSkills,
   saveSkillContent,
   updateSkillEnabled
 } from "../skills"
@@ -14,6 +15,10 @@ import type { CapabilityScope } from "../types"
 export function registerSkillHandlers(ipcMain: IpcMain): void {
   ipcMain.handle("skills:list", async () => {
     return withSpan("IPC", "skills:list", undefined, async () => listAppSkills())
+  })
+
+  ipcMain.handle("skills:scan", async () => {
+    return withSpan("IPC", "skills:scan", undefined, async () => scanAndImportAgentUserSkills())
   })
 
   ipcMain.handle(

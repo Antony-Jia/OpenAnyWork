@@ -7,6 +7,7 @@ import {
   statSync,
   writeFileSync
 } from "node:fs"
+import { homedir } from "node:os"
 import { basename, join, resolve } from "node:path"
 import { listSkills } from "deepagents"
 import type { CapabilityScope, SkillItem } from "./types"
@@ -20,7 +21,7 @@ import {
 import { getOpenworkDir } from "./storage"
 
 const MANAGED_SKILLS_ROOT = join(getOpenworkDir(), "skills")
-const AGENT_USER_SKILLS_ROOT = join(getOpenworkDir(), "agent", "skills")
+const AGENT_USER_SKILLS_ROOT = join(homedir(), ".agents", "skills")
 
 export interface ListAppSkillsOptions {
   workspacePath?: string | null
@@ -49,11 +50,6 @@ function normalizeSkillPath(path: string): string {
 
 export function getSkillsRoot(): string {
   return ensureManagedSkillsDir()
-}
-
-function getWorkspaceSkillsRoot(workspacePath?: string | null): string {
-  const root = workspacePath?.trim() ? workspacePath.trim() : process.cwd()
-  return resolve(root, "agent", "skills")
 }
 
 function listSkillRecordsByRoot(params: {
@@ -90,14 +86,10 @@ function listSkillRecordsByRoot(params: {
 }
 
 function listAppSkillRecords(options?: ListAppSkillsOptions): SkillRecord[] {
+  void options
   const agentUserSkills = listSkillRecordsByRoot({
     root: AGENT_USER_SKILLS_ROOT,
     sourceType: "agent-user",
-    readOnly: true
-  })
-  const agentWorkspaceSkills = listSkillRecordsByRoot({
-    root: getWorkspaceSkillsRoot(options?.workspacePath),
-    sourceType: "agent-workspace",
     readOnly: true
   })
   const managedSkills = listSkillRecordsByRoot({
@@ -107,9 +99,9 @@ function listAppSkillRecords(options?: ListAppSkillsOptions): SkillRecord[] {
     ensureRoot: true
   })
 
-  // Source priority: agent-user < agent-workspace < managed.
+  // Source priority: agent-user < managed.
   const merged = new Map<string, SkillRecord>()
-  for (const item of [...agentUserSkills, ...agentWorkspaceSkills, ...managedSkills]) {
+  for (const item of [...agentUserSkills, ...managedSkills]) {
     merged.set(item.name, item)
   }
 
@@ -151,6 +143,59 @@ export function listAppSkills(options?: ListAppSkillsOptions): SkillItem[] {
       ? all
       : all.filter((item) => (options.scope === "butler" ? item.enabledButler : item.enabledClassic))
   logExit("Skills", "list", { count: result.length })
+  return result
+}
+
+export function scanAndImportAgentUserSkills(): SkillItem[] {
+  logEntry("Skills", "scan", {
+    sourceRoot: normalizeSkillPath(AGENT_USER_SKILLS_ROOT)
+  })
+
+  const managedRoot = ensureManagedSkillsDir()
+  if (!existsSync(AGENT_USER_SKILLS_ROOT)) {
+    const result = listAppSkills()
+    logExit("Skills", "scan", {
+      sourceExists: false,
+      imported: 0,
+      skipped: 0,
+      failed: 0,
+      count: result.length
+    })
+    return result
+  }
+
+  const discovered = listSkills({ userSkillsDir: AGENT_USER_SKILLS_ROOT })
+  let imported = 0
+  let skipped = 0
+  let failed = 0
+
+  for (const skill of discovered) {
+    const sourceDir = resolve(skill.path, "..")
+    const targetDir = join(managedRoot, skill.name)
+    if (existsSync(targetDir)) {
+      skipped += 1
+      continue
+    }
+
+    try {
+      cpSync(sourceDir, targetDir, { recursive: true })
+      imported += 1
+    } catch (error) {
+      failed += 1
+      const message = error instanceof Error ? error.message : String(error)
+      console.warn(`[Skills] Failed to import skill "${skill.name}": ${message}`)
+    }
+  }
+
+  const result = listAppSkills()
+  logExit("Skills", "scan", {
+    sourceExists: true,
+    sourceCount: discovered.length,
+    imported,
+    skipped,
+    failed,
+    count: result.length
+  })
   return result
 }
 

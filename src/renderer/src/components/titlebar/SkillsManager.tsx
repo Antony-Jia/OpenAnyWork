@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react"
+import { useCallback, useState } from "react"
 import { Puzzle, Plus, Pencil, Trash2, Folder } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
@@ -32,6 +32,7 @@ function isSkillEnabledInScope(skill: SkillItem, scope: CapabilityScope): boolea
 export function SkillsManager(): React.JSX.Element {
   const [open, setOpen] = useState(false)
   const [skills, setSkills] = useState<SkillItem[]>([])
+  const [scanning, setScanning] = useState(false)
   const [mode, setMode] = useState<"list" | "create" | "install" | "edit">("list")
   const [form, setForm] = useState<SkillFormState>(emptyForm)
   const [installPath, setInstallPath] = useState("")
@@ -51,13 +52,24 @@ export function SkillsManager(): React.JSX.Element {
     setSkills(items)
   }, [])
 
-  useEffect(() => {
-    if (!open) return
-    ;(async () => {
-      const items = await window.api.skills.list()
+  const handleTriggerClick = (): void => {
+    setError(null)
+    setOpen(true)
+  }
+
+  const handleScan = async (): Promise<void> => {
+    try {
+      setError(null)
+      setScanning(true)
+      const items = await window.api.skills.scan()
       setSkills(items)
-    })()
-  }, [open])
+    } catch (e) {
+      const message = e instanceof Error ? e.message : "Failed to scan skills."
+      setError(message)
+    } finally {
+      setScanning(false)
+    }
+  }
 
   const resetForm = (): void => {
     setForm(emptyForm)
@@ -151,7 +163,7 @@ export function SkillsManager(): React.JSX.Element {
         )}
         title={t("titlebar.skills")}
         aria-label={t("titlebar.skills")}
-        onClick={() => setOpen(true)}
+        onClick={handleTriggerClick}
       >
         <Puzzle className="size-4" />
       </Button>
@@ -173,6 +185,9 @@ export function SkillsManager(): React.JSX.Element {
                     <span>{t("skills.sources_hint")}</span>
                   </div>
                   <div className="flex items-center gap-2">
+                    <Button variant="ghost" size="sm" onClick={() => void handleScan()} disabled={scanning}>
+                      {scanning ? t("common.loading") : t("skills.scan")}
+                    </Button>
                     <Button variant="ghost" size="sm" onClick={startInstall}>
                       {t("skills.install")}
                     </Button>
@@ -182,6 +197,7 @@ export function SkillsManager(): React.JSX.Element {
                     </Button>
                   </div>
                 </div>
+                {error && <div className="text-xs text-status-critical">{error}</div>}
 
                 {skills.length === 0 ? (
                   <div className="rounded-sm border border-dashed border-border p-6 text-center text-sm text-muted-foreground">

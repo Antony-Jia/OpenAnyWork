@@ -377,6 +377,9 @@ const api = {
     list: (): Promise<SkillItem[]> => {
       return ipcRenderer.invoke("skills:list")
     },
+    scan: (): Promise<SkillItem[]> => {
+      return ipcRenderer.invoke("skills:scan")
+    },
     create: (input: {
       name: string
       description: string

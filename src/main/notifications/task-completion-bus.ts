@@ -10,6 +10,8 @@ export interface TaskCompletionBusDeps {
 }
 
 const MAX_SEEN_EVENT_IDS = 5000
+const TASK_DONE_THROTTLE_MS = 60_000
+const MAX_THROTTLE_ENTRIES = 5000
 
 function compact(text: string, max = 220): string {
   const cleaned = text.trim().replace(/\s+/g, " ")
@@ -19,6 +21,29 @@ function compact(text: string, max = 220): string {
 
 function buildEventId(payload: TaskCompletionPayload): string {
   return `${payload.threadId}:${payload.finishedAt}:${payload.source}`
+}
+
+function parseTimestampMs(value: string): number {
+  const parsed = Date.parse(value)
+  return Number.isFinite(parsed) ? parsed : Date.now()
+}
+
+function resolveTaskIdentity(payload: TaskCompletionPayload): string {
+  const butlerTaskId = payload.metadata.butlerTaskId
+  if (typeof butlerTaskId === "string" && butlerTaskId.trim().length > 0) {
+    return `butlerTask:${butlerTaskId.trim()}`
+  }
+
+  const taskKey = payload.metadata.taskKey
+  if (typeof taskKey === "string" && taskKey.trim().length > 0) {
+    return `taskKey:${taskKey.trim()}`
+  }
+
+  return `thread:${payload.threadId}`
+}
+
+function buildThrottleKey(payload: TaskCompletionPayload): string {
+  return `${payload.source}:${resolveTaskIdentity(payload)}`
 }
 
 function buildNotice(payload: TaskCompletionPayload): TaskCompletionNotice {
@@ -52,6 +77,8 @@ function buildNotice(payload: TaskCompletionPayload): TaskCompletionNotice {
 export class TaskCompletionBus {
   private readonly seenEventIds = new Set<string>()
   private readonly seenEventOrder: string[] = []
+  private readonly lastReportedAtByTask = new Map<string, number>()
+  private readonly throttleOrder: Array<{ taskKey: string; atMs: number }> = []
   private unsubscribe: (() => void) | null = null
 
   constructor(private readonly deps: TaskCompletionBusDeps) {}
@@ -70,6 +97,8 @@ export class TaskCompletionBus {
     }
     this.seenEventIds.clear()
     this.seenEventOrder.length = 0
+    this.lastReportedAtByTask.clear()
+    this.throttleOrder.length = 0
   }
 
   private handleCompletion(payload: TaskCompletionPayload): void {
@@ -78,7 +107,15 @@ export class TaskCompletionBus {
       return
     }
 
+    const throttleKey = buildThrottleKey(payload)
+    const finishedAtMs = parseTimestampMs(payload.finishedAt)
+    if (this.shouldThrottle(throttleKey, finishedAtMs)) {
+      this.markSeen(eventId)
+      return
+    }
+
     this.markSeen(eventId)
+    this.markReported(throttleKey, finishedAtMs)
     const notice = buildNotice(payload)
     this.deps.notifyButler(notice)
     this.deps.notifyInAppCard(notice)
@@ -102,5 +139,25 @@ export class TaskCompletionBus {
     const staleId = this.seenEventOrder.shift()
     if (!staleId) return
     this.seenEventIds.delete(staleId)
+  }
+
+  private shouldThrottle(taskKey: string, atMs: number): boolean {
+    const lastAt = this.lastReportedAtByTask.get(taskKey)
+    if (lastAt === undefined) return false
+    return atMs - lastAt < TASK_DONE_THROTTLE_MS
+  }
+
+  private markReported(taskKey: string, atMs: number): void {
+    this.lastReportedAtByTask.set(taskKey, atMs)
+    this.throttleOrder.push({ taskKey, atMs })
+
+    while (this.throttleOrder.length > MAX_THROTTLE_ENTRIES) {
+      const stale = this.throttleOrder.shift()
+      if (!stale) return
+      const latest = this.lastReportedAtByTask.get(stale.taskKey)
+      if (latest === stale.atMs) {
+        this.lastReportedAtByTask.delete(stale.taskKey)
+      }
+    }
   }
 }

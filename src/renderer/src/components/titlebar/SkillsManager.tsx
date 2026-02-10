@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react"
+import { useCallback, useEffect, useState } from "react"
 import { Puzzle, Plus, Pencil, Trash2, Folder } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
@@ -44,6 +44,7 @@ export function SkillsManager(): React.JSX.Element {
     if (skill.sourceType === "managed") return t("skills.source_managed")
     if (skill.sourceType === "agent-user") return t("skills.source_agent_user")
     if (skill.sourceType === "agent-workspace") return t("skills.source_agent_workspace")
+    if (skill.sourceType === "configured-path") return t("skills.source_configured_path")
     return t("skills.source_unknown")
   }
 
@@ -51,6 +52,11 @@ export function SkillsManager(): React.JSX.Element {
     const items = await window.api.skills.list()
     setSkills(items)
   }, [])
+
+  useEffect(() => {
+    if (!open) return
+    void loadSkills()
+  }, [open, loadSkills])
 
   const handleTriggerClick = (): void => {
     setError(null)

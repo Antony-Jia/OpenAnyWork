@@ -25,7 +25,9 @@ function parseTimestampMs(value: string): number {
   return Number.isFinite(parsed) ? parsed : Date.now()
 }
 
-function resolveTaskIdentity(payload: TaskCompletionPayload): string {
+function resolveStableTaskIdentity(payload: {
+  metadata: Record<string, unknown>
+}): string | null {
   const butlerTaskId = payload.metadata.butlerTaskId
   if (typeof butlerTaskId === "string" && butlerTaskId.trim().length > 0) {
     return `butlerTask:${butlerTaskId.trim()}`
@@ -36,6 +38,14 @@ function resolveTaskIdentity(payload: TaskCompletionPayload): string {
     return `taskKey:${taskKey.trim()}`
   }
 
+  return null
+}
+
+function resolveTaskIdentity(payload: TaskCompletionPayload): string {
+  const stableIdentity = resolveStableTaskIdentity(payload)
+  if (stableIdentity) {
+    return stableIdentity
+  }
   return `thread:${payload.threadId}`
 }
 
@@ -44,7 +54,10 @@ function buildThrottleKey(payload: TaskCompletionPayload): string {
 }
 
 function buildStartedNotice(payload: TaskStartedPayload): TaskLifecycleNotice {
-  const id = `${payload.threadId}:${payload.startedAt}:${payload.source}:started`
+  const stableIdentity = resolveStableTaskIdentity(payload)
+  const id = stableIdentity
+    ? `${payload.source}:${stableIdentity}:started`
+    : `${payload.threadId}:${payload.startedAt}:${payload.source}:started`
   return {
     id,
     phase: "started",

@@ -1,14 +1,15 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
-import { cpSync, existsSync, mkdirSync, rmSync } from "node:fs"
-import { basename, dirname, join, resolve } from "node:path"
+import { existsSync } from "node:fs"
+import { basename, dirname, resolve } from "node:path"
 import { createDeepAgent } from "deepagents"
 import { toolRetryMiddleware, createMiddleware } from "langchain"
-import { getOpenworkDir, getThreadCheckpointPath } from "../storage"
+import { getThreadCheckpointPath } from "../storage"
 import { getProviderState } from "../provider-config"
 import { ChatOpenAI } from "@langchain/openai"
 import { ToolMessage } from "@langchain/core/messages"
 import { SqlJsSaver } from "../checkpointer/sqljs-saver"
 import { LocalSandbox } from "./local-sandbox"
+import { SKILL_OVERLAY_PREFIX, SkillOverlayBackend } from "./skill-overlay-backend"
 import { listSubagentsByScope } from "../subagents"
 import { listAppSkills } from "../skills"
 import {
@@ -107,7 +108,7 @@ function getErrorMessage(error: unknown): string {
 }
 
 function normalizeSkillSourcePath(path: string): string {
-  return resolve(path).replace(/\\/g, "/")
+  return path.replace(/\\/g, "/")
 }
 
 function resolveSkillRoot(path: string): string {
@@ -127,27 +128,26 @@ function buildSkillPathMap(skills: SkillItem[]): Map<string, string> {
   return skillPathByName
 }
 
-function resetRuntimeSkillRoot(threadId: string): string {
-  const threadRoot = join(getOpenworkDir(), "runtime-skills", threadId)
-  rmSync(threadRoot, { recursive: true, force: true })
-  mkdirSync(threadRoot, { recursive: true })
-  return threadRoot
+function toOverlaySegment(value: string): string {
+  const trimmed = value.trim()
+  if (!trimmed) return "unknown"
+  return encodeURIComponent(trimmed)
 }
 
-function createSkillSnapshotSource(params: {
-  targetRoot: string
+function createSkillOverlaySource(params: {
+  overlayBackend: SkillOverlayBackend
+  sourceRoot: string
   selectedSkillNames?: string[]
   skillPathByName: Map<string, string>
   agentName: string
 }): string[] | undefined {
-  const { targetRoot, selectedSkillNames, skillPathByName, agentName } = params
+  const { overlayBackend, sourceRoot, selectedSkillNames, skillPathByName, agentName } = params
   const uniqueSkillNames = Array.from(new Set(selectedSkillNames ?? []))
   if (uniqueSkillNames.length === 0) {
     return undefined
   }
 
-  mkdirSync(targetRoot, { recursive: true })
-  let copied = 0
+  const skillsByName: Record<string, string> = {}
   for (const skillName of uniqueSkillNames) {
     const sourceDir = skillPathByName.get(skillName)
     if (!sourceDir) {
@@ -159,23 +159,14 @@ function createSkillSnapshotSource(params: {
       continue
     }
 
-    const targetSkillDir = join(targetRoot, skillName)
-    try {
-      cpSync(sourceDir, targetSkillDir, { recursive: true })
-      copied += 1
-    } catch (error) {
-      logEntry("Runtime", "skills.copy_failed", {
-        agentName,
-        skillName,
-        message: getErrorMessage(error)
-      })
-    }
+    skillsByName[skillName] = sourceDir
   }
 
-  if (copied === 0) {
+  if (Object.keys(skillsByName).length === 0) {
     return undefined
   }
-  return [normalizeSkillSourcePath(targetRoot)]
+  overlayBackend.registerSkillSource(sourceRoot, skillsByName)
+  return [normalizeSkillSourcePath(sourceRoot)]
 }
 
 export function createToolErrorHandlingMiddleware() {
@@ -436,12 +427,13 @@ export async function createAgentRuntime(options: CreateAgentRuntimeOptions) {
   const checkpointer = await getCheckpointer(threadId)
   console.log("[Runtime] Checkpointer ready for thread:", threadId)
 
-  const backend = new LocalSandbox({
+  const baseBackend = new LocalSandbox({
     rootDir: workspacePath || process.cwd(),
     virtualMode: false, // Use absolute system paths for consistency with shell commands
     timeout: 120_000, // 2 minutes
     maxOutputBytes: 100_000 // ~100KB
   })
+  const overlayBackend = new SkillOverlayBackend(baseBackend)
 
   const effectiveWorkspace = dockerConfig?.enabled
     ? normalizeDockerWorkspace(dockerConfig)
@@ -459,14 +451,15 @@ export async function createAgentRuntime(options: CreateAgentRuntimeOptions) {
     capabilityScope === "butler" ? skill.enabledButler : skill.enabledClassic
   )
   const skillPathByName = buildSkillPathMap(allSkills)
-  const runtimeSkillsRoot = resetRuntimeSkillRoot(threadId)
-  const mainSkillSources = createSkillSnapshotSource({
-    targetRoot: join(runtimeSkillsRoot, "main-agent"),
+  const runtimeSkillsRoot = `${SKILL_OVERLAY_PREFIX}/${toOverlaySegment(threadId)}`
+  const mainSkillSources = createSkillOverlaySource({
+    overlayBackend,
+    sourceRoot: `${runtimeSkillsRoot}/main-agent`,
     selectedSkillNames: enabledSkills.map((skill) => skill.name),
     skillPathByName,
     agentName: "main-agent"
   })
-  logEntry("Runtime", "skills.runtime_root", { path: normalizeSkillSourcePath(runtimeSkillsRoot) })
+  logEntry("Runtime", "skills.runtime_root", { path: runtimeSkillsRoot })
   logEntry("Runtime", "skills.enabled", summarizeList(enabledSkills.map((skill) => skill.name)))
 
   const subagents = listSubagentsByScope(capabilityScope).map((agent) => {
@@ -479,8 +472,9 @@ export async function createAgentRuntime(options: CreateAgentRuntimeOptions) {
       name: agent.name,
       resolvedCount: resolvedTools.length
     })
-    const subagentSkillSources = createSkillSnapshotSource({
-      targetRoot: join(runtimeSkillsRoot, agent.id),
+    const subagentSkillSources = createSkillOverlaySource({
+      overlayBackend,
+      sourceRoot: `${runtimeSkillsRoot}/${toOverlaySegment(agent.id)}`,
       selectedSkillNames: agent.skills,
       skillPathByName,
       agentName: agent.name
@@ -554,7 +548,7 @@ The workspace root is: ${effectiveWorkspace}`
   const agent = createDeepAgent({
     model,
     checkpointer,
-    backend,
+    backend: overlayBackend,
     systemPrompt: systemPrompt + "\n\n" + filesystemSystemPrompt,
     tools,
     // Custom filesystem prompt for absolute paths (requires deepagents update)

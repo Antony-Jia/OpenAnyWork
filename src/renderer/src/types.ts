@@ -212,7 +212,7 @@ export interface SkillItem {
   description: string
   path: string
   source?: string
-  sourceType?: "managed" | "agent-user" | "agent-workspace"
+  sourceType?: "managed" | "agent-user" | "agent-workspace" | "configured-path"
   readOnly?: boolean
   enabledClassic: boolean
   enabledButler: boolean

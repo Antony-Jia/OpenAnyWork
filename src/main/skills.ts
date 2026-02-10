@@ -1,14 +1,6 @@
-import {
-  cpSync,
-  existsSync,
-  mkdirSync,
-  readFileSync,
-  rmSync,
-  statSync,
-  writeFileSync
-} from "node:fs"
+import { existsSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs"
 import { homedir } from "node:os"
-import { basename, join, resolve } from "node:path"
+import { basename, dirname, join, resolve } from "node:path"
 import { listSkills } from "deepagents"
 import type { CapabilityScope, SkillItem } from "./types"
 import { logEntry, logExit } from "./logging"
@@ -18,6 +10,11 @@ import {
   removeSkillConfig,
   setSkillEnabled
 } from "./skills/config"
+import {
+  readSkillsRegistry,
+  rebuildSkillsRegistry,
+  registerSkillSourceRoot
+} from "./skills/registry"
 import { getOpenworkDir } from "./storage"
 
 const MANAGED_SKILLS_ROOT = join(getOpenworkDir(), "skills")
@@ -85,6 +82,34 @@ function listSkillRecordsByRoot(params: {
   })
 }
 
+function listConfiguredSkillRecords(): SkillRecord[] {
+  const registry = readSkillsRegistry()
+  const records: SkillRecord[] = []
+  for (const [name, entry] of Object.entries(registry.skills)) {
+    if (!name.trim()) continue
+    if (!entry?.skillPath) continue
+    const skillPath = resolve(entry.skillPath)
+    if (!existsSync(skillPath)) {
+      continue
+    }
+    const state = getSkillEnabledState(name)
+    records.push({
+      name,
+      description: readSkillDescription(skillPath),
+      path: normalizeSkillPath(skillPath),
+      skillPath,
+      root: resolve(entry.sourceRoot),
+      source: "user",
+      sourceType: "configured-path",
+      readOnly: true,
+      enabled: state.classic,
+      enabledClassic: state.classic,
+      enabledButler: state.butler
+    })
+  }
+  return records
+}
+
 function listAppSkillRecords(options?: ListAppSkillsOptions): SkillRecord[] {
   void options
   const agentUserSkills = listSkillRecordsByRoot({
@@ -98,10 +123,11 @@ function listAppSkillRecords(options?: ListAppSkillsOptions): SkillRecord[] {
     readOnly: false,
     ensureRoot: true
   })
+  const configuredPathSkills = listConfiguredSkillRecords()
 
-  // Source priority: agent-user < managed.
+  // Source priority: agent-user < managed < configured-path.
   const merged = new Map<string, SkillRecord>()
-  for (const item of [...agentUserSkills, ...managedSkills]) {
+  for (const item of [...agentUserSkills, ...managedSkills, ...configuredPathSkills]) {
     merged.set(item.name, item)
   }
 
@@ -149,53 +175,15 @@ export function listAppSkills(options?: ListAppSkillsOptions): SkillItem[] {
 }
 
 export function scanAndImportAgentUserSkills(): SkillItem[] {
-  logEntry("Skills", "scan", {
-    sourceRoot: normalizeSkillPath(AGENT_USER_SKILLS_ROOT)
-  })
-
-  const managedRoot = ensureManagedSkillsDir()
-  if (!existsSync(AGENT_USER_SKILLS_ROOT)) {
-    const result = listAppSkills()
-    logExit("Skills", "scan", {
-      sourceExists: false,
-      imported: 0,
-      skipped: 0,
-      failed: 0,
-      count: result.length
-    })
-    return result
-  }
-
-  const discovered = listSkills({ userSkillsDir: AGENT_USER_SKILLS_ROOT })
-  let imported = 0
-  let skipped = 0
-  let failed = 0
-
-  for (const skill of discovered) {
-    const sourceDir = resolve(skill.path, "..")
-    const targetDir = join(managedRoot, skill.name)
-    if (existsSync(targetDir)) {
-      skipped += 1
-      continue
-    }
-
-    try {
-      cpSync(sourceDir, targetDir, { recursive: true })
-      imported += 1
-    } catch (error) {
-      failed += 1
-      const message = error instanceof Error ? error.message : String(error)
-      console.warn(`[Skills] Failed to import skill "${skill.name}": ${message}`)
-    }
-  }
-
+  logEntry("Skills", "scan")
+  const rebuild = rebuildSkillsRegistry()
   const result = listAppSkills()
   logExit("Skills", "scan", {
-    sourceExists: true,
-    sourceCount: discovered.length,
-    imported,
-    skipped,
-    failed,
+    scannedRoots: rebuild.scannedRoots,
+    discoveredSkills: rebuild.discoveredSkills,
+    added: rebuild.added,
+    updated: rebuild.updated,
+    removed: rebuild.removed,
     count: result.length
   })
   return result
@@ -280,34 +268,39 @@ function resolveSkillSourcePath(inputPath: string): string {
 
 export function installSkillFromPath(inputPath: string): SkillItem {
   logEntry("Skills", "install", { inputPath })
-  const root = ensureManagedSkillsDir()
   const sourceDir = resolveSkillSourcePath(inputPath)
+  const sourceRoot = resolve(dirname(sourceDir))
   const skillName = basename(sourceDir)
-  const targetDir = join(root, skillName)
 
-  if (existsSync(targetDir)) {
-    throw new Error(`Skill "${skillName}" already exists.`)
+  registerSkillSourceRoot(sourceRoot)
+  const rebuild = rebuildSkillsRegistry()
+  const registryRecord = rebuild.registry.skills[skillName]
+  if (!registryRecord || !existsSync(registryRecord.skillPath)) {
+    throw new Error(`Skill "${skillName}" was not found after scanning configured paths.`)
   }
 
-  mkdirSync(targetDir, { recursive: true })
-
-  cpSync(sourceDir, targetDir, { recursive: true })
-
-  const skillPath = join(targetDir, "SKILL.md")
-  const description = readSkillDescription(skillPath)
+  const state = getSkillEnabledState(skillName)
+  const description = readSkillDescription(registryRecord.skillPath)
 
   const result = {
     name: skillName,
     description,
-    path: normalizeSkillPath(skillPath),
+    path: normalizeSkillPath(registryRecord.skillPath),
     source: "user",
-    sourceType: "managed" as const,
-    readOnly: false,
-    enabledClassic: true,
-    enabledButler: true,
-    enabled: true
+    sourceType: "configured-path" as const,
+    readOnly: true,
+    enabledClassic: state.classic,
+    enabledButler: state.butler,
+    enabled: state.classic
   }
-  logExit("Skills", "install", { name: skillName })
+  logExit("Skills", "install", {
+    name: skillName,
+    sourceRoot: normalizeSkillPath(sourceRoot),
+    scannedRoots: rebuild.scannedRoots,
+    added: rebuild.added,
+    updated: rebuild.updated,
+    removed: rebuild.removed
+  })
   return result
 }
 

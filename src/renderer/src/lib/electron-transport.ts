@@ -126,7 +126,9 @@ export class ElectronIPCTransport implements UseStreamTransport {
       typeof messageContent === "string"
         ? !!messageContent
         : Array.isArray(messageContent)
-          ? messageContent.some((block) => block.type === "text" ? Boolean(block.text?.trim()) : true)
+          ? messageContent.some((block) =>
+              block.type === "text" ? Boolean(block.text?.trim()) : true
+            )
           : false
     if (!hasContent && !hasResumeCommand) {
       return this.createErrorGenerator("MISSING_MESSAGE", "Message content is required")
@@ -727,7 +729,10 @@ export class ElectronIPCTransport implements UseStreamTransport {
    * Extract text content from message content (string or content blocks)
    */
   private extractContent(
-    content: string | Array<{ type: string; text?: string; image_url?: { url: string } }> | undefined
+    content:
+      | string
+      | Array<{ type: string; text?: string; image_url?: { url: string } }>
+      | undefined
   ): string {
     if (typeof content === "string") {
       return content

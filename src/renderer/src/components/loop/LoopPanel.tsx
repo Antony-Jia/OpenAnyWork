@@ -28,9 +28,11 @@ export function LoopPanel({ threadId }: { threadId: string }): React.JSX.Element
     setLoading(false)
   }, [threadId])
 
+  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     void load()
   }, [load])
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   useEffect(() => {
     const cleanup = window.electron.ipcRenderer.on("threads:changed", () => {

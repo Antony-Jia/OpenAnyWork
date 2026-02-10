@@ -57,7 +57,11 @@ function pruneSkillConfig(config: SkillsConfigStore, skillName: string): void {
   }
 }
 
-export function setSkillEnabled(skillName: string, enabled: boolean, scope?: CapabilityScope): void {
+export function setSkillEnabled(
+  skillName: string,
+  enabled: boolean,
+  scope?: CapabilityScope
+): void {
   const config = readSkillsConfig()
   const existing = config[skillName] ?? {}
 

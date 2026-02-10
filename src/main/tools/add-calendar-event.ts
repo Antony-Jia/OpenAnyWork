@@ -17,11 +17,7 @@ const payloadSchema = z.object({
     .trim()
     .min(1)
     .describe("ISO datetime string (example: 2026-02-09T15:30:00+08:00)"),
-  endAt: z
-    .string()
-    .trim()
-    .optional()
-    .describe("Optional ISO datetime string"),
+  endAt: z.string().trim().optional().describe("Optional ISO datetime string"),
   description: z.string().trim().optional(),
   location: z.string().trim().optional()
 })
@@ -47,4 +43,3 @@ export const addCalendarEventTool = tool(
     schema: payloadSchema
   }
 )
-

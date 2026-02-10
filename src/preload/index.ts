@@ -52,6 +52,12 @@ import type {
   MemorySummary,
   DailyProfile
 } from "../main/types"
+import type {
+  ActionbookEvent,
+  ActionbookRuntimeState,
+  PluginEnableUpdateParams,
+  PresetPluginItem
+} from "../main/plugins/core/contracts"
 
 // Simple electron API - replaces @electron-toolkit/preload
 const electronAPI = {
@@ -225,9 +231,7 @@ const api = {
       ipcRenderer.on("butler:tasks-changed", handler)
       return () => ipcRenderer.removeListener("butler:tasks-changed", handler)
     },
-    onTaskCompleted: (
-      callback: (card: TaskCompletionNotice) => void
-    ): (() => void) => {
+    onTaskCompleted: (callback: (card: TaskCompletionNotice) => void): (() => void) => {
       const handler = (_: unknown, card: TaskCompletionNotice): void => callback(card)
       ipcRenderer.on("app:task-card", handler)
       return () => ipcRenderer.removeListener("app:task-card", handler)
@@ -255,9 +259,7 @@ const api = {
     listCountdownTimers: (): Promise<CountdownWatchItem[]> => {
       return ipcRenderer.invoke("butler-monitor:countdown:list")
     },
-    createCountdownTimer: (
-      input: CountdownWatchItemCreateInput
-    ): Promise<CountdownWatchItem> => {
+    createCountdownTimer: (input: CountdownWatchItemCreateInput): Promise<CountdownWatchItem> => {
       return ipcRenderer.invoke("butler-monitor:countdown:create", input)
     },
     updateCountdownTimer: (
@@ -287,9 +289,7 @@ const api = {
     pullMailNow: (): Promise<MailWatchMessage[]> => {
       return ipcRenderer.invoke("butler-monitor:mail:pullNow")
     },
-    onEvent: (
-      callback: (event: ButlerMonitorBusEvent) => void
-    ): (() => void) => {
+    onEvent: (callback: (event: ButlerMonitorBusEvent) => void): (() => void) => {
       const handler = (_: unknown, event: ButlerMonitorBusEvent): void => callback(event)
       ipcRenderer.on("butler-monitor:event", handler)
       return () => ipcRenderer.removeListener("butler-monitor:event", handler)
@@ -467,6 +467,37 @@ const api = {
     },
     update: (input: SettingsUpdateParams): Promise<AppSettings> => {
       return ipcRenderer.invoke("settings:update", input)
+    }
+  },
+  plugins: {
+    list: (): Promise<PresetPluginItem[]> => {
+      return ipcRenderer.invoke("plugins:list")
+    },
+    setEnabled: (input: PluginEnableUpdateParams): Promise<PresetPluginItem> => {
+      return ipcRenderer.invoke("plugins:setEnabled", input)
+    },
+    actionbookGetState: (): Promise<ActionbookRuntimeState> => {
+      return ipcRenderer.invoke("plugins:actionbook:getState")
+    },
+    actionbookRefreshChecks: (): Promise<ActionbookRuntimeState> => {
+      return ipcRenderer.invoke("plugins:actionbook:refreshChecks")
+    },
+    actionbookStart: (): Promise<ActionbookRuntimeState> => {
+      return ipcRenderer.invoke("plugins:actionbook:start")
+    },
+    actionbookStop: (): Promise<ActionbookRuntimeState> => {
+      return ipcRenderer.invoke("plugins:actionbook:stop")
+    },
+    actionbookStatus: (): Promise<ActionbookRuntimeState> => {
+      return ipcRenderer.invoke("plugins:actionbook:status")
+    },
+    actionbookPing: (): Promise<ActionbookRuntimeState> => {
+      return ipcRenderer.invoke("plugins:actionbook:ping")
+    },
+    onActionbookEvent: (callback: (event: ActionbookEvent) => void): (() => void) => {
+      const handler = (_: unknown, event: ActionbookEvent): void => callback(event)
+      ipcRenderer.on("plugins:actionbook:event", handler)
+      return () => ipcRenderer.removeListener("plugins:actionbook:event", handler)
     }
   },
   speech: {

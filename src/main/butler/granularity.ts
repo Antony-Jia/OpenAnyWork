@@ -36,10 +36,7 @@ function requireProviderState(): ProviderState {
   return state
 }
 
-function resolveProviderConfig(
-  state: ProviderState,
-  providerId: SimpleProviderId
-): ProviderConfig {
+function resolveProviderConfig(state: ProviderState, providerId: SimpleProviderId): ProviderConfig {
   const config = state.configs[providerId]
   if (!config) {
     throw new Error(`Provider "${providerId}" not configured. Please configure it in Settings.`)
@@ -75,7 +72,7 @@ function extractTextContent(content: unknown): string {
   if (!Array.isArray(content)) return ""
   return content
     .filter((item): item is { type?: string; text?: string } => !!item && typeof item === "object")
-    .map((item) => (item.type === "text" ? item.text ?? "" : ""))
+    .map((item) => (item.type === "text" ? (item.text ?? "") : ""))
     .join("")
 }
 
@@ -106,7 +103,9 @@ function formatIntents(intents: ButlerDispatchIntent[]): string {
     .join("\n")
 }
 
-function normalizeDetectorVerdict(parsed: z.infer<typeof detectorOutputSchema>): OversplitDetectionResult {
+function normalizeDetectorVerdict(
+  parsed: z.infer<typeof detectorOutputSchema>
+): OversplitDetectionResult {
   const confidence = Math.max(0, Math.min(1, parsed.confidence))
   if (parsed.verdict === "suspected_oversplit" && confidence >= OVERSPLIT_CONFIDENCE_THRESHOLD) {
     return {

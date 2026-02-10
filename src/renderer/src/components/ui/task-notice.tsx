@@ -44,7 +44,9 @@ export function TaskNoticeContainer(props: {
               关闭
             </button>
           </div>
-          <div className="mt-2 text-xs text-muted-foreground whitespace-pre-wrap">{card.resultBrief}</div>
+          <div className="mt-2 text-xs text-muted-foreground whitespace-pre-wrap">
+            {card.resultBrief}
+          </div>
           <div className="mt-2 text-[10px] text-muted-foreground">
             {new Date(card.completedAt).toLocaleString()}
           </div>

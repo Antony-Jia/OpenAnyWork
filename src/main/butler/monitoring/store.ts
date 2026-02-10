@@ -52,7 +52,9 @@ function mapCalendarEventRow(row: Record<string, unknown>): CalendarWatchEvent {
     startAt: String(row.start_at ?? ""),
     endAt: normalizeOptionalText((row.end_at as string | null | undefined) ?? undefined),
     enabled: Boolean(row.enabled),
-    reminderSentAt: normalizeOptionalText((row.reminder_sent_at as string | null | undefined) ?? undefined),
+    reminderSentAt: normalizeOptionalText(
+      (row.reminder_sent_at as string | null | undefined) ?? undefined
+    ),
     createdAt: String(row.created_at ?? ""),
     updatedAt: String(row.updated_at ?? "")
   }
@@ -65,8 +67,12 @@ function mapCountdownRow(row: Record<string, unknown>): CountdownWatchItem {
     description: normalizeOptionalText((row.description as string | null | undefined) ?? undefined),
     dueAt: String(row.due_at ?? ""),
     status: String(row.status ?? "running") as CountdownWatchStatus,
-    reminderSentAt: normalizeOptionalText((row.reminder_sent_at as string | null | undefined) ?? undefined),
-    completedAt: normalizeOptionalText((row.completed_at as string | null | undefined) ?? undefined),
+    reminderSentAt: normalizeOptionalText(
+      (row.reminder_sent_at as string | null | undefined) ?? undefined
+    ),
+    completedAt: normalizeOptionalText(
+      (row.completed_at as string | null | undefined) ?? undefined
+    ),
     createdAt: String(row.created_at ?? ""),
     updatedAt: String(row.updated_at ?? "")
   }
@@ -83,8 +89,12 @@ function mapMailRuleRow(row: Record<string, unknown>): MailWatchRule {
     id: String(row.id ?? ""),
     name: String(row.name ?? ""),
     folder: String(row.folder ?? "INBOX"),
-    fromContains: normalizeOptionalText((row.from_contains as string | null | undefined) ?? undefined),
-    subjectContains: normalizeOptionalText((row.subject_contains as string | null | undefined) ?? undefined),
+    fromContains: normalizeOptionalText(
+      (row.from_contains as string | null | undefined) ?? undefined
+    ),
+    subjectContains: normalizeOptionalText(
+      (row.subject_contains as string | null | undefined) ?? undefined
+    ),
     enabled: Boolean(row.enabled),
     lastSeenUid,
     createdAt: String(row.created_at ?? ""),
@@ -217,9 +227,7 @@ export function updateCalendarWatchEvent(
   const next: CalendarWatchEvent = {
     ...existing,
     title:
-      updates.title === undefined
-        ? existing.title
-        : normalizeRequiredText(updates.title, "title"),
+      updates.title === undefined ? existing.title : normalizeRequiredText(updates.title, "title"),
     description:
       updates.description === undefined
         ? existing.description
@@ -227,7 +235,9 @@ export function updateCalendarWatchEvent(
     location:
       updates.location === undefined ? existing.location : normalizeOptionalText(updates.location),
     startAt:
-      updates.startAt === undefined ? existing.startAt : normalizeIsoTime(updates.startAt, "startAt"),
+      updates.startAt === undefined
+        ? existing.startAt
+        : normalizeIsoTime(updates.startAt, "startAt"),
     endAt:
       updates.endAt === undefined
         ? existing.endAt
@@ -340,9 +350,7 @@ export function updateCountdownWatchItem(
   const next: CountdownWatchItem = {
     ...existing,
     title:
-      updates.title === undefined
-        ? existing.title
-        : normalizeRequiredText(updates.title, "title"),
+      updates.title === undefined ? existing.title : normalizeRequiredText(updates.title, "title"),
     description:
       updates.description === undefined
         ? existing.description
@@ -443,10 +451,7 @@ export function updateMailWatchRule(id: string, updates: MailWatchRuleUpdateInpu
 
   const next: MailWatchRule = {
     ...existing,
-    name:
-      updates.name === undefined
-        ? existing.name
-        : normalizeRequiredText(updates.name, "name"),
+    name: updates.name === undefined ? existing.name : normalizeRequiredText(updates.name, "name"),
     folder:
       updates.folder === undefined
         ? existing.folder
@@ -519,7 +524,9 @@ export function insertMailWatchMessages(messages: MailWatchMessage[]): MailWatch
 
   const database = getDb()
   const inserted: MailWatchMessage[] = []
-  const checkStmt = database.prepare("SELECT 1 FROM butler_mail_watch_messages WHERE id = ? LIMIT 1")
+  const checkStmt = database.prepare(
+    "SELECT 1 FROM butler_mail_watch_messages WHERE id = ? LIMIT 1"
+  )
 
   for (const message of messages) {
     checkStmt.bind([message.id])
@@ -553,4 +560,3 @@ export function insertMailWatchMessages(messages: MailWatchMessage[]): MailWatch
   }
   return inserted
 }
-

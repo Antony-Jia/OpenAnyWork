@@ -8,6 +8,7 @@
 - 将主进程编排能力（运行时、任务总线、Butler、监控）与渲染层 UI/交互解耦。
 - 在不破坏历史配置的前提下，支持能力按场景分域启用（Classic / Butler）。
 - 将 Butler 提示词从“手写拼接”升级为“可插拔 section pipeline”，降低后续扩展成本。
+- 新增插件域隔离（`plugins`），支持“预置插件可开关 + 独立剥离”。
 
 ## 2. 进程分层
 
@@ -26,6 +27,7 @@
 - `notifications/`：任务通知总线（桌面卡片、Butler 生命周期桥接）。
 - `ipc/`：所有主进程 IPC handler（agent/tools/skills/mcp/subagents/settings/...）。
 - `tools/`、`skills/`、`mcp/`、`subagents.ts`：能力注册、配置读写、运行时注入。
+- `plugins/`：预置插件域（契约层、宿主、插件实现、插件 IPC）。
 - `loop/`、`email/`：自动化任务执行器（周期触发、邮件触发）。
 - `db/`：SQLite schema 与迁移。
 - `memory/`：会话摘要、日画像、Butler 历史与任务落盘。
@@ -38,6 +40,7 @@
 ### 3.3 渲染层（`src/renderer/src`）
 
 - `components/titlebar/*Manager.tsx`：Tools / Skills / MCP / Subagent / Settings 管理面板。
+- `plugins/`：插件页面与插件状态 hook（当前包含 Actionbook）。
 - `components/butler/ButlerWorkspace.tsx`：Butler 主工作区。
 - `components/butler/ButlerMonitorBoard.tsx`：监听任务面板（主动拉取 + 被动订阅）。
 - `lib/i18n.ts`：多语言文案。
@@ -170,6 +173,15 @@ sequenceDiagram
 - `skills.json`：技能启用状态（兼容旧 `enabled`，新结构支持双开关）。
 - `app_settings`（DB 表）：
   - Butler 设置新增 `monitorScanIntervalSec`、`monitorPullIntervalSec`。
+  - 插件开关新增 `plugins.actionbook.enabled`。
+
+### 5.3 插件边界校验
+
+- 脚本：`scripts/check-plugin-boundaries.mjs`
+- 规则：
+  - 非 `src/main/plugins/**` 不可直接 import `src/main/plugins/actionbook/**`
+  - 非 `SettingsMenu` 不可直接 import `src/renderer/src/plugins/**`
+- 建议在 CI 中执行：`npm run check:plugin-boundaries`
 
 ## 6. 能力双开关模型（Classic / Butler）
 

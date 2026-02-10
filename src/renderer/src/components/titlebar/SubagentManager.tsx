@@ -219,7 +219,9 @@ export function SubagentManager(): React.JSX.Element {
   const toggleSkill = (name: string): void => {
     setForm((prev) => {
       const exists = prev.skills.includes(name)
-      const nextSkills = exists ? prev.skills.filter((skill) => skill !== name) : [...prev.skills, name]
+      const nextSkills = exists
+        ? prev.skills.filter((skill) => skill !== name)
+        : [...prev.skills, name]
       return { ...prev, skills: nextSkills }
     })
   }
@@ -375,9 +377,9 @@ export function SubagentManager(): React.JSX.Element {
                           <div className="text-xs text-muted-foreground">{agent.description}</div>
                           {!isSubagentEnabledInScope(agent, "classic") &&
                             !isSubagentEnabledInScope(agent, "butler") && (
-                            <div className="text-[10px] text-muted-foreground">
-                              {t("subagents.disabled_hint")}
-                            </div>
+                              <div className="text-[10px] text-muted-foreground">
+                                {t("subagents.disabled_hint")}
+                              </div>
                             )}
                         </div>
                         <div className="flex items-center gap-2">
@@ -395,7 +397,8 @@ export function SubagentManager(): React.JSX.Element {
                                     : "text-muted-foreground hover:text-foreground"
                                 )}
                               >
-                                {t(`scope.${scope}`)}: {enabled ? t("tools.enabled") : t("tools.disabled")}
+                                {t(`scope.${scope}`)}:{" "}
+                                {enabled ? t("tools.enabled") : t("tools.disabled")}
                               </button>
                             )
                           })}
@@ -541,7 +544,9 @@ export function SubagentManager(): React.JSX.Element {
                       {mcpServers.map((server) => {
                         const prefix = `mcp.${server.config.id}.`
                         const isSelected = form.tools.some((name) => name.startsWith(prefix))
-                        const serverTools = mcpTools.filter((tool) => tool.serverId === server.config.id)
+                        const serverTools = mcpTools.filter(
+                          (tool) => tool.serverId === server.config.id
+                        )
                         const isEnabled =
                           (server.config.enabledClassic ?? server.config.enabled ?? true) ||
                           (server.config.enabledButler ?? server.config.enabled ?? true)
@@ -693,7 +698,9 @@ export function SubagentManager(): React.JSX.Element {
                   <input
                     type="checkbox"
                     checked={form.interruptOn}
-                    onChange={(e) => setForm((prev) => ({ ...prev, interruptOn: e.target.checked }))}
+                    onChange={(e) =>
+                      setForm((prev) => ({ ...prev, interruptOn: e.target.checked }))
+                    }
                   />
                   {t("subagents.interrupt_on")}
                 </label>

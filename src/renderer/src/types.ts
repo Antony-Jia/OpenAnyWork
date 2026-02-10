@@ -295,6 +295,14 @@ export interface SpeechSettings {
   tts: SpeechTtsSettings
 }
 
+export interface ActionbookPluginSettings {
+  enabled: boolean
+}
+
+export interface PluginSettings {
+  actionbook: ActionbookPluginSettings
+}
+
 export interface AppSettings {
   ralphIterations: number
   email: EmailSettings
@@ -302,6 +310,7 @@ export interface AppSettings {
   defaultWorkspacePath?: string | null
   dockerConfig?: DockerConfig
   butler: ButlerSettings
+  plugins: PluginSettings
 }
 
 export interface ButlerSettings {
@@ -316,12 +325,7 @@ export interface SettingsUpdateParams {
   updates: Partial<AppSettings>
 }
 
-export type ButlerTaskStatus =
-  | "queued"
-  | "running"
-  | "completed"
-  | "failed"
-  | "cancelled"
+export type ButlerTaskStatus = "queued" | "running" | "completed" | "failed" | "cancelled"
 
 export interface ButlerTaskHandoff {
   method: "context" | "filesystem" | "both"

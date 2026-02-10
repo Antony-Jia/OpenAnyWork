@@ -25,7 +25,10 @@ const defaultConfig: DockerConfig = {
   ports: []
 }
 
-export function ContainerManager({ threadId: _threadId }: ContainerManagerProps): React.JSX.Element {
+export function ContainerManager(
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  { threadId: _threadId }: ContainerManagerProps
+): React.JSX.Element {
   const [open, setOpen] = useState(false)
   const [available, setAvailable] = useState(false)
   const [statusError, setStatusError] = useState<string | null>(null)
@@ -99,7 +102,6 @@ export function ContainerManager({ threadId: _threadId }: ContainerManagerProps)
     refresh()
     loadConfig()
     loadStatus()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, canUseDocker])
 
   const handleSave = async (): Promise<void> => {
@@ -385,9 +387,7 @@ export function ContainerManager({ threadId: _threadId }: ContainerManagerProps)
               </div>
 
               {sessionStatus.running && (
-                <div className="text-xs text-muted-foreground">
-                  {t("container.edit_disabled")}
-                </div>
+                <div className="text-xs text-muted-foreground">{t("container.edit_disabled")}</div>
               )}
 
               <div className="flex justify-end">

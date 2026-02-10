@@ -187,7 +187,8 @@ export function McpManager(): React.JSX.Element {
     const nextEnabled = !isServerEnabledInScope(item, scope)
     await window.api.mcp.update({
       id: item.config.id,
-      updates: scope === "classic" ? { enabledClassic: nextEnabled } : { enabledButler: nextEnabled }
+      updates:
+        scope === "classic" ? { enabledClassic: nextEnabled } : { enabledButler: nextEnabled }
     })
     await loadServers()
   }
@@ -286,9 +287,9 @@ export function McpManager(): React.JSX.Element {
                           </div>
                           {!isServerEnabledInScope(item, "classic") &&
                             !isServerEnabledInScope(item, "butler") && (
-                            <div className="text-[10px] text-muted-foreground">
-                              {t("mcp.disabled_hint")}
-                            </div>
+                              <div className="text-[10px] text-muted-foreground">
+                                {t("mcp.disabled_hint")}
+                              </div>
                             )}
                           {item.status.lastError && (
                             <div className="text-[10px] text-status-critical">
@@ -312,7 +313,8 @@ export function McpManager(): React.JSX.Element {
                                       : "text-muted-foreground hover:text-foreground"
                                   )}
                                 >
-                                  {t(`scope.${scope}`)}: {enabled ? t("tools.enabled") : t("tools.disabled")}
+                                  {t(`scope.${scope}`)}:{" "}
+                                  {enabled ? t("tools.enabled") : t("tools.disabled")}
                                 </button>
                               )
                             })}

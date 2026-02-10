@@ -8,7 +8,10 @@ export interface TaskSummarySource {
   toolNames: string[]
 }
 
-function firstMatch(text: string, mapping: Array<{ label: string; patterns: RegExp[] }>): string | undefined {
+function firstMatch(
+  text: string,
+  mapping: Array<{ label: string; patterns: RegExp[] }>
+): string | undefined {
   for (const item of mapping) {
     if (item.patterns.some((pattern) => pattern.test(text))) {
       return item.label
@@ -29,7 +32,10 @@ export function summarizeTaskMemory(source: TaskSummarySource): MemoryTaskSummar
 
   const taskDirection =
     firstMatch(allText, [
-      { label: "研发编码", patterns: [/代码|bug|debug|test|typescript|javascript|python|api|数据库|sql/] },
+      {
+        label: "研发编码",
+        patterns: [/代码|bug|debug|test|typescript|javascript|python|api|数据库|sql/]
+      },
       { label: "调研分析", patterns: [/调研|research|对比|分析|benchmark|评估|报告/] },
       { label: "邮件任务", patterns: [/邮件|email|smtp|imap|回复/] }
     ]) ??

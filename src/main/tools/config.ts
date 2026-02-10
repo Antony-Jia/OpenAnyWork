@@ -53,7 +53,9 @@ function resolveLegacyEnabled(entry: ToolConfigStore[string]): boolean | undefin
     return entry.enabled
   }
   if (entry.enabledClassic !== undefined && entry.enabledButler !== undefined) {
-    return entry.enabledClassic === entry.enabledButler ? entry.enabledClassic : entry.enabledClassic
+    return entry.enabledClassic === entry.enabledButler
+      ? entry.enabledClassic
+      : entry.enabledClassic
   }
   return entry.enabledClassic ?? entry.enabledButler ?? entry.enabled
 }

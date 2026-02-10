@@ -1,7 +1,13 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { BookText, Copy, Eye, Pencil, Plus, Trash2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle
+} from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { useLanguage } from "@/lib/i18n"
 import { cn } from "@/lib/utils"
@@ -53,7 +59,7 @@ export function PromptManager(): React.JSX.Element {
   const [error, setError] = useState<string | null>(null)
 
   const selected = useMemo(
-    () => (selectedId ? prompts.find((item) => item.id === selectedId) ?? null : null),
+    () => (selectedId ? (prompts.find((item) => item.id === selectedId) ?? null) : null),
     [prompts, selectedId]
   )
 
@@ -62,8 +68,7 @@ export function PromptManager(): React.JSX.Element {
     if (!keyword) return prompts
     return prompts.filter((item) => {
       return (
-        item.name.toLowerCase().includes(keyword) ||
-        item.content.toLowerCase().includes(keyword)
+        item.name.toLowerCase().includes(keyword) || item.content.toLowerCase().includes(keyword)
       )
     })
   }, [prompts, query])
@@ -291,7 +296,11 @@ export function PromptManager(): React.JSX.Element {
                             <Copy className="size-3.5" />
                             {t("prompts.copy")}
                           </Button>
-                          <Button variant="ghost" size="sm" onClick={() => void handleDelete(prompt)}>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => void handleDelete(prompt)}
+                          >
                             <Trash2 className="size-3.5" />
                             {t("prompts.delete")}
                           </Button>
@@ -340,10 +349,7 @@ export function PromptManager(): React.JSX.Element {
                     {t("prompts.back")}
                   </Button>
                   {selected && (
-                    <Button
-                      variant="ghost"
-                      onClick={() => void handleCopy(selected)}
-                    >
+                    <Button variant="ghost" onClick={() => void handleCopy(selected)}>
                       {t("prompts.copy")}
                     </Button>
                   )}

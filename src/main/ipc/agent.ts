@@ -127,9 +127,7 @@ function buildRalphInitPrompt(userMessage: string): string {
 function extractTextFromContent(content: string | ContentBlock[]): string {
   if (typeof content === "string") return content
   if (!Array.isArray(content)) return ""
-  return content
-    .map((block) => (block.type === "text" && block.text ? block.text : ""))
-    .join("")
+  return content.map((block) => (block.type === "text" && block.text ? block.text : "")).join("")
 }
 
 function appendAssistantOutput(current: string, chunk: unknown): string {
@@ -140,7 +138,6 @@ function appendAssistantOutput(current: string, chunk: unknown): string {
   }
   return current + content
 }
-
 
 export function registerAgentHandlers(ipcMain: IpcMain): void {
   console.log("[Agent] Registering agent handlers...")

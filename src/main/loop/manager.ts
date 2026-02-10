@@ -102,10 +102,7 @@ function stringifyLimited(value: unknown, maxChars: number): string {
   return `${text.slice(0, maxChars)}\n...[truncated]`
 }
 
-function buildTemplateVariables(
-  config: LoopConfig,
-  event: LoopEvent
-): Record<string, string> {
+function buildTemplateVariables(config: LoopConfig, event: LoopEvent): Record<string, string> {
   const vars: Record<string, string> = {
     "trigger.type": event.type,
     time: new Date(event.ts).toLocaleString()
@@ -495,7 +492,8 @@ export class LoopManager {
 
   private enqueue(runner: LoopRunner, event: LoopEvent): void {
     if (!runner.config.enabled) return
-    const mergeWindowMs = (runner.config.queue?.mergeWindowSec || DEFAULT_QUEUE_MERGE_WINDOW_SEC) * 1000
+    const mergeWindowMs =
+      (runner.config.queue?.mergeWindowSec || DEFAULT_QUEUE_MERGE_WINDOW_SEC) * 1000
     const now = Date.now()
     if (runner.lastEnqueueAt && now - runner.lastEnqueueAt < mergeWindowMs) {
       if (runner.queue.length === 0) {
@@ -539,7 +537,8 @@ export class LoopManager {
 
       const metadata = getThreadMetadata(runner.threadId)
       const modelId = metadata.model as string | undefined
-      const capabilityScope: CapabilityScope = metadata.createdBy === "butler" ? "butler" : "classic"
+      const capabilityScope: CapabilityScope =
+        metadata.createdBy === "butler" ? "butler" : "classic"
 
       emitTaskStarted({
         threadId: runner.threadId,

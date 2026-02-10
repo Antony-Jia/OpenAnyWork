@@ -8,7 +8,9 @@ import { useLanguage } from "@/lib/i18n"
 import type { CapabilityScope, ToolInfo } from "@/types"
 
 function isToolEnabledInScope(tool: ToolInfo, scope: CapabilityScope): boolean {
-  return scope === "butler" ? tool.enabledButler ?? tool.enabled : tool.enabledClassic ?? tool.enabled
+  return scope === "butler"
+    ? (tool.enabledButler ?? tool.enabled)
+    : (tool.enabledClassic ?? tool.enabled)
 }
 
 export function ToolsManager(): React.JSX.Element {
@@ -173,7 +175,8 @@ export function ToolsManager(): React.JSX.Element {
                                       : "text-muted-foreground hover:text-foreground"
                                   )}
                                 >
-                                  {t(`scope.${scope}`)}: {enabled ? t("tools.enabled") : t("tools.disabled")}
+                                  {t(`scope.${scope}`)}:{" "}
+                                  {enabled ? t("tools.enabled") : t("tools.disabled")}
                                 </button>
                               )
                             })}

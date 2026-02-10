@@ -16,4 +16,3 @@ export function buildTaskTitle(mode: Exclude<ThreadMode, "butler">, prompt: stri
   if (cleaned.length <= 36) return `${prefix}: ${cleaned}`
   return `${prefix}: ${cleaned.slice(0, 35)}…`
 }
-

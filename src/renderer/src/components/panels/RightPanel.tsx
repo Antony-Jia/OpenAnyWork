@@ -585,9 +585,11 @@ export function RightPanel(): React.JSX.Element {
       </div>
 
       {/* Resize handle after TASKS */}
-      {tasksOpen && (filesOpen || agentsOpen || (dockerEnabled && mountsOpen) || (isRalphMode && ralphOpen)) && (
-        <ResizeHandle onDrag={handleTasksResize} />
-      )}
+      {tasksOpen &&
+        (filesOpen ||
+          agentsOpen ||
+          (dockerEnabled && mountsOpen) ||
+          (isRalphMode && ralphOpen)) && <ResizeHandle onDrag={handleTasksResize} />}
 
       {/* FILES */}
       <div className="flex flex-col shrink-0 border-b border-border">
@@ -1024,7 +1026,10 @@ function MountsContent(): React.JSX.Element {
 
   const mountLabel =
     mounts.length > 0
-      ? mounts.map((m) => m.containerPath).filter(Boolean).join(", ")
+      ? mounts
+          .map((m) => m.containerPath)
+          .filter(Boolean)
+          .join(", ")
       : t("panel.mounts_empty")
 
   return (

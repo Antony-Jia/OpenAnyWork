@@ -88,7 +88,9 @@ export class LocalSandbox extends FilesystemBackend implements SandboxBackendPro
    * ```
    */
   async execute(command: string): Promise<ExecuteResponse> {
-    console.log(`[LocalSandbox] execute() called with command: ${command.substring(0, 200)}${command.length > 200 ? '...' : ''}`)
+    console.log(
+      `[LocalSandbox] execute() called with command: ${command.substring(0, 200)}${command.length > 200 ? "..." : ""}`
+    )
     console.log(`[LocalSandbox] Working directory: ${this.workingDir}`)
     console.log(`[LocalSandbox] Timeout: ${this.timeout}ms`)
 
@@ -128,7 +130,14 @@ export class LocalSandbox extends FilesystemBackend implements SandboxBackendPro
       // cmd.exe cannot run PowerShell cmdlets like Compress-Archive directly
       const shell = isWindows ? "powershell.exe" : "/bin/sh"
       const shellArgs = isWindows
-        ? ["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command", processedCommand]
+        ? [
+            "-NoProfile",
+            "-NonInteractive",
+            "-ExecutionPolicy",
+            "Bypass",
+            "-Command",
+            processedCommand
+          ]
         : ["-c", command]
 
       console.log(`[LocalSandbox] Shell: ${shell}`)
@@ -229,7 +238,9 @@ export class LocalSandbox extends FilesystemBackend implements SandboxBackendPro
       // Handle process exit
       proc.on("close", (code, signal) => {
         const elapsed = Date.now() - startTime
-        console.log(`[LocalSandbox] Process closed after ${elapsed}ms, code: ${code}, signal: ${signal}`)
+        console.log(
+          `[LocalSandbox] Process closed after ${elapsed}ms, code: ${code}, signal: ${signal}`
+        )
 
         if (resolved) {
           console.log(`[LocalSandbox] Already resolved, ignoring close event`)

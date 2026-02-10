@@ -141,7 +141,10 @@ async function processStartWorkTask(task: EmailTask, defaultWorkspacePath: strin
   })
 }
 
-async function processReplyTask(task: EmailTask, defaultWorkspacePath: string | null): Promise<void> {
+async function processReplyTask(
+  task: EmailTask,
+  defaultWorkspacePath: string | null
+): Promise<void> {
   const threadId = task.threadId?.trim()
   if (!threadId) {
     throw new Error("Missing work id in subject.")
@@ -179,7 +182,10 @@ async function processReplyTask(task: EmailTask, defaultWorkspacePath: string | 
   })
 }
 
-async function processEmailTask(task: EmailTask, defaultWorkspacePath: string | null): Promise<void> {
+async function processEmailTask(
+  task: EmailTask,
+  defaultWorkspacePath: string | null
+): Promise<void> {
   if (processingTaskIds.has(task.id)) return
   processingTaskIds.add(task.id)
 

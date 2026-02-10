@@ -65,4 +65,3 @@ export function ToastContainer({ toasts, onClose }: ToastContainerProps): React.
     </div>
   )
 }
-

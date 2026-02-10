@@ -21,9 +21,12 @@ export function registerButlerMonitorHandlers(
     return butlerMonitorManager.listCalendarEvents()
   })
 
-  ipcMain.handle("butler-monitor:calendar:create", async (_event, input: CalendarWatchEventCreateInput) => {
-    return butlerMonitorManager.createCalendarEvent(input)
-  })
+  ipcMain.handle(
+    "butler-monitor:calendar:create",
+    async (_event, input: CalendarWatchEventCreateInput) => {
+      return butlerMonitorManager.createCalendarEvent(input)
+    }
+  )
 
   ipcMain.handle(
     "butler-monitor:calendar:update",
@@ -62,9 +65,12 @@ export function registerButlerMonitorHandlers(
     return butlerMonitorManager.listMailRules()
   })
 
-  ipcMain.handle("butler-monitor:mail:createRule", async (_event, input: MailWatchRuleCreateInput) => {
-    return butlerMonitorManager.createMailRule(input)
-  })
+  ipcMain.handle(
+    "butler-monitor:mail:createRule",
+    async (_event, input: MailWatchRuleCreateInput) => {
+      return butlerMonitorManager.createMailRule(input)
+    }
+  )
 
   ipcMain.handle(
     "butler-monitor:mail:updateRule",
@@ -85,4 +91,3 @@ export function registerButlerMonitorHandlers(
     return butlerMonitorManager.pullMailNow()
   })
 }
-

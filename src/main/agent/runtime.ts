@@ -243,10 +243,7 @@ function requireProviderState(): ProviderState {
   return state
 }
 
-function resolveProviderConfig(
-  state: ProviderState,
-  providerId: SimpleProviderId
-): ProviderConfig {
+function resolveProviderConfig(state: ProviderState, providerId: SimpleProviderId): ProviderConfig {
   const config = state.configs[providerId]
   if (!config) {
     throw new Error(`Provider "${providerId}" not configured. Please configure it in Settings.`)
@@ -429,7 +426,11 @@ export async function createAgentRuntime(options: CreateAgentRuntimeOptions) {
   }
 
   const requiresMultimodal = hasImageBlocks(messageContent)
-  const model = getModelInstance(requiresMultimodal ? "multimodal" : undefined, undefined, messageContent)
+  const model = getModelInstance(
+    requiresMultimodal ? "multimodal" : undefined,
+    undefined,
+    messageContent
+  )
   console.log("[Runtime] Model instance created:", typeof model)
 
   const checkpointer = await getCheckpointer(threadId)
@@ -468,47 +469,42 @@ export async function createAgentRuntime(options: CreateAgentRuntimeOptions) {
   logEntry("Runtime", "skills.runtime_root", { path: normalizeSkillSourcePath(runtimeSkillsRoot) })
   logEntry("Runtime", "skills.enabled", summarizeList(enabledSkills.map((skill) => skill.name)))
 
-  const subagents = listSubagentsByScope(capabilityScope)
-    .map((agent) => {
-      const resolvedTools = resolveToolInstancesByName(agent.tools, capabilityScope) ?? []
-      logEntry("Runtime", "subagent.tools", {
-        name: agent.name,
-        ...summarizeList(agent.tools ?? [])
-      })
-      logExit("Runtime", "subagent.tools", {
-        name: agent.name,
-        resolvedCount: resolvedTools.length
-      })
-      const subagentSkillSources = createSkillSnapshotSource({
-        targetRoot: join(runtimeSkillsRoot, agent.id),
-        selectedSkillNames: agent.skills,
-        skillPathByName,
-        agentName: agent.name
-      })
-      logEntry("Runtime", "subagent.skills", {
-        name: agent.name,
-        ...summarizeList(agent.skills ?? [])
-      })
-      logExit("Runtime", "subagent.skills", {
-        name: agent.name,
-        sourceCount: subagentSkillSources?.length ?? 0
-      })
-      const subagentModel = getModelInstance(agent.provider, agent.model, undefined)
-      return {
-        name: agent.name,
-        description: agent.description,
-        systemPrompt: `${agent.systemPrompt}\n\n${currentTimePrompt}`,
-        model: subagentModel,
-        tools: resolvedTools,
-        middleware: resolveMiddlewareById(agent.middleware),
-        skills: subagentSkillSources,
-        interruptOn: disableApprovals
-          ? undefined
-          : agent.interruptOn
-            ? { execute: true }
-            : undefined
-      }
+  const subagents = listSubagentsByScope(capabilityScope).map((agent) => {
+    const resolvedTools = resolveToolInstancesByName(agent.tools, capabilityScope) ?? []
+    logEntry("Runtime", "subagent.tools", {
+      name: agent.name,
+      ...summarizeList(agent.tools ?? [])
     })
+    logExit("Runtime", "subagent.tools", {
+      name: agent.name,
+      resolvedCount: resolvedTools.length
+    })
+    const subagentSkillSources = createSkillSnapshotSource({
+      targetRoot: join(runtimeSkillsRoot, agent.id),
+      selectedSkillNames: agent.skills,
+      skillPathByName,
+      agentName: agent.name
+    })
+    logEntry("Runtime", "subagent.skills", {
+      name: agent.name,
+      ...summarizeList(agent.skills ?? [])
+    })
+    logExit("Runtime", "subagent.skills", {
+      name: agent.name,
+      sourceCount: subagentSkillSources?.length ?? 0
+    })
+    const subagentModel = getModelInstance(agent.provider, agent.model, undefined)
+    return {
+      name: agent.name,
+      description: agent.description,
+      systemPrompt: `${agent.systemPrompt}\n\n${currentTimePrompt}`,
+      model: subagentModel,
+      tools: resolvedTools,
+      middleware: resolveMiddlewareById(agent.middleware),
+      skills: subagentSkillSources,
+      interruptOn: disableApprovals ? undefined : agent.interruptOn ? { execute: true } : undefined
+    }
+  })
 
   // Custom filesystem prompt for absolute paths (matches virtualMode: false)
   const filesystemSystemPrompt = `You have access to a filesystem. All file paths use fully qualified absolute system paths.
@@ -522,8 +518,9 @@ export async function createAgentRuntime(options: CreateAgentRuntimeOptions) {
 
 The workspace root is: ${effectiveWorkspace}`
 
-  const dockerTools =
-    dockerConfig?.enabled ? createDockerTools(dockerConfig, dockerContainerId || null) : []
+  const dockerTools = dockerConfig?.enabled
+    ? createDockerTools(dockerConfig, dockerContainerId || null)
+    : []
   const enabledToolNames = getEnabledToolNames(capabilityScope)
   const mcpToolInfos = listRunningMcpTools(capabilityScope)
   const mcpToolNames = mcpToolInfos.map((toolInfo) => toolInfo.fullName)

@@ -26,7 +26,12 @@ import {
   upsertButlerTask,
   upsertDailyProfile
 } from "./storage"
-import type { ButlerMessageInput, ButlerTaskRow, DailyProfileRow, MemoryTaskSummaryRow } from "./types"
+import type {
+  ButlerMessageInput,
+  ButlerTaskRow,
+  DailyProfileRow,
+  MemoryTaskSummaryRow
+} from "./types"
 import type { ButlerTask, DailyProfile, MemorySummary } from "../types"
 
 let memoryServiceStarted = false
@@ -43,10 +48,9 @@ function extractTextContent(content: unknown): string {
   if (Array.isArray(content)) {
     return content
       .filter(
-        (entry): entry is { type?: string; text?: string } =>
-          !!entry && typeof entry === "object"
+        (entry): entry is { type?: string; text?: string } => !!entry && typeof entry === "object"
       )
-      .map((entry) => (entry.type === "text" ? entry.text ?? "" : ""))
+      .map((entry) => (entry.type === "text" ? (entry.text ?? "") : ""))
       .join("")
   }
   return ""
@@ -181,7 +185,9 @@ export function clearAllMemory(): void {
   clearRunMarkers()
 }
 
-export async function generateDailyProfileOnStartup(now = new Date()): Promise<DailyProfileRow | null> {
+export async function generateDailyProfileOnStartup(
+  now = new Date()
+): Promise<DailyProfileRow | null> {
   const today = getTodayLocalDay(now)
   const runKey = `daily-profile:${today}`
   if (hasRunMarker(runKey)) {
@@ -234,7 +240,9 @@ export function removeButlerTasks(taskIds: string[]): void {
   deleteButlerTasksByIds(taskIds)
 }
 
-export function getThreadContextByMemory(threadId: string): { threadId: string; title?: string } | null {
+export function getThreadContextByMemory(
+  threadId: string
+): { threadId: string; title?: string } | null {
   const row = getThread(threadId)
   if (!row) return null
   return { threadId: row.thread_id, title: row.title ?? undefined }

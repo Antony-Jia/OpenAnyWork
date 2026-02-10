@@ -168,7 +168,10 @@ export function MemoryManager(): React.JSX.Element {
               ) : (
                 <div className="space-y-3">
                   {groupedSummaries.map((group) => (
-                    <div key={group.threadId} className="rounded-sm border border-border p-3 space-y-2">
+                    <div
+                      key={group.threadId}
+                      className="rounded-sm border border-border p-3 space-y-2"
+                    >
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0">
                           <div className="text-sm font-medium truncate" title={group.title}>
@@ -185,7 +188,10 @@ export function MemoryManager(): React.JSX.Element {
 
                       <div className="space-y-2">
                         {group.items.map((item) => (
-                          <details key={item.id} className="rounded-sm border border-border/70 bg-background/60 p-2">
+                          <details
+                            key={item.id}
+                            className="rounded-sm border border-border/70 bg-background/60 p-2"
+                          >
                             <summary className="cursor-pointer">
                               <div className="space-y-1">
                                 <div className="text-xs text-muted-foreground">
@@ -222,7 +228,10 @@ export function MemoryManager(): React.JSX.Element {
               ) : (
                 <div className="space-y-3">
                   {dailyProfiles.map((profile) => (
-                    <div key={profile.day} className="rounded-sm border border-border p-3 space-y-2">
+                    <div
+                      key={profile.day}
+                      className="rounded-sm border border-border p-3 space-y-2"
+                    >
                       <div className="text-xs text-muted-foreground">
                         {profile.day} | {new Date(profile.createdAt).toLocaleString()}
                       </div>

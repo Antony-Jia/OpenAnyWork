@@ -46,6 +46,11 @@ const defaultSettings: AppSettings = {
     monitorScanIntervalSec: 30,
     monitorPullIntervalSec: 60
   },
+  plugins: {
+    actionbook: {
+      enabled: false
+    }
+  },
   dockerConfig: {
     enabled: false,
     image: "python:3.13-alpine",
@@ -72,42 +77,50 @@ function readSettings(): AppSettings {
   const row = stmt.getAsObject() as { data?: string }
   stmt.free()
 
-    try {
-      const parsed = JSON.parse(row.data ?? "{}") as AppSettings
-      return {
-        ...defaultSettings,
-        ...parsed,
-        butler: {
-          ...defaultSettings.butler,
-          ...(parsed?.butler ?? {})
+  try {
+    const parsed = JSON.parse(row.data ?? "{}") as AppSettings
+    return {
+      ...defaultSettings,
+      ...parsed,
+      butler: {
+        ...defaultSettings.butler,
+        ...(parsed?.butler ?? {})
+      },
+      email: {
+        ...defaultSettings.email,
+        ...(parsed?.email ?? {}),
+        smtp: {
+          ...defaultSettings.email.smtp,
+          ...(parsed?.email?.smtp ?? {})
         },
-        email: {
-          ...defaultSettings.email,
-          ...(parsed?.email ?? {}),
-          smtp: {
-            ...defaultSettings.email.smtp,
-            ...(parsed?.email?.smtp ?? {})
-          },
-          imap: {
-            ...defaultSettings.email.imap,
-            ...(parsed?.email?.imap ?? {})
-          }
+        imap: {
+          ...defaultSettings.email.imap,
+          ...(parsed?.email?.imap ?? {})
+        }
+      },
+      speech: {
+        ...defaultSettings.speech,
+        ...(parsed?.speech ?? {}),
+        stt: {
+          ...defaultSettings.speech.stt,
+          ...(parsed?.speech?.stt ?? {})
         },
-        speech: {
-          ...defaultSettings.speech,
-          ...(parsed?.speech ?? {}),
-          stt: {
-            ...defaultSettings.speech.stt,
-            ...(parsed?.speech?.stt ?? {})
-          },
-          tts: {
-            ...defaultSettings.speech.tts,
-            ...(parsed?.speech?.tts ?? {})
-          }
+        tts: {
+          ...defaultSettings.speech.tts,
+          ...(parsed?.speech?.tts ?? {})
+        }
+      },
+      plugins: {
+        ...defaultSettings.plugins,
+        ...(parsed?.plugins ?? {}),
+        actionbook: {
+          ...defaultSettings.plugins.actionbook,
+          ...(parsed?.plugins?.actionbook ?? {})
         }
       }
-    } catch {
-      return defaultSettings
+    }
+  } catch {
+    return defaultSettings
   }
 }
 
@@ -153,6 +166,14 @@ export function updateSettings(updates: Partial<AppSettings>): AppSettings {
       tts: {
         ...current.speech.tts,
         ...(updates.speech?.tts ?? {})
+      }
+    },
+    plugins: {
+      ...current.plugins,
+      ...(updates.plugins ?? {}),
+      actionbook: {
+        ...current.plugins.actionbook,
+        ...(updates.plugins?.actionbook ?? {})
       }
     },
     defaultWorkspacePath:

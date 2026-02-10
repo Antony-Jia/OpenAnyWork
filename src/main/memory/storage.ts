@@ -149,10 +149,7 @@ function readRows<T>(query: string, params: Array<string | number | null> = []):
   return rows
 }
 
-function readSingleRow<T>(
-  query: string,
-  params: Array<string | number | null> = []
-): T | null {
+function readSingleRow<T>(query: string, params: Array<string | number | null> = []): T | null {
   const rows = readRows<T>(query, params)
   return rows.length > 0 ? rows[0] : null
 }
@@ -270,10 +267,7 @@ export function listTaskSummariesByThread(threadId: string): MemoryTaskSummaryRo
     research_process?: string | null
     report_preference?: string | null
     created_at: string
-  }>(
-    "SELECT * FROM memory_task_summaries WHERE thread_id = ? ORDER BY created_at DESC",
-    [threadId]
-  )
+  }>("SELECT * FROM memory_task_summaries WHERE thread_id = ? ORDER BY created_at DESC", [threadId])
 
   return rows.map((row) => ({
     id: row.id,
@@ -449,13 +443,7 @@ export function upsertDailyProfile(input: DailyProfileInput): DailyProfileRow {
     `INSERT OR REPLACE INTO memory_daily_profiles
       (day, profile_text, comparison_text, previous_profile_day, created_at)
       VALUES (?, ?, ?, ?, ?)`,
-    [
-      row.day,
-      row.profileText,
-      row.comparisonText,
-      row.previousProfileDay ?? null,
-      row.createdAt
-    ]
+    [row.day, row.profileText, row.comparisonText, row.previousProfileDay ?? null, row.createdAt]
   )
 
   scheduleSave()
@@ -484,12 +472,10 @@ export function clearRunMarkers(): void {
 }
 
 export function appendButlerMessage(input: ButlerMessageInput): void {
-  getMemoryDb().run("INSERT OR REPLACE INTO butler_messages (id, role, content, ts) VALUES (?, ?, ?, ?)", [
-    input.id,
-    input.role,
-    input.content,
-    input.ts
-  ])
+  getMemoryDb().run(
+    "INSERT OR REPLACE INTO butler_messages (id, role, content, ts) VALUES (?, ?, ?, ?)",
+    [input.id, input.role, input.content, input.ts]
+  )
   scheduleSave()
 }
 

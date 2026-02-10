@@ -38,4 +38,3 @@ export const addCountdownTimerTool = tool(
     schema: payloadSchema
   }
 )
-

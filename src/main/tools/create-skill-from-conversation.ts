@@ -52,8 +52,8 @@ const modelOutputSchema = z.object({
 const EXTRACTION_SYSTEM_PROMPT = [
   "你是 skill 提炼器。你会把会话执行过程提炼成可复用技能。",
   "必须只输出 JSON，不允许输出解释文字。",
-  "JSON 结构必须为：{\"name\":\"...\",\"description\":\"...\",\"body\":\"...\"}",
-  'description 必须写清“做什么 + 何时使用（触发条件）”。',
+  'JSON 结构必须为：{"name":"...","description":"...","body":"..."}',
+  "description 必须写清“做什么 + 何时使用（触发条件）”。",
   "body 必须使用可执行的指令语气，聚焦一个稳定流程，避免泛化空话。",
   "body 必须显式提醒读取 references/execution-log.md，避免把长日志写进 SKILL.md。",
   "如果识别到可复用步骤，body 必须给出明确 step-by-step 工作流。",
@@ -176,17 +176,24 @@ function getToolCalls(
   msg: Record<string, unknown>
 ): Array<{ id?: string; name?: string; args?: Record<string, unknown> }> {
   if (Array.isArray((msg as { tool_calls?: unknown }).tool_calls)) {
-    return (msg as {
-      tool_calls: Array<{ id?: string; name?: string; args?: Record<string, unknown> }>
-    }).tool_calls
+    return (
+      msg as {
+        tool_calls: Array<{ id?: string; name?: string; args?: Record<string, unknown> }>
+      }
+    ).tool_calls
   }
-  const kwargs = msg.kwargs as {
-    tool_calls?: Array<{ id?: string; name?: string; args?: Record<string, unknown> }>
-  } | undefined
+  const kwargs = msg.kwargs as
+    | {
+        tool_calls?: Array<{ id?: string; name?: string; args?: Record<string, unknown> }>
+      }
+    | undefined
   return kwargs?.tool_calls || []
 }
 
-function getToolMessageMeta(msg: Record<string, unknown>): { toolCallId?: string; toolName?: string } {
+function getToolMessageMeta(msg: Record<string, unknown>): {
+  toolCallId?: string
+  toolName?: string
+} {
   const toolCallId = (msg as { tool_call_id?: string }).tool_call_id
   const toolName = (msg as { name?: string }).name
   const kwargs = msg.kwargs as { tool_call_id?: string; name?: string } | undefined
@@ -433,10 +440,7 @@ function resolveRuntimeThreadId(runtime?: ToolRuntime): string | undefined {
   return undefined
 }
 
-function resolveProviderConfig(
-  state: ProviderState,
-  providerId: SimpleProviderId
-): ProviderConfig {
+function resolveProviderConfig(state: ProviderState, providerId: SimpleProviderId): ProviderConfig {
   const config = state.configs[providerId]
   if (!config) {
     throw new Error(`Provider "${providerId}" not configured. Please configure it in Settings.`)
@@ -609,8 +613,7 @@ export const createSkillFromConversationTool = tool(
       "conversation-skill"
     const finalName = resolveSkillNameWithSuffix(preferredName)
     const description = draft?.description?.trim() || buildFallbackDescription(focus)
-    const body =
-      draft?.body?.trim() || buildFallbackBody({ name: finalName, focus, modelError })
+    const body = draft?.body?.trim() || buildFallbackBody({ name: finalName, focus, modelError })
     const skillMd = buildSkillMarkdown({
       name: finalName,
       description,
@@ -653,7 +656,12 @@ export const createSkillFromConversationTool = tool(
       modelError: modelError || null
     }
 
-    logExit("Tool", "create_skill_from_conversation", { ok: true, skillName: finalName }, Date.now() - start)
+    logExit(
+      "Tool",
+      "create_skill_from_conversation",
+      { ok: true, skillName: finalName },
+      Date.now() - start
+    )
     return result
   },
   {

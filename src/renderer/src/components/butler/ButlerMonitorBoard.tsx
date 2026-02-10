@@ -302,11 +302,13 @@ export function ButlerMonitorBoard(): React.JSX.Element {
       </div>
 
       <div className="px-3 py-2 border-b border-border flex items-center gap-1">
-        {([
-          { id: "calendar", label: "日历状态" },
-          { id: "countdown", label: "计时提醒" },
-          { id: "mail", label: "邮件拉取" }
-        ] as Array<{ id: MonitorTab; label: string }>).map((tab) => (
+        {(
+          [
+            { id: "calendar", label: "日历状态" },
+            { id: "countdown", label: "计时提醒" },
+            { id: "mail", label: "邮件拉取" }
+          ] as Array<{ id: MonitorTab; label: string }>
+        ).map((tab) => (
           <button
             key={tab.id}
             type="button"
@@ -375,7 +377,12 @@ export function ButlerMonitorBoard(): React.JSX.Element {
                   </div>
                 )}
                 <div className="flex items-center justify-end gap-2">
-                  <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={() => void handleEditCalendar(event)}>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 px-2 text-xs"
+                    onClick={() => void handleEditCalendar(event)}
+                  >
                     编辑
                   </Button>
                   <Button
@@ -424,7 +431,12 @@ export function ButlerMonitorBoard(): React.JSX.Element {
                   </div>
                 )}
                 <div className="flex items-center justify-end gap-2">
-                  <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={() => void handleEditCountdown(timer)}>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 px-2 text-xs"
+                    onClick={() => void handleEditCountdown(timer)}
+                  >
                     编辑
                   </Button>
                   {timer.status !== "running" && (
@@ -450,7 +462,9 @@ export function ButlerMonitorBoard(): React.JSX.Element {
                     size="sm"
                     className="h-7 px-2 text-xs text-red-300 hover:text-red-200"
                     onClick={() => {
-                      void window.api.butlerMonitor.deleteCountdownTimer(timer.id).then(() => load())
+                      void window.api.butlerMonitor
+                        .deleteCountdownTimer(timer.id)
+                        .then(() => load())
                     }}
                   >
                     删除
@@ -477,9 +491,7 @@ export function ButlerMonitorBoard(): React.JSX.Element {
                 {pulling ? "拉取中..." : "立即拉取"}
               </Button>
             </div>
-            <div>
-              {pullResult && <div className="text-[11px] text-blue-300">{pullResult}</div>}
-            </div>
+            <div>{pullResult && <div className="text-[11px] text-blue-300">{pullResult}</div>}</div>
 
             <div className="space-y-2">
               {mailRules.length === 0 && (
@@ -506,18 +518,31 @@ export function ButlerMonitorBoard(): React.JSX.Element {
                       启用
                     </label>
                   </div>
-                  <div className="text-[11px] text-muted-foreground">文件夹: {rule.folder || "INBOX"}</div>
+                  <div className="text-[11px] text-muted-foreground">
+                    文件夹: {rule.folder || "INBOX"}
+                  </div>
                   {rule.fromContains && (
-                    <div className="text-[11px] text-muted-foreground">发件人包含: {rule.fromContains}</div>
+                    <div className="text-[11px] text-muted-foreground">
+                      发件人包含: {rule.fromContains}
+                    </div>
                   )}
                   {rule.subjectContains && (
-                    <div className="text-[11px] text-muted-foreground">主题包含: {rule.subjectContains}</div>
+                    <div className="text-[11px] text-muted-foreground">
+                      主题包含: {rule.subjectContains}
+                    </div>
                   )}
                   {typeof rule.lastSeenUid === "number" && (
-                    <div className="text-[11px] text-muted-foreground">lastSeenUid: {rule.lastSeenUid}</div>
+                    <div className="text-[11px] text-muted-foreground">
+                      lastSeenUid: {rule.lastSeenUid}
+                    </div>
                   )}
                   <div className="flex items-center justify-end gap-2">
-                    <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={() => void handleEditMailRule(rule)}>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 px-2 text-xs"
+                      onClick={() => void handleEditMailRule(rule)}
+                    >
                       编辑
                     </Button>
                     <Button
@@ -536,7 +561,9 @@ export function ButlerMonitorBoard(): React.JSX.Element {
             </div>
 
             <div className="space-y-2">
-              <div className="text-xs text-muted-foreground uppercase tracking-[0.12em]">最近邮件</div>
+              <div className="text-xs text-muted-foreground uppercase tracking-[0.12em]">
+                最近邮件
+              </div>
               {recentMails.length === 0 && (
                 <div className="text-xs text-muted-foreground rounded border border-border p-3">
                   暂无邮件记录

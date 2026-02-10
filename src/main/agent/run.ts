@@ -4,7 +4,13 @@ import { HumanMessage, type MessageContent } from "@langchain/core/messages"
 import { createAgentRuntime } from "./runtime"
 import { extractAssistantChunkText } from "./stream-utils"
 import { appendRalphLogEntry } from "../ralph-log"
-import type { CapabilityScope, ContentBlock, RalphLogEntry, RalphState, DockerConfig } from "../types"
+import type {
+  CapabilityScope,
+  ContentBlock,
+  RalphLogEntry,
+  RalphState,
+  DockerConfig
+} from "../types"
 
 export async function runAgentStream({
   threadId,
@@ -145,13 +151,17 @@ export async function runAgentStream({
     msg: Record<string, unknown>
   ): Array<{ id?: string; name?: string; args?: Record<string, unknown> }> => {
     if (Array.isArray((msg as { tool_calls?: unknown }).tool_calls)) {
-      return (msg as {
-        tool_calls: Array<{ id?: string; name?: string; args?: Record<string, unknown> }>
-      }).tool_calls
+      return (
+        msg as {
+          tool_calls: Array<{ id?: string; name?: string; args?: Record<string, unknown> }>
+        }
+      ).tool_calls
     }
-    const kwargs = msg.kwargs as {
-      tool_calls?: Array<{ id?: string; name?: string; args?: Record<string, unknown> }>
-    } | undefined
+    const kwargs = msg.kwargs as
+      | {
+          tool_calls?: Array<{ id?: string; name?: string; args?: Record<string, unknown> }>
+        }
+      | undefined
     return kwargs?.tool_calls || []
   }
 

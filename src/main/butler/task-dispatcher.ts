@@ -1,5 +1,9 @@
 import { v4 as uuid } from "uuid"
-import { createThread as dbCreateThread, getThread as dbGetThread, updateThread as dbUpdateThread } from "../db"
+import {
+  createThread as dbCreateThread,
+  getThread as dbGetThread,
+  updateThread as dbUpdateThread
+} from "../db"
 import { ensureDockerRunning, getDockerRuntimeConfig } from "../docker/session"
 import { runAgentStream } from "../agent/run"
 import { buildEmailModePrompt } from "../email/prompt"

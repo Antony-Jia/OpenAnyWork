@@ -1,7 +1,9 @@
 import { Badge } from "@/components/ui/badge"
 import type { ButlerTask } from "@/types"
 
-function toStatusVariant(status: ButlerTask["status"]): "outline" | "info" | "nominal" | "critical" {
+function toStatusVariant(
+  status: ButlerTask["status"]
+): "outline" | "info" | "nominal" | "critical" {
   if (status === "running") return "info"
   if (status === "completed") return "nominal"
   if (status === "failed" || status === "cancelled") return "critical"

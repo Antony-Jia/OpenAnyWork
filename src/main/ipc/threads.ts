@@ -105,10 +105,7 @@ export function registerThreadHandlers(ipcMain: IpcMain): void {
   // Delete a thread
   ipcMain.handle(
     "threads:delete",
-    async (
-      _event,
-      payload: string | { threadId: string; options?: ThreadDeleteOptions }
-    ) => {
+    async (_event, payload: string | { threadId: string; options?: ThreadDeleteOptions }) => {
       const inputThreadId = typeof payload === "string" ? payload : payload?.threadId
       const options = typeof payload === "string" ? undefined : payload?.options
       const threadId = inputThreadId?.trim() || ""

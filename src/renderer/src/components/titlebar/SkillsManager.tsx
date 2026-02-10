@@ -185,7 +185,12 @@ export function SkillsManager(): React.JSX.Element {
                     <span>{t("skills.sources_hint")}</span>
                   </div>
                   <div className="flex items-center gap-2">
-                    <Button variant="ghost" size="sm" onClick={() => void handleScan()} disabled={scanning}>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => void handleScan()}
+                      disabled={scanning}
+                    >
                       {scanning ? t("common.loading") : t("skills.scan")}
                     </Button>
                     <Button variant="ghost" size="sm" onClick={startInstall}>
@@ -243,7 +248,8 @@ export function SkillsManager(): React.JSX.Element {
                                     : "text-muted-foreground hover:text-foreground"
                                 )}
                               >
-                                {t(`scope.${scope}`)}: {enabled ? t("tools.enabled") : t("tools.disabled")}
+                                {t(`scope.${scope}`)}:{" "}
+                                {enabled ? t("tools.enabled") : t("tools.disabled")}
                               </button>
                             )
                           })}

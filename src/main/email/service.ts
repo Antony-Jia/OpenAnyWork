@@ -44,7 +44,10 @@ function normalizeEmail(value?: string | null): string {
   return value?.trim().toLowerCase() ?? ""
 }
 
-function isSelfSender(parsed: { from?: { text?: string; value?: Array<{ address?: string | null }> } }, settings: EmailSettings): boolean {
+function isSelfSender(
+  parsed: { from?: { text?: string; value?: Array<{ address?: string | null }> } },
+  settings: EmailSettings
+): boolean {
   const selfAddresses = [settings.from, settings.smtp.user, settings.imap.user]
     .map((addr) => normalizeEmail(addr))
     .filter(Boolean)
@@ -184,7 +187,10 @@ export async function fetchUnreadEmailTasks(threadId?: string): Promise<EmailTas
     // 只取最近5封未读邮件
     const recentUids = uids.slice(-5)
 
-    for await (const message of client.fetch(recentUids as number[], { source: true, envelope: true })) {
+    for await (const message of client.fetch(recentUids as number[], {
+      source: true,
+      envelope: true
+    })) {
       if (!message.source) continue
       const parsed = await simpleParser(message.source)
       const subject = parsed.subject ?? ""

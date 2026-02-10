@@ -7,7 +7,13 @@ import { useThreadStream } from "@/lib/thread-context"
 import { cn, formatRelativeTime, truncate } from "@/lib/utils"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { LoopConfigDialog } from "@/components/loop/LoopConfigDialog"
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle
+} from "@/components/ui/dialog"
 import {
   ContextMenu,
   ContextMenuContent,
@@ -61,7 +67,7 @@ function ThreadListItem({
         ? "border-l-2 border-violet-400/60 bg-violet-50/30 dark:bg-violet-950/20"
         : mode === "loop"
           ? "border-l-2 border-amber-400/60 bg-amber-50/30 dark:bg-amber-950/20"
-        : "border-l-2 border-blue-400/40 bg-blue-50/30 dark:bg-blue-950/20"
+          : "border-l-2 border-blue-400/40 bg-blue-50/30 dark:bg-blue-950/20"
   return (
     <ContextMenu>
       <ContextMenuTrigger asChild>
@@ -365,9 +371,7 @@ export function ThreadSidebar(): React.JSX.Element {
           </DialogHeader>
 
           <div className="space-y-3">
-            <div className="text-sm text-muted-foreground">
-              {t("sidebar.delete_confirm_desc")}
-            </div>
+            <div className="text-sm text-muted-foreground">{t("sidebar.delete_confirm_desc")}</div>
             <div className="rounded-sm border border-border px-3 py-2 text-xs text-muted-foreground break-all">
               {deleteTarget?.title?.trim() || deleteTarget?.thread_id}
             </div>

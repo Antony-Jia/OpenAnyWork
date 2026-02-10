@@ -141,7 +141,9 @@ export function listAppSkills(options?: ListAppSkillsOptions): SkillItem[] {
   const result =
     options?.scope === undefined
       ? all
-      : all.filter((item) => (options.scope === "butler" ? item.enabledButler : item.enabledClassic))
+      : all.filter((item) =>
+          options.scope === "butler" ? item.enabledButler : item.enabledClassic
+        )
   logExit("Skills", "list", { count: result.length })
   return result
 }
@@ -318,10 +320,7 @@ function readSkillDescription(skillPath: string): string {
     const descMatch = frontmatter.match(/^description:\s*(.*)$/m)
     if (!descMatch) return ""
     const raw = descMatch[1].trim()
-    if (
-      (raw.startsWith('"') && raw.endsWith('"')) ||
-      (raw.startsWith("'") && raw.endsWith("'"))
-    ) {
+    if ((raw.startsWith('"') && raw.endsWith('"')) || (raw.startsWith("'") && raw.endsWith("'"))) {
       try {
         if (raw.startsWith('"')) {
           return JSON.parse(raw)

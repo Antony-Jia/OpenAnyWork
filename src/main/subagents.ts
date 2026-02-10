@@ -26,7 +26,9 @@ export function listSubagents(): SubagentConfig[] {
     const row = stmt.getAsObject() as Record<string, unknown>
     const providerRaw = (row.model_provider as string | null) ?? undefined
     const provider =
-      providerRaw === "ollama" || providerRaw === "openai-compatible" || providerRaw === "multimodal"
+      providerRaw === "ollama" ||
+      providerRaw === "openai-compatible" ||
+      providerRaw === "multimodal"
         ? providerRaw
         : undefined
     const legacyEnabled =
@@ -172,8 +174,10 @@ export function updateSubagent(
     updates.enabledClassic === undefined ? undefined : Boolean(updates.enabledClassic)
   const updatesButler =
     updates.enabledButler === undefined ? undefined : Boolean(updates.enabledButler)
-  const nextClassic = updatesClassic ?? (updates.enabled === undefined ? currentClassic : updates.enabled)
-  const nextButler = updatesButler ?? (updates.enabled === undefined ? currentButler : updates.enabled)
+  const nextClassic =
+    updatesClassic ?? (updates.enabled === undefined ? currentClassic : updates.enabled)
+  const nextButler =
+    updatesButler ?? (updates.enabled === undefined ? currentButler : updates.enabled)
   const updated: SubagentConfig = {
     ...current,
     ...updates,

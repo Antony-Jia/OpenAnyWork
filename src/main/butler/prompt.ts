@@ -51,7 +51,10 @@ function formatPerceptionSnapshot(context: ButlerPerceptionPromptContext): strin
     .map((timer, index) => `${index + 1}. ${timer.title} @ ${timer.dueAt} (${timer.status})`)
   const mailLines = snapshot.recentMails
     .slice(0, 5)
-    .map((mail, index) => `${index + 1}. ${mail.subject || "(无主题)"} | from=${mail.from || "unknown"}`)
+    .map(
+      (mail, index) =>
+        `${index + 1}. ${mail.subject || "(无主题)"} | from=${mail.from || "unknown"}`
+    )
 
   return [
     "[Snapshot Summary]",

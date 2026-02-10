@@ -401,18 +401,25 @@ export class ButlerMonitorManager {
     }
   }
 
-  private async pullRuleMessages(client: ImapFlow, rule: MailWatchRule): Promise<MailWatchMessage[]> {
+  private async pullRuleMessages(
+    client: ImapFlow,
+    rule: MailWatchRule
+  ): Promise<MailWatchMessage[]> {
     const folder = rule.folder?.trim() || "INBOX"
     try {
       await client.mailboxOpen(folder)
     } catch (error) {
-      console.warn(`[ButlerMonitor] Failed to open mailbox "${folder}" for rule "${rule.name}":`, error)
+      console.warn(
+        `[ButlerMonitor] Failed to open mailbox "${folder}" for rule "${rule.name}":`,
+        error
+      )
       return []
     }
 
     const rawUids = await client.search({ all: true })
     const uids = Array.isArray(rawUids) ? rawUids : []
-    const maxUid = uids.length > 0 ? uids.reduce((max, uid) => (uid > max ? uid : max), 0) : undefined
+    const maxUid =
+      uids.length > 0 ? uids.reduce((max, uid) => (uid > max ? uid : max), 0) : undefined
     const previousSeenUid = rule.lastSeenUid ?? 0
 
     if (typeof maxUid === "number" && maxUid > previousSeenUid) {

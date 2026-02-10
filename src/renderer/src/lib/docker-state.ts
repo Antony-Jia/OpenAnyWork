@@ -28,6 +28,7 @@ export function useDockerState(): {
     }
   }, [])
 
+  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     refresh()
     const onUpdate = (): void => {
@@ -40,6 +41,7 @@ export function useDockerState(): {
       window.clearInterval(interval)
     }
   }, [refresh])
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   return { status, config, refresh }
 }

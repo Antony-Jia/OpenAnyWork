@@ -1,6 +1,11 @@
 import { IpcMain } from "electron"
 import { getSettings } from "../settings"
-import type { SpeechSttRequest, SpeechSttResponse, SpeechTtsRequest, SpeechTtsResponse } from "../types"
+import type {
+  SpeechSttRequest,
+  SpeechSttResponse,
+  SpeechTtsRequest,
+  SpeechTtsResponse
+} from "../types"
 
 function normalizeHeaders(headers?: Record<string, string>): Record<string, string> {
   const result: Record<string, string> = {}
@@ -13,9 +18,7 @@ function normalizeHeaders(headers?: Record<string, string>): Record<string, stri
 }
 
 function ensureJsonContentType(headers: Record<string, string>): Record<string, string> {
-  const hasContentType = Object.keys(headers).some(
-    (key) => key.toLowerCase() === "content-type"
-  )
+  const hasContentType = Object.keys(headers).some((key) => key.toLowerCase() === "content-type")
   if (!hasContentType) {
     headers["Content-Type"] = "application/json"
   }
@@ -57,9 +60,7 @@ export function registerSpeechHandlers(ipcMain: IpcMain): void {
 
     if (!response.ok) {
       const details = await readErrorBody(response)
-      throw new Error(
-        `STT request failed (${response.status}): ${details || response.statusText}`
-      )
+      throw new Error(`STT request failed (${response.status}): ${details || response.statusText}`)
     }
 
     const data = (await response.json()) as SpeechSttResponse
@@ -93,9 +94,7 @@ export function registerSpeechHandlers(ipcMain: IpcMain): void {
 
     if (!response.ok) {
       const details = await readErrorBody(response)
-      throw new Error(
-        `TTS request failed (${response.status}): ${details || response.statusText}`
-      )
+      throw new Error(`TTS request failed (${response.status}): ${details || response.statusText}`)
     }
 
     const arrayBuffer = await response.arrayBuffer()

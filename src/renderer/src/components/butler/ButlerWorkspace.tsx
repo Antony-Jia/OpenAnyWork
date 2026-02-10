@@ -8,7 +8,9 @@ import type { ButlerState, ButlerTask, TaskCompletionNotice } from "@/types"
 
 const TASK_NOTICE_MARKER = "[TASK_NOTICE_JSON]"
 
-function toStatusVariant(status: ButlerTask["status"]): "outline" | "info" | "nominal" | "critical" {
+function toStatusVariant(
+  status: ButlerTask["status"]
+): "outline" | "info" | "nominal" | "critical" {
   if (status === "running") return "info"
   if (status === "completed") return "nominal"
   if (status === "failed" || status === "cancelled") return "critical"
@@ -84,7 +86,10 @@ function extractNoticeThreadId(text: string): string | null {
   return threadId.length > 0 ? threadId : null
 }
 
-function findTaskForNotice(round: ButlerState["recentRounds"][number], tasks: ButlerTask[]): ButlerTask | null {
+function findTaskForNotice(
+  round: ButlerState["recentRounds"][number],
+  tasks: ButlerTask[]
+): ButlerTask | null {
   const threadId = extractNoticeThreadId(round.assistant)
   if (!threadId) return null
 
@@ -138,8 +143,12 @@ function resolveNoticeCard(
       status: matchedTask?.status || inferSnapshotStatus(snapshot),
       resultBrief: snapshot.resultBrief || matchedTask?.resultBrief || "任务已结束。",
       resultDetail:
-        snapshot.resultDetail || matchedTask?.resultDetail || snapshot.resultBrief || "暂无任务结果内容。",
-      completedAt: snapshot.completedAt || matchedTask?.completedAt || matchedTask?.createdAt || round.ts
+        snapshot.resultDetail ||
+        matchedTask?.resultDetail ||
+        snapshot.resultBrief ||
+        "暂无任务结果内容。",
+      completedAt:
+        snapshot.completedAt || matchedTask?.completedAt || matchedTask?.createdAt || round.ts
     }
   }
 
@@ -264,7 +273,9 @@ export function ButlerWorkspace(): React.JSX.Element {
     <div className="flex h-full min-h-0">
       <section className="flex min-w-0 flex-1 flex-col border-r border-border">
         <header className="h-10 px-3 border-b border-border flex items-center justify-between">
-          <span className="text-xs text-muted-foreground uppercase tracking-[0.18em]">Butler AI</span>
+          <span className="text-xs text-muted-foreground uppercase tracking-[0.18em]">
+            Butler AI
+          </span>
           <Button
             variant="ghost"
             size="sm"
@@ -289,9 +300,13 @@ export function ButlerWorkspace(): React.JSX.Element {
           {rounds.map((round) => {
             const isSystemNotice = round.user === "[系统通知]"
             const snapshot = isSystemNotice ? extractNoticeSnapshot(round.assistant) : null
-            const assistantText = isSystemNotice ? stripNoticeSnapshot(round.assistant) : round.assistant
+            const assistantText = isSystemNotice
+              ? stripNoticeSnapshot(round.assistant)
+              : round.assistant
             const hasAssistantContent = assistantText.trim().length > 0
-            const noticeCard = isSystemNotice ? resolveNoticeCard(round, assistantText, tasks, snapshot) : null
+            const noticeCard = isSystemNotice
+              ? resolveNoticeCard(round, assistantText, tasks, snapshot)
+              : null
             return (
               <div key={round.id} className="space-y-2">
                 {!isSystemNotice && (
@@ -331,7 +346,9 @@ export function ButlerWorkspace(): React.JSX.Element {
                               {new Date(noticeCard.completedAt).toLocaleString()}
                             </div>
                           </div>
-                          <Badge variant={toStatusVariant(noticeCard.status)}>{noticeCard.status}</Badge>
+                          <Badge variant={toStatusVariant(noticeCard.status)}>
+                            {noticeCard.status}
+                          </Badge>
                         </div>
                       </summary>
                       <div className="mt-2 space-y-2">
@@ -410,7 +427,10 @@ export function ButlerWorkspace(): React.JSX.Element {
         </header>
         <div className="flex-1 min-h-0">
           {rightTab === "tasks" ? (
-            <ButlerTaskBoard tasks={tasks} onOpenThread={(threadId) => void openTaskThread(threadId)} />
+            <ButlerTaskBoard
+              tasks={tasks}
+              onOpenThread={(threadId) => void openTaskThread(threadId)}
+            />
           ) : (
             <ButlerMonitorBoard />
           )}

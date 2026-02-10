@@ -86,7 +86,7 @@ export function ChatContainer({ threadId }: ChatContainerProps): React.JSX.Eleme
         ? "bg-violet-50/40 dark:bg-violet-950/30"
         : threadMode === "loop"
           ? "bg-amber-50/40 dark:bg-amber-950/30"
-        : "bg-blue-50/40 dark:bg-blue-950/30"
+          : "bg-blue-50/40 dark:bg-blue-950/30"
 
   // Get persisted thread state and actions from context
   const {
@@ -405,10 +405,10 @@ export function ChatContainer({ threadId }: ChatContainerProps): React.JSX.Eleme
         return {
           id: streamMsg.id,
           role,
-        content:
-          typeof streamMsg.content === "string" || Array.isArray(streamMsg.content)
-            ? (streamMsg.content as Message["content"])
-            : "",
+          content:
+            typeof streamMsg.content === "string" || Array.isArray(streamMsg.content)
+              ? (streamMsg.content as Message["content"])
+              : "",
           tool_calls: streamMsg.tool_calls,
           ...(role === "tool" &&
             streamMsg.tool_call_id && { tool_call_id: streamMsg.tool_call_id }),
@@ -542,8 +542,7 @@ export function ChatContainer({ threadId }: ChatContainerProps): React.JSX.Eleme
         }
       }
     }
-    const messageContent: Message["content"] =
-      attachments.length > 0 ? messageBlocks : message
+    const messageContent: Message["content"] = attachments.length > 0 ? messageBlocks : message
     setAttachments([])
 
     const isFirstMessage = threadMessages.length === 0
@@ -575,12 +574,14 @@ export function ChatContainer({ threadId }: ChatContainerProps): React.JSX.Eleme
       streamContent = blocks
     }
 
-    await (stream as unknown as {
-      submit: (
-        input: { messages: Array<{ type: string; content: string | StreamContentBlock[] }> },
-        options: { config: { configurable: { thread_id: string; model_id: string } } }
-      ) => Promise<void>
-    }).submit(
+    await (
+      stream as unknown as {
+        submit: (
+          input: { messages: Array<{ type: string; content: string | StreamContentBlock[] }> },
+          options: { config: { configurable: { thread_id: string; model_id: string } } }
+        ) => Promise<void>
+      }
+    ).submit(
       {
         messages: [{ type: "human", content: streamContent }]
       },
@@ -622,7 +623,13 @@ export function ChatContainer({ threadId }: ChatContainerProps): React.JSX.Eleme
   }
 
   return (
-    <div className={cn("flex flex-col flex-1 min-h-0", modeBgClass, dockerEnabled && "docker-mode-ring")}>
+    <div
+      className={cn(
+        "flex flex-col flex-1 min-h-0",
+        modeBgClass,
+        dockerEnabled && "docker-mode-ring"
+      )}
+    >
       {/* Messages - scrollable area */}
       <div className="flex-1 overflow-y-auto min-h-0" ref={scrollRef}>
         <div className="p-4 pb-2">

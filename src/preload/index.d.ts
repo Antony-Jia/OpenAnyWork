@@ -53,6 +53,12 @@ import type {
   MemorySummary,
   DailyProfile
 } from "../main/types"
+import type {
+  ActionbookEvent,
+  ActionbookRuntimeState,
+  PluginEnableUpdateParams,
+  PresetPluginItem
+} from "../main/plugins/core/contracts"
 
 interface ElectronAPI {
   ipcRenderer: {
@@ -180,7 +186,11 @@ interface CustomAPI {
     install: (input: { path: string }) => Promise<SkillItem>
     delete: (name: string) => Promise<void>
     setEnabled: (input: { name: string; enabled: boolean }) => Promise<SkillItem>
-    setEnabledScope: (input: { name: string; enabled: boolean; scope: CapabilityScope }) => Promise<SkillItem>
+    setEnabledScope: (input: {
+      name: string
+      enabled: boolean
+      scope: CapabilityScope
+    }) => Promise<SkillItem>
     getContent: (name: string) => Promise<string>
     saveContent: (input: { name: string; content: string }) => Promise<SkillItem>
   }
@@ -222,6 +232,17 @@ interface CustomAPI {
   settings: {
     get: () => Promise<AppSettings>
     update: (input: SettingsUpdateParams) => Promise<AppSettings>
+  }
+  plugins: {
+    list: () => Promise<PresetPluginItem[]>
+    setEnabled: (input: PluginEnableUpdateParams) => Promise<PresetPluginItem>
+    actionbookGetState: () => Promise<ActionbookRuntimeState>
+    actionbookRefreshChecks: () => Promise<ActionbookRuntimeState>
+    actionbookStart: () => Promise<ActionbookRuntimeState>
+    actionbookStop: () => Promise<ActionbookRuntimeState>
+    actionbookStatus: () => Promise<ActionbookRuntimeState>
+    actionbookPing: () => Promise<ActionbookRuntimeState>
+    onActionbookEvent: (callback: (event: ActionbookEvent) => void) => () => void
   }
   speech: {
     stt: (input: SpeechSttRequest) => Promise<SpeechSttResponse>

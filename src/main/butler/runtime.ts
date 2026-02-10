@@ -51,10 +51,7 @@ function requireProviderState(): ProviderState {
   return state
 }
 
-function resolveProviderConfig(
-  state: ProviderState,
-  providerId: SimpleProviderId
-): ProviderConfig {
+function resolveProviderConfig(state: ProviderState, providerId: SimpleProviderId): ProviderConfig {
   const config = state.configs[providerId]
   if (!config) {
     throw new Error(`Provider "${providerId}" not configured. Please configure it in Settings.`)
@@ -132,9 +129,12 @@ export async function runButlerOrchestratorTurn(
   // Regression guard: keep daily profile context visible in prompt even after refactors.
   if (!userPrompt.includes(DAILY_PROFILE_MARKER)) {
     console.warn("[Butler] Missing [Daily Profile] in user prompt, injecting fallback section.")
-    userPrompt = [userPrompt, "", DAILY_PROFILE_MARKER, input.promptContext.profileText?.trim() || "none"].join(
-      "\n"
-    )
+    userPrompt = [
+      userPrompt,
+      "",
+      DAILY_PROFILE_MARKER,
+      input.promptContext.profileText?.trim() || "none"
+    ].join("\n")
   }
   if (!userPrompt.includes(PROFILE_DELTA_MARKER)) {
     console.warn("[Butler] Missing [Profile Delta] in user prompt, injecting fallback section.")
@@ -166,10 +166,9 @@ export async function runButlerOrchestratorTurn(
     } else if (Array.isArray(content)) {
       const text = content
         .filter(
-          (item): item is { type?: string; text?: string } =>
-            !!item && typeof item === "object"
+          (item): item is { type?: string; text?: string } => !!item && typeof item === "object"
         )
-        .map((item) => (item.type === "text" ? item.text ?? "" : ""))
+        .map((item) => (item.type === "text" ? (item.text ?? "") : ""))
         .join("")
       if (text.trim()) {
         lastAssistant = text

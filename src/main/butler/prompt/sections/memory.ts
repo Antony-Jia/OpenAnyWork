@@ -1,7 +1,4 @@
-import type {
-  ButlerPromptMemoryHint,
-  ButlerPromptRecentTask
-} from "../../prompt"
+import type { ButlerPromptMemoryHint, ButlerPromptRecentTask } from "../../prompt"
 import type { ButlerPromptSectionBuilder } from "../composer"
 
 function formatMemoryHints(memoryHints: ButlerPromptMemoryHint[]): string {

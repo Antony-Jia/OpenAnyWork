@@ -69,10 +69,8 @@ function mergeEnabledFields(
     return next
   }
 
-  const classic =
-    updates.enabledClassic ?? current.enabledClassic ?? current.enabled ?? true
-  const butler =
-    updates.enabledButler ?? current.enabledButler ?? current.enabled ?? true
+  const classic = updates.enabledClassic ?? current.enabledClassic ?? current.enabled ?? true
+  const butler = updates.enabledButler ?? current.enabledButler ?? current.enabled ?? true
   next.enabledClassic = classic
   next.enabledButler = butler
   next.enabled = classic
@@ -397,7 +395,8 @@ export async function startAutoMcpServers(): Promise<void> {
   const servers = listMcpConfigs().filter(
     (item) =>
       item.autoStart &&
-      ((item.enabledClassic ?? item.enabled ?? true) || (item.enabledButler ?? item.enabled ?? true))
+      ((item.enabledClassic ?? item.enabled ?? true) ||
+        (item.enabledButler ?? item.enabled ?? true))
   )
   for (const server of servers) {
     try {
@@ -428,7 +427,9 @@ export function listRunningMcpTools(scope: CapabilityScope = "classic"): McpTool
   return result
 }
 
-export function getRunningMcpToolInstanceMap(scope: CapabilityScope = "classic"): Map<string, unknown> {
+export function getRunningMcpToolInstanceMap(
+  scope: CapabilityScope = "classic"
+): Map<string, unknown> {
   const entries = Array.from(runningServers.values())
     .filter((server) => isServerEnabledForScope(server.config, scope))
     .flatMap((server) =>

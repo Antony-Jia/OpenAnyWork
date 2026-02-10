@@ -30,19 +30,12 @@ const payloadSchema = z
   })
 
 export const sendEmailTool = tool(
-  async ({
-    threadId,
-    suffix,
-    subject,
-    text,
-    attachments
-  }: z.infer<typeof payloadSchema>) => {
+  async ({ threadId, suffix, subject, text, attachments }: z.infer<typeof payloadSchema>) => {
     const trimmedSubject = subject?.trim()
     const trimmedThreadId = threadId?.trim()
     const trimmedSuffix = suffix?.trim()
     const resolvedSubject =
-      trimmedSubject ||
-      buildEmailSubject(trimmedThreadId || "", trimmedSuffix || "").trim()
+      trimmedSubject || buildEmailSubject(trimmedThreadId || "", trimmedSuffix || "").trim()
 
     if (!resolvedSubject || (!trimmedSubject && (!trimmedThreadId || !trimmedSuffix))) {
       throw new Error("Email subject is required.")

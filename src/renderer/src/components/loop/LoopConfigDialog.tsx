@@ -1,5 +1,11 @@
 import { useEffect, useMemo, useState } from "react"
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle
+} from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { useLanguage } from "@/lib/i18n"
@@ -74,9 +80,7 @@ export function LoopConfigDialog({
       : "*/5 * * * *"
   )
 
-  const [apiUrl, setApiUrl] = useState(
-    config.trigger.type === "api" ? config.trigger.url : ""
-  )
+  const [apiUrl, setApiUrl] = useState(config.trigger.type === "api" ? config.trigger.url : "")
   const [apiMethod, setApiMethod] = useState<"GET" | "POST" | "PUT" | "PATCH" | "DELETE">(
     config.trigger.type === "api" ? config.trigger.method : "GET"
   )
@@ -109,11 +113,15 @@ export function LoopConfigDialog({
       : ""
   )
   const [previewLines, setPreviewLines] = useState(
-    config.trigger.type === "file" ? String(config.trigger.previewMaxLines) : String(DEFAULT_PREVIEW_LINES)
+    config.trigger.type === "file"
+      ? String(config.trigger.previewMaxLines)
+      : String(DEFAULT_PREVIEW_LINES)
   )
 
   const [error, setError] = useState<string | null>(null)
 
+  // Reset form state when dialog opens — synchronous setState is intentional here
+  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     if (!open) return
     setTitle(initialTitle || "")
@@ -146,10 +154,13 @@ export function LoopConfigDialog({
         : ""
     )
     setPreviewLines(
-      config.trigger.type === "file" ? String(config.trigger.previewMaxLines) : String(DEFAULT_PREVIEW_LINES)
+      config.trigger.type === "file"
+        ? String(config.trigger.previewMaxLines)
+        : String(DEFAULT_PREVIEW_LINES)
     )
     setError(null)
   }, [open, initialTitle, initialTriggerType, config])
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   const canSave = useMemo(() => {
     if (!contentTemplate.trim()) return false
@@ -346,10 +357,16 @@ export function LoopConfigDialog({
               </div>
               <div className="space-y-2">
                 <label className="text-xs text-muted-foreground">{t("loop.file.suffixes")}</label>
-                <Input value={suffixes} onChange={(e) => setSuffixes(e.target.value)} placeholder=".md,.txt" />
+                <Input
+                  value={suffixes}
+                  onChange={(e) => setSuffixes(e.target.value)}
+                  placeholder=".md,.txt"
+                />
               </div>
               <div className="space-y-2">
-                <label className="text-xs text-muted-foreground">{t("loop.file.preview_lines")}</label>
+                <label className="text-xs text-muted-foreground">
+                  {t("loop.file.preview_lines")}
+                </label>
                 <Input
                   type="number"
                   value={previewLines}

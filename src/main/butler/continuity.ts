@@ -13,4 +13,3 @@ export function buildContinuityContext(input: ContinuityContext): string {
     input.currentUserMessage.trim()
   ].join("\n")
 }
-

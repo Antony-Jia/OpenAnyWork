@@ -57,6 +57,8 @@ import { ButlerMonitorBus } from "./butler/monitoring/bus"
 import { TaskPopupController } from "./notifications/popup-controller"
 import { TaskCompletionBus } from "./notifications/task-completion-bus"
 import { TaskLifecycleButlerBus } from "./notifications/task-lifecycle-butler-bus"
+import { registerPluginsIpc } from "./plugins/ipc"
+import { pluginHost } from "./plugins/core/host"
 
 let mainWindow: BrowserWindow | null = null
 let quickInputWindow: BrowserWindow | null = null
@@ -67,6 +69,7 @@ let taskLifecycleButlerBus: TaskLifecycleButlerBus | null = null
 let butlerMonitorManager: ButlerMonitorManager | null = null
 let butlerMonitorBus: ButlerMonitorBus | null = null
 let unsubscribeButlerMonitorBus: (() => void) | null = null
+let unsubscribePluginEvents: (() => void) | null = null
 let isQuitting = false
 
 // Simple dev check - replaces @electron-toolkit/utils is.dev
@@ -365,6 +368,7 @@ app.whenReady().then(async () => {
   }
   registerPromptHandlers(ipcMain)
   registerMemoryHandlers(ipcMain)
+  unsubscribePluginEvents = registerPluginsIpc(ipcMain)
 
   await startAutoMcpServers()
 
@@ -518,9 +522,14 @@ app.on("before-quit", () => {
     unsubscribeButlerMonitorBus()
     unsubscribeButlerMonitorBus = null
   }
+  if (unsubscribePluginEvents) {
+    unsubscribePluginEvents()
+    unsubscribePluginEvents = null
+  }
   butlerMonitorBus = null
   loopManager.stopAll()
   butlerManager.shutdown()
+  void pluginHost.shutdown()
   void stopMemoryService()
   void flushMemoryDatabase()
 })

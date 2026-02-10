@@ -2,7 +2,11 @@ import { BrowserWindow } from "electron"
 import { writeFileSync } from "fs"
 import { join } from "path"
 import { v4 as uuid } from "uuid"
-import { createThread as dbCreateThread, getAllThreads, updateThread as dbUpdateThread } from "../db"
+import {
+  createThread as dbCreateThread,
+  getAllThreads,
+  updateThread as dbUpdateThread
+} from "../db"
 import { getSettings } from "../settings"
 import {
   emitTaskCompleted,
@@ -585,7 +589,12 @@ class ButlerManager {
     this.pushMessage({
       id: uuid(),
       role: "assistant",
-      content: this.buildDispatchChoicePrompt(optionA, optionB, detection.reason, detection.confidence),
+      content: this.buildDispatchChoicePrompt(
+        optionA,
+        optionB,
+        detection.reason,
+        detection.confidence
+      ),
       ts: nowIso()
     })
     this.broadcastState()
@@ -693,7 +702,8 @@ class ButlerManager {
       .join(", ")
     const dependentCount = intents.filter((intent) => intent.dependsOn.length > 0).length
     const detailLines = intents.map((intent, index) => {
-      const deps = intent.dependsOn.length > 0 ? `dependsOn=${intent.dependsOn.join(",")}` : "independent"
+      const deps =
+        intent.dependsOn.length > 0 ? `dependsOn=${intent.dependsOn.join(",")}` : "independent"
       return `${index + 1}. [${intent.mode}] ${intent.title} (${deps})`
     })
 
@@ -824,7 +834,9 @@ class ButlerManager {
     return null
   }
 
-  private validateDispatchGraph(intents: ButlerDispatchIntent[]): { ok: true } | { ok: false; error: string } {
+  private validateDispatchGraph(
+    intents: ButlerDispatchIntent[]
+  ): { ok: true } | { ok: false; error: string } {
     const byKey = new Map<string, ButlerDispatchIntent>()
     for (const intent of intents) {
       if (byKey.has(intent.taskKey)) {
@@ -941,7 +953,9 @@ class ButlerManager {
   private findReusableThreadId(mode: ButlerTask["mode"]): string | undefined {
     const candidates = this.listTasks().filter((task) => task.mode === mode)
     if (candidates.length === 0) return undefined
-    const preferred = candidates.find((task) => task.status !== "failed" && task.status !== "cancelled")
+    const preferred = candidates.find(
+      (task) => task.status !== "failed" && task.status !== "cancelled"
+    )
     return preferred?.threadId ?? candidates[0]?.threadId
   }
 
@@ -1052,7 +1066,11 @@ class ButlerManager {
     }
 
     try {
-      writeFileSync(join(task.workspacePath, ".butler_handoff.json"), JSON.stringify(payload, null, 2), "utf-8")
+      writeFileSync(
+        join(task.workspacePath, ".butler_handoff.json"),
+        JSON.stringify(payload, null, 2),
+        "utf-8"
+      )
     } catch (error) {
       console.warn("[Butler] Failed to write handoff file:", error)
     }

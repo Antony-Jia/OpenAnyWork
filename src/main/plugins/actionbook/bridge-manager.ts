@@ -1,4 +1,4 @@
-import { spawn, type ChildProcessByStdio } from "node:child_process"
+import { spawn, spawnSync, type ChildProcessByStdio } from "node:child_process"
 import type { Readable } from "node:stream"
 import { getActionbookExecutable } from "./checks"
 import { splitActionbookLines } from "./parser"
@@ -132,18 +132,7 @@ export class ActionbookBridgeManager {
       const timeout = setTimeout(() => {
         if (resolved) return
         resolved = true
-        if (process.platform === "win32" && proc.pid) {
-          spawn("taskkill", ["/PID", String(proc.pid), "/T", "/F"], {
-            stdio: "ignore",
-            windowsHide: true
-          })
-        } else {
-          proc.kill("SIGKILL")
-        }
-        resolve({
-          stopped: true,
-          message: "Managed Actionbook bridge process force-stopped."
-        })
+        resolve(this.stopNow())
       }, 4_000)
 
       proc.once("close", () => {
@@ -171,5 +160,50 @@ export class ActionbookBridgeManager {
         proc.kill("SIGTERM")
       }
     })
+  }
+
+  stopNow(): { stopped: boolean; message: string } {
+    if (!this.process) {
+      return {
+        stopped: false,
+        message: "No managed Actionbook bridge process is running."
+      }
+    }
+
+    const proc = this.process
+    this.process = null
+    this.stdoutRemainder = ""
+    this.stderrRemainder = ""
+
+    try {
+      if (process.platform === "win32" && proc.pid) {
+        const result = spawnSync("taskkill", ["/PID", String(proc.pid), "/T", "/F"], {
+          stdio: "ignore",
+          windowsHide: true
+        })
+        if (result.error) {
+          throw result.error
+        }
+      } else {
+        proc.kill("SIGKILL")
+      }
+
+      return {
+        stopped: true,
+        message: "Managed Actionbook bridge process force-stopped."
+      }
+    } catch (error) {
+      try {
+        proc.kill("SIGKILL")
+      } catch {
+        // ignore secondary kill failure
+      }
+      const reason =
+        error instanceof Error ? error.message : "Failed to stop managed Actionbook bridge process."
+      return {
+        stopped: false,
+        message: reason
+      }
+    }
   }
 }

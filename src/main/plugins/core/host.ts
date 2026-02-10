@@ -111,8 +111,11 @@ export class PluginHost {
   }
 
   async shutdown(): Promise<void> {
-    if (!this.hydrated) return
     await this.actionbook.shutdown()
+  }
+
+  shutdownNow(): void {
+    this.actionbook.shutdownNow()
   }
 }
 

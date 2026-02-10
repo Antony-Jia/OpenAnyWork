@@ -529,7 +529,7 @@ app.on("before-quit", () => {
   butlerMonitorBus = null
   loopManager.stopAll()
   butlerManager.shutdown()
-  void pluginHost.shutdown()
+  pluginHost.shutdownNow()
   void stopMemoryService()
   void flushMemoryDatabase()
 })

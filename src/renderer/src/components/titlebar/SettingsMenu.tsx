@@ -12,7 +12,6 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { cn } from "@/lib/utils"
 import type { AppSettings, ProviderConfig, ProviderState, SimpleProviderId } from "@/types"
-import { PluginsTab } from "@/plugins"
 
 interface SettingsMenuProps {
   threadId: string | null
@@ -47,9 +46,9 @@ function parseKeyValue(text: string): Record<string, string> | undefined {
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 export function SettingsMenu(_props: SettingsMenuProps): React.JSX.Element {
   const [open, setOpen] = useState(false)
-  const [activeTab, setActiveTab] = useState<
-    "general" | "provider" | "ralph" | "email" | "speech" | "plugins"
-  >("general")
+  const [activeTab, setActiveTab] = useState<"general" | "provider" | "ralph" | "email" | "speech">(
+    "general"
+  )
   const { language, setLanguage, theme, setTheme, t } = useLanguage()
 
   // Provider configuration state
@@ -385,8 +384,7 @@ export function SettingsMenu(_props: SettingsMenuProps): React.JSX.Element {
                 { id: "provider", label: t("settings.tabs.provider") },
                 { id: "ralph", label: t("settings.tabs.ralph") },
                 { id: "email", label: t("settings.tabs.email") },
-                { id: "speech", label: t("settings.tabs.speech") },
-                { id: "plugins", label: t("settings.tabs.plugins") }
+                { id: "speech", label: t("settings.tabs.speech") }
               ] as const
             ).map((tab) => (
               <Button
@@ -1050,8 +1048,6 @@ export function SettingsMenu(_props: SettingsMenuProps): React.JSX.Element {
                 </div>
               </div>
             )}
-
-            {activeTab === "plugins" && <PluginsTab />}
           </div>
 
           <div className="flex items-center justify-end gap-2 px-4 py-3 border-t border-border/70 bg-background/70">

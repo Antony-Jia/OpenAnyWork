@@ -219,6 +219,17 @@ export class ActionbookPluginService {
     }
   }
 
+  shutdownNow(): void {
+    const result = this.bridgeManager.stopNow()
+    if (!result.stopped) return
+    this.state.bridge = {
+      ...this.state.bridge,
+      running: false,
+      managed: false,
+      pid: undefined
+    }
+  }
+
   private handleBridgeLine(source: ActionbookLogSource, rawLine: string): void {
     const line = sanitizeActionbookOutput(rawLine).trim()
     if (!line) return

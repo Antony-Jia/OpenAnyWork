@@ -12,6 +12,7 @@ const RENDERER_PLUGIN_ACTIONBOOK_ROOT = "src/renderer/src/plugins/actionbook"
 
 const allowedRendererImporters = new Set([
   "src/renderer/src/components/titlebar/SettingsMenu.tsx",
+  "src/renderer/src/components/titlebar/PluginManager.tsx",
   "src/renderer/src/plugins/index.ts"
 ])
 

@@ -7,6 +7,7 @@ import { SkillsManager } from "./SkillsManager"
 import { ToolsManager } from "./ToolsManager"
 import { ContainerManager } from "./ContainerManager"
 import { McpManager } from "./McpManager"
+import { PluginManager } from "./PluginManager"
 import { WindowControls } from "./WindowControls"
 import { useLanguage } from "@/lib/i18n"
 import { useAppStore } from "@/lib/store"
@@ -51,6 +52,7 @@ export function TitleBar({ threadId }: TitleBarProps): React.JSX.Element {
         <SkillsManager />
         <ToolsManager />
         <McpManager />
+        <PluginManager />
         <ContainerManager threadId={threadId} />
       </div>
 

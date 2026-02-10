@@ -162,14 +162,23 @@ export class ActionbookPluginService {
     const result = this.bridgeManager.start()
     this.pushSystemLog(result.message)
     this.pushMilestone("bridge_started", result.started, result.message)
-    this.state.bridge = {
-      ...this.state.bridge,
-      running: true,
-      managed: true,
-      pid: result.pid
+    this.state.bridge = result.started
+      ? {
+          ...this.state.bridge,
+          running: true,
+          managed: true,
+          pid: result.pid
+        }
+      : {
+          ...this.state.bridge,
+          running: false,
+          managed: false,
+          pid: undefined
+        }
+    this.state.lastError = result.started ? null : result.message
+    if (result.started) {
+      this.applyTokenFromFileFallback()
     }
-    this.state.lastError = null
-    this.applyTokenFromFileFallback()
     this.emitState()
     return this.getState()
   }

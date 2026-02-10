@@ -52,12 +52,23 @@ export class ActionbookBridgeManager {
 
     const executable = getActionbookExecutable()
     const args = ["extension", "serve", "--port", String(this.port)]
-
-    const proc: SpawnedBridgeProcess = spawn(executable, args, {
-      stdio: ["ignore", "pipe", "pipe"],
-      windowsHide: true,
-      env: process.env
-    })
+    let proc: SpawnedBridgeProcess
+    try {
+      proc = spawn(executable, args, {
+        stdio: ["ignore", "pipe", "pipe"],
+        windowsHide: true,
+        env: process.env,
+        shell: process.platform === "win32"
+      })
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Actionbook bridge failed to start."
+      this.onError(message)
+      return {
+        started: false,
+        message
+      }
+    }
     this.process = proc
 
     this.stdoutRemainder = ""
@@ -121,7 +132,14 @@ export class ActionbookBridgeManager {
       const timeout = setTimeout(() => {
         if (resolved) return
         resolved = true
-        proc.kill("SIGKILL")
+        if (process.platform === "win32" && proc.pid) {
+          spawn("taskkill", ["/PID", String(proc.pid), "/T", "/F"], {
+            stdio: "ignore",
+            windowsHide: true
+          })
+        } else {
+          proc.kill("SIGKILL")
+        }
         resolve({
           stopped: true,
           message: "Managed Actionbook bridge process force-stopped."
@@ -137,8 +155,21 @@ export class ActionbookBridgeManager {
           message: "Managed Actionbook bridge process stopped."
         })
       })
-
-      proc.kill("SIGTERM")
+      if (process.platform === "win32") {
+        if (proc.pid) {
+          const killer = spawn("taskkill", ["/PID", String(proc.pid), "/T", "/F"], {
+            stdio: "ignore",
+            windowsHide: true
+          })
+          killer.on("error", () => {
+            proc.kill("SIGKILL")
+          })
+        } else {
+          proc.kill("SIGKILL")
+        }
+      } else {
+        proc.kill("SIGTERM")
+      }
     })
   }
 }

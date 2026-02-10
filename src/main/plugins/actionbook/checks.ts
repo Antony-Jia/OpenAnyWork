@@ -1,7 +1,8 @@
-import { spawn } from "node:child_process"
+import { spawn, type ChildProcessByStdio } from "node:child_process"
 import { existsSync, readFileSync } from "node:fs"
 import { homedir } from "node:os"
 import { join } from "node:path"
+import type { Readable } from "node:stream"
 import { getOpenworkDir } from "../../storage"
 import type {
   ActionbookCliCheck,
@@ -17,7 +18,7 @@ import {
 } from "./parser"
 
 export function getActionbookExecutable(): string {
-  return process.platform === "win32" ? "actionbook.cmd" : "actionbook"
+  return "actionbook"
 }
 
 export async function runActionbookCommand(
@@ -26,11 +27,26 @@ export async function runActionbookCommand(
 ): Promise<ActionbookCommandResult> {
   return new Promise((resolve) => {
     const cmd = getActionbookExecutable()
-    const proc = spawn(cmd, args, {
-      stdio: ["ignore", "pipe", "pipe"],
-      windowsHide: true,
-      env: process.env
-    })
+    let proc: ChildProcessByStdio<null, Readable, Readable>
+    try {
+      proc = spawn(cmd, args, {
+        stdio: ["ignore", "pipe", "pipe"],
+        windowsHide: true,
+        env: process.env,
+        shell: process.platform === "win32"
+      })
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Failed to execute actionbook."
+      resolve({
+        ok: false,
+        exitCode: 1,
+        stdout: "",
+        stderr: "",
+        output: "",
+        message
+      })
+      return
+    }
 
     let stdout = ""
     let stderr = ""
@@ -39,7 +55,14 @@ export async function runActionbookCommand(
     const timeout = setTimeout(() => {
       if (resolved) return
       resolved = true
-      proc.kill("SIGTERM")
+      if (process.platform === "win32" && proc.pid) {
+        spawn("taskkill", ["/PID", String(proc.pid), "/T", "/F"], {
+          stdio: "ignore",
+          windowsHide: true
+        })
+      } else {
+        proc.kill("SIGTERM")
+      }
       const output = sanitizeActionbookOutput(`${stdout}\n${stderr}`).trim()
       resolve({
         ok: false,
@@ -114,6 +137,7 @@ export async function checkActionbookCli(): Promise<ActionbookCliCheck> {
 function getActionbookSkillCandidates(): string[] {
   return [
     join(homedir(), ".agents", "skills", "actionbook", "SKILL.md"),
+    join(homedir(), ".codex", "skills", "actionbook", "SKILL.md"),
     join(getOpenworkDir(), "skills", "actionbook", "SKILL.md")
   ]
 }

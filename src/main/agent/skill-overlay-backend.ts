@@ -3,12 +3,14 @@ import type {
   EditResult,
   ExecuteResponse,
   FileData,
+  FileDownloadResponse,
   FileInfo,
   GrepMatch,
   SandboxBackendProtocol,
   WriteResult
 } from "deepagents"
 import type { LocalSandbox } from "./local-sandbox"
+import { logEntry, logExit } from "../logging"
 
 export const SKILL_OVERLAY_PREFIX = "/__openwork_skills__"
 
@@ -61,7 +63,16 @@ export class SkillOverlayBackend implements SandboxBackendProtocol {
       normalizedSkills.set(trimmed, resolve(realRoot))
     }
 
+    logEntry("Overlay", "skills.overlay.register", {
+      sourceRoot: normalizedSource,
+      count: normalizedSkills.size,
+      names: Array.from(normalizedSkills.keys()).slice(0, 10)
+    })
     this.sourceRoots.set(normalizedSource, normalizedSkills)
+    logExit("Overlay", "skills.overlay.register", {
+      sourceRoot: normalizedSource,
+      count: normalizedSkills.size
+    })
   }
 
   private resolveSkillPath(inputPath: string): SkillPathResolution | null {
@@ -134,22 +145,46 @@ export class SkillOverlayBackend implements SandboxBackendProtocol {
       return this.base.lsInfo(path)
     }
 
+    logEntry("Overlay", "skills.overlay.ls", {
+      path: normalizeVirtualPath(path),
+      sourceRoot: resolution.sourceRoot,
+      skillName: resolution.skillName ?? null
+    })
+
     if (!resolution.skillName) {
       const sourceSkills = this.sourceRoots.get(resolution.sourceRoot)
       if (!sourceSkills) return []
-      return Array.from(sourceSkills.keys())
+      const rootListing = Array.from(sourceSkills.keys())
         .sort((a, b) => a.localeCompare(b))
         .map((skillName) => ({
           path: `${resolution.sourceRoot}/${skillName}/`,
           is_dir: true
         }))
+      logExit("Overlay", "skills.overlay.ls", {
+        path: normalizeVirtualPath(path),
+        count: rootListing.length,
+        entries: rootListing.map((item) => item.path)
+      })
+      return rootListing
     }
 
     if (!resolution.realPath) {
+      logExit("Overlay", "skills.overlay.ls", {
+        path: normalizeVirtualPath(path),
+        count: 0,
+        reason: "skill_not_registered"
+      })
       return []
     }
     const infos = await this.base.lsInfo(resolution.realPath)
-    return infos.map((info) => this.rewriteFileInfo(info, resolution))
+    const rewritten = infos.map((info) => this.rewriteFileInfo(info, resolution))
+    logExit("Overlay", "skills.overlay.ls", {
+      path: normalizeVirtualPath(path),
+      realPath: normalizeRealPath(resolution.realPath),
+      count: rewritten.length,
+      entries: rewritten.map((item) => item.path).slice(0, 10)
+    })
+    return rewritten
   }
 
   async read(filePath: string, offset?: number, limit?: number): Promise<string> {
@@ -157,10 +192,30 @@ export class SkillOverlayBackend implements SandboxBackendProtocol {
     if (!resolution) {
       return this.base.read(filePath, offset, limit)
     }
+    logEntry("Overlay", "skills.overlay.read", {
+      path: normalizeVirtualPath(filePath),
+      sourceRoot: resolution.sourceRoot,
+      skillName: resolution.skillName ?? null,
+      offset: offset ?? 0,
+      limit: limit ?? null
+    })
     if (!resolution.realPath) {
-      return "Error: Skill path not found."
+      const missing = "Error: Skill path not found."
+      logExit("Overlay", "skills.overlay.read", {
+        path: normalizeVirtualPath(filePath),
+        ok: false,
+        error: missing
+      })
+      return missing
     }
-    return this.base.read(resolution.realPath, offset, limit)
+    const content = await this.base.read(resolution.realPath, offset, limit)
+    logExit("Overlay", "skills.overlay.read", {
+      path: normalizeVirtualPath(filePath),
+      realPath: normalizeRealPath(resolution.realPath),
+      ok: !content.startsWith("Error:"),
+      length: content.length
+    })
+    return content
   }
 
   async readRaw(filePath: string): Promise<FileData> {
@@ -172,6 +227,111 @@ export class SkillOverlayBackend implements SandboxBackendProtocol {
       throw new Error("Skill path not found.")
     }
     return this.base.readRaw(resolution.realPath)
+  }
+
+  async downloadFiles(paths: string[]): Promise<FileDownloadResponse[]> {
+    const results: FileDownloadResponse[] = []
+    for (const requestedPath of paths) {
+      const resolution = this.resolveSkillPath(requestedPath)
+      if (!resolution) {
+        const passthrough = await this.base.downloadFiles([requestedPath])
+        if (passthrough.length === 1) {
+          results.push(passthrough[0])
+        } else {
+          results.push({
+            path: requestedPath,
+            content: null,
+            error: "invalid_path"
+          })
+        }
+        continue
+      }
+
+      const normalizedRequestedPath = normalizeVirtualPath(requestedPath)
+      logEntry("Overlay", "skills.overlay.download", {
+        path: normalizedRequestedPath,
+        sourceRoot: resolution.sourceRoot,
+        skillName: resolution.skillName ?? null
+      })
+
+      if (!resolution.skillName) {
+        const response: FileDownloadResponse = {
+          path: normalizedRequestedPath,
+          content: null,
+          error: "is_directory"
+        }
+        logExit("Overlay", "skills.overlay.download", {
+          path: normalizedRequestedPath,
+          ok: false,
+          error: response.error
+        })
+        results.push(response)
+        continue
+      }
+
+      if (!resolution.realPath || !resolution.virtualSkillRoot) {
+        const response: FileDownloadResponse = {
+          path: normalizedRequestedPath,
+          content: null,
+          error: "file_not_found"
+        }
+        logExit("Overlay", "skills.overlay.download", {
+          path: normalizedRequestedPath,
+          ok: false,
+          error: response.error
+        })
+        results.push(response)
+        continue
+      }
+
+      if (normalizedRequestedPath === resolution.virtualSkillRoot) {
+        const response: FileDownloadResponse = {
+          path: normalizedRequestedPath,
+          content: null,
+          error: "is_directory"
+        }
+        logExit("Overlay", "skills.overlay.download", {
+          path: normalizedRequestedPath,
+          ok: false,
+          error: response.error
+        })
+        results.push(response)
+        continue
+      }
+
+      const passthrough = await this.base.downloadFiles([resolution.realPath])
+      if (passthrough.length !== 1) {
+        const response: FileDownloadResponse = {
+          path: normalizedRequestedPath,
+          content: null,
+          error: "invalid_path"
+        }
+        logExit("Overlay", "skills.overlay.download", {
+          path: normalizedRequestedPath,
+          realPath: normalizeRealPath(resolution.realPath),
+          ok: false,
+          error: response.error
+        })
+        results.push(response)
+        continue
+      }
+
+      const [baseResponse] = passthrough
+      const response: FileDownloadResponse = {
+        path: normalizedRequestedPath,
+        content: baseResponse.content,
+        error: baseResponse.error
+      }
+      logExit("Overlay", "skills.overlay.download", {
+        path: normalizedRequestedPath,
+        realPath: normalizeRealPath(resolution.realPath),
+        ok: response.error == null,
+        bytes: response.content?.byteLength ?? 0,
+        error: response.error
+      })
+      results.push(response)
+    }
+    return results
   }
 
   async grepRaw(

@@ -143,7 +143,17 @@ function createSkillOverlaySource(params: {
 }): string[] | undefined {
   const { overlayBackend, sourceRoot, selectedSkillNames, skillPathByName, agentName } = params
   const uniqueSkillNames = Array.from(new Set(selectedSkillNames ?? []))
+  logEntry("Runtime", "skills.overlay.prepare", {
+    agentName,
+    sourceRoot: normalizeSkillSourcePath(sourceRoot),
+    ...summarizeList(uniqueSkillNames)
+  })
   if (uniqueSkillNames.length === 0) {
+    logExit("Runtime", "skills.overlay.prepare", {
+      agentName,
+      sourceCount: 0,
+      reason: "no_selection"
+    })
     return undefined
   }
 
@@ -163,10 +173,23 @@ function createSkillOverlaySource(params: {
   }
 
   if (Object.keys(skillsByName).length === 0) {
+    logExit("Runtime", "skills.overlay.prepare", {
+      agentName,
+      sourceCount: 0,
+      reason: "no_valid_paths"
+    })
     return undefined
   }
   overlayBackend.registerSkillSource(sourceRoot, skillsByName)
-  return [normalizeSkillSourcePath(sourceRoot)]
+  const sources = [normalizeSkillSourcePath(sourceRoot)]
+  logExit("Runtime", "skills.overlay.prepare", {
+    agentName,
+    sourceCount: sources.length,
+    sources,
+    registeredCount: Object.keys(skillsByName).length,
+    registeredSkills: Object.keys(skillsByName).slice(0, 10)
+  })
+  return sources
 }
 
 export function createToolErrorHandlingMiddleware() {
@@ -450,6 +473,14 @@ export async function createAgentRuntime(options: CreateAgentRuntimeOptions) {
   const enabledSkills = allSkills.filter((skill) =>
     capabilityScope === "butler" ? skill.enabledButler : skill.enabledClassic
   )
+  logEntry("Runtime", "skills.registry_snapshot", {
+    totalCount: allSkills.length,
+    enabledCount: enabledSkills.length,
+    enabledSkills: enabledSkills.map((skill) => ({
+      name: skill.name,
+      path: normalizeSkillSourcePath(skill.path)
+    }))
+  })
   const skillPathByName = buildSkillPathMap(allSkills)
   const runtimeSkillsRoot = `${SKILL_OVERLAY_PREFIX}/${toOverlaySegment(threadId)}`
   const mainSkillSources = createSkillOverlaySource({
@@ -461,6 +492,10 @@ export async function createAgentRuntime(options: CreateAgentRuntimeOptions) {
   })
   logEntry("Runtime", "skills.runtime_root", { path: runtimeSkillsRoot })
   logEntry("Runtime", "skills.enabled", summarizeList(enabledSkills.map((skill) => skill.name)))
+  logEntry("Runtime", "skills.main_sources", {
+    sourceCount: mainSkillSources?.length ?? 0,
+    sources: mainSkillSources ?? []
+  })
 
   const subagents = listSubagentsByScope(capabilityScope).map((agent) => {
     const resolvedTools = resolveToolInstancesByName(agent.tools, capabilityScope) ?? []
@@ -485,7 +520,8 @@ export async function createAgentRuntime(options: CreateAgentRuntimeOptions) {
     })
     logExit("Runtime", "subagent.skills", {
       name: agent.name,
-      sourceCount: subagentSkillSources?.length ?? 0
+      sourceCount: subagentSkillSources?.length ?? 0,
+      sources: subagentSkillSources ?? []
     })
     const subagentModel = getModelInstance(agent.provider, agent.model, undefined)
     return {

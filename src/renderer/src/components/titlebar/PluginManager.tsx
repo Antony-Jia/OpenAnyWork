@@ -28,17 +28,15 @@ export function PluginManager(): React.JSX.Element {
         <Plug className="size-4" />
       </Button>
 
-      <DialogContent className="w-[900px] h-[640px] max-w-[90vw] max-h-[85vh] p-0 overflow-hidden">
-        <div className="flex h-full flex-col">
-          <DialogHeader className="px-6 pt-6">
-            <DialogTitle className="text-sm uppercase tracking-[0.2em] text-muted-foreground">
-              {t("plugin.title")}
-            </DialogTitle>
-          </DialogHeader>
+      <DialogContent className="w-[900px] h-[640px] max-w-[90vw] max-h-[85vh] p-0 overflow-hidden flex flex-col gap-0">
+        <DialogHeader className="px-6 pt-6 pb-4 border-b border-border/70 shrink-0">
+          <DialogTitle className="text-sm uppercase tracking-[0.2em] text-muted-foreground">
+            {t("plugin.title")}
+          </DialogTitle>
+        </DialogHeader>
 
-          <div className="flex-1 overflow-y-auto px-6 pb-6 pt-4">
-            <PluginsTab />
-          </div>
+        <div className="min-h-0 flex-1 overflow-y-auto px-6 py-4">
+          <PluginsTab />
         </div>
       </DialogContent>
     </Dialog>

@@ -9,7 +9,8 @@ import type {
   ContentBlock,
   RalphLogEntry,
   RalphState,
-  DockerConfig
+  DockerConfig,
+  ThreadMode
 } from "../types"
 
 export async function runAgentStream({
@@ -21,6 +22,7 @@ export async function runAgentStream({
   disableApprovals,
   extraSystemPrompt,
   forceToolNames,
+  threadMode,
   capabilityScope,
   message,
   window,
@@ -36,6 +38,7 @@ export async function runAgentStream({
   disableApprovals?: boolean
   extraSystemPrompt?: string
   forceToolNames?: string[]
+  threadMode?: ThreadMode
   capabilityScope?: CapabilityScope
   message: string | ContentBlock[]
   window: BrowserWindow
@@ -57,6 +60,7 @@ export async function runAgentStream({
     disableApprovals,
     extraSystemPrompt,
     forceToolNames,
+    threadMode,
     capabilityScope
   })
 

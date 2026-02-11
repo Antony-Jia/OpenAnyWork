@@ -552,6 +552,7 @@ export class LoopManager {
         dockerContainerId,
         capabilityScope,
         disableApprovals: true,
+        threadMode: "loop",
         message: finalMessage,
         window,
         channel: `agent:stream:${runner.threadId}`,

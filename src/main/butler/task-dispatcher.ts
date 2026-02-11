@@ -6,7 +6,6 @@ import {
 } from "../db"
 import { ensureDockerRunning, getDockerRuntimeConfig } from "../docker/session"
 import { runAgentStream } from "../agent/run"
-import { buildEmailModePrompt } from "../email/prompt"
 import { emitTaskCompleted } from "../tasks/lifecycle"
 import { loopManager } from "../loop/manager"
 import { broadcastThreadsChanged } from "../ipc/events"
@@ -146,13 +145,13 @@ export async function executeButlerTask(task: ButlerTask): Promise<ExecuteResult
       dockerContainerId,
       capabilityScope: "butler",
       disableApprovals: true,
+      threadMode: task.mode,
       message: task.prompt,
       window,
       channel,
       abortController,
       ...(task.mode === "email"
         ? {
-            extraSystemPrompt: buildEmailModePrompt(task.threadId),
             forceToolNames: ["send_email"]
           }
         : {})

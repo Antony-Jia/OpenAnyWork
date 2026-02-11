@@ -7,7 +7,6 @@ import { createAgentRuntime, closeCheckpointer } from "../agent/runtime"
 import { getThread, updateThread as dbUpdateThread } from "../db"
 import { deleteThreadCheckpoint, hasThreadCheckpoint } from "../storage"
 import { getSettings } from "../settings"
-import { buildEmailModePrompt } from "../email/prompt"
 import { ensureDockerRunning, getDockerRuntimeConfig } from "../docker/session"
 import { appendRalphLogEntry } from "../ralph-log"
 import { runAgentStream } from "../agent/run"
@@ -259,6 +258,7 @@ export function registerAgentHandlers(ipcMain: IpcMain): void {
             window,
             channel,
             abortController,
+            threadMode: mode,
             capabilityScope: "classic",
             ralphLog: { enabled: true, iteration: 0, phase: ralph.phase }
           })
@@ -323,6 +323,7 @@ export function registerAgentHandlers(ipcMain: IpcMain): void {
               window,
               channel,
               abortController,
+              threadMode: mode,
               capabilityScope: "classic",
               ralphLog: { enabled: true, iteration: i, phase: "running" }
             })
@@ -385,6 +386,7 @@ export function registerAgentHandlers(ipcMain: IpcMain): void {
             window,
             channel,
             abortController,
+            threadMode: mode,
             capabilityScope: "classic",
             ralphLog: { enabled: true, iteration: 0, phase: ralph.phase }
           })
@@ -414,8 +416,8 @@ export function registerAgentHandlers(ipcMain: IpcMain): void {
           window,
           channel,
           abortController,
+          threadMode: mode,
           capabilityScope: "classic",
-          extraSystemPrompt: buildEmailModePrompt(threadId),
           forceToolNames: ["send_email"]
         })
 
@@ -442,6 +444,7 @@ export function registerAgentHandlers(ipcMain: IpcMain): void {
         window,
         channel,
         abortController,
+        threadMode: mode,
         capabilityScope: "classic"
       })
 
@@ -495,6 +498,7 @@ export function registerAgentHandlers(ipcMain: IpcMain): void {
     const thread = getThread(threadId)
     const metadata = thread?.metadata ? JSON.parse(thread.metadata) : {}
     const workspacePath = metadata.workspacePath as string | undefined
+    const threadMode = (metadata.mode as ThreadMode) || "default"
     await ensureDockerRunning()
     const dockerRuntime = getDockerRuntimeConfig()
     const dockerConfig = dockerRuntime.config ?? undefined
@@ -529,6 +533,7 @@ export function registerAgentHandlers(ipcMain: IpcMain): void {
         modelId,
         dockerConfig,
         dockerContainerId,
+        threadMode,
         capabilityScope: "classic"
       })
       const config = {
@@ -606,6 +611,7 @@ export function registerAgentHandlers(ipcMain: IpcMain): void {
     const metadata = thread?.metadata ? JSON.parse(thread.metadata) : {}
     const workspacePath = metadata.workspacePath as string | undefined
     const modelId = metadata.model as string | undefined
+    const threadMode = (metadata.mode as ThreadMode) || "default"
     await ensureDockerRunning()
     const dockerRuntime = getDockerRuntimeConfig()
     const dockerConfig = dockerRuntime.config ?? undefined
@@ -640,6 +646,7 @@ export function registerAgentHandlers(ipcMain: IpcMain): void {
         modelId,
         dockerConfig,
         dockerContainerId,
+        threadMode,
         capabilityScope: "classic"
       })
       const config = {

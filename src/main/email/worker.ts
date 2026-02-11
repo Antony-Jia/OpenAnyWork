@@ -14,7 +14,6 @@ import {
   sendEmail,
   stripEmailSubjectPrefix
 } from "./service"
-import { buildEmailModePrompt } from "./prompt"
 import { generateTitle } from "../services/title-generator"
 import { emitTaskCompleted, emitTaskStarted } from "../tasks/lifecycle"
 import type { EmailTask } from "./service"
@@ -60,8 +59,8 @@ async function runAgentToSummary({
     workspacePath,
     dockerConfig,
     dockerContainerId,
+    threadMode: "email",
     capabilityScope,
-    extraSystemPrompt: buildEmailModePrompt(threadId),
     forceToolNames: ["send_email"],
     disableApprovals: true // 邮件模式下禁用人工审批，否则会卡在等待审批
   })

@@ -27,7 +27,8 @@ import type {
   ProviderConfig,
   ProviderState,
   SkillItem,
-  SimpleProviderId
+  SimpleProviderId,
+  ThreadMode
 } from "../types"
 import { logEntry, logExit, summarizeList } from "../logging"
 
@@ -36,43 +37,7 @@ import type * as _lcMessages from "@langchain/core/messages"
 import type * as _lcLanggraph from "@langchain/langgraph"
 import type * as _lcZodTypes from "@langchain/core/utils/types"
 
-import { getBaseSystemPrompt } from "./system-prompt"
-
-/**
- * Generate the full system prompt for the agent.
- *
- * @param workspacePath - The workspace path the agent is operating in
- * @returns The complete system prompt
- */
-function getSystemPrompt(
-  workspacePath: string,
-  dockerConfig?: DockerConfig,
-  isWindows?: boolean
-): string {
-  const baseSystemPrompt = getBaseSystemPrompt({ isWindows })
-  const workingDirSection = `
-### File System and Paths
-
-**IMPORTANT - Path Handling:**
-- All file paths use fully qualified absolute system paths
-- The workspace root is: \`${workspacePath}\`
-- Example: \`${workspacePath}/src/index.ts\`, \`${workspacePath}/README.md\`
-- To list the workspace root, use \`ls("${workspacePath}")\`
-- Always use full absolute paths for all file operations
-`
-
-  const dockerSection = dockerConfig?.enabled
-    ? `
-### Docker Mode
-
-- Use Docker tools for container operations: execute_bash, upload_file, download_file, edit_file, cat_file
-- Container working directory is /workspace
-- Local filesystem tools operate on the host, not inside the container
-`
-    : ""
-
-  return workingDirSection + dockerSection + baseSystemPrompt
-}
+import { composeAgentSystemPrompt } from "./prompts"
 
 function normalizeDockerWorkspace(config: DockerConfig): string {
   const mount = config.mounts?.[0]
@@ -378,6 +343,8 @@ function getModelInstanceLegacy(
 export interface CreateAgentRuntimeOptions {
   /** Thread ID - REQUIRED for per-thread checkpointing */
   threadId: string
+  /** Conversation mode used to resolve mode-specific prompts */
+  threadMode?: ThreadMode
   /** Model ID to use (defaults to configured default model) */
   modelId?: string
   /** Optional message content for multimodal detection */
@@ -404,6 +371,7 @@ export type AgentRuntime = ReturnType<typeof createDeepAgent>
 export async function createAgentRuntime(options: CreateAgentRuntimeOptions) {
   const {
     threadId,
+    threadMode,
     modelId,
     messageContent,
     workspacePath,
@@ -428,6 +396,7 @@ export async function createAgentRuntime(options: CreateAgentRuntimeOptions) {
 
   logEntry("Runtime", "createAgentRuntime", {
     threadId,
+    threadMode: threadMode ?? "default",
     hasWorkspace: !!workspacePath,
     dockerEnabled: !!dockerConfig?.enabled
   })
@@ -464,10 +433,15 @@ export async function createAgentRuntime(options: CreateAgentRuntimeOptions) {
   const isWindows = process.platform === "win32"
   const now = new Date()
   const currentTimePrompt = `Current time: ${now.toISOString()}\nCurrent year: ${now.getFullYear()}`
-  const systemPrompt =
-    getSystemPrompt(effectiveWorkspace, dockerConfig || undefined, isWindows) +
-    `\n\n${currentTimePrompt}` +
-    (extraSystemPrompt ? `\n\n${extraSystemPrompt}` : "")
+  const systemPrompt = composeAgentSystemPrompt({
+    threadId,
+    threadMode,
+    workspacePath: effectiveWorkspace,
+    isWindows,
+    dockerEnabled: !!dockerConfig?.enabled,
+    now,
+    extraSystemPrompt
+  })
 
   const allSkills = listAppSkills({ workspacePath })
   const enabledSkills = allSkills.filter((skill) =>

@@ -273,7 +273,7 @@ export function ButlerWorkspace(): React.JSX.Element {
 
   return (
     <div className="flex h-full min-h-0">
-      <section className="flex min-w-0 flex-1 flex-col border-r border-border/40">
+      <section className="flex min-w-0 flex-1 flex-col">
         <header className="h-12 px-5 border-b border-border/40 flex items-center justify-between glass-panel">
           <span className="text-xs text-accent uppercase tracking-[0.2em] font-bold neon-text">
             Butler AI
@@ -379,7 +379,7 @@ export function ButlerWorkspace(): React.JSX.Element {
             )
           })}
         </div>
-        <div className="border-t border-border/40 p-5 flex items-end gap-3 glass-panel">
+        <div className="border-t border-border/40 p-5 flex items-center gap-3 glass-panel">
           <textarea
             value={input}
             onChange={(event) => setInput(event.target.value)}
@@ -392,11 +392,17 @@ export function ButlerWorkspace(): React.JSX.Element {
             placeholder="给管家输入需求..."
             className="min-h-[52px] max-h-[200px] flex-1 resize-y rounded-xl border border-input bg-background/50 backdrop-blur-sm px-4 py-3 text-sm transition-all duration-300 focus:outline-none cyber-input"
           />
-          <Button onClick={() => void handleSend()} disabled={!canSend}>
+          <Button
+            onClick={() => void handleSend()}
+            disabled={!canSend}
+            className="h-[52px] px-8 rounded-xl text-sm"
+          >
             {sending ? "处理中..." : "发送"}
           </Button>
         </div>
       </section>
+
+      <div className="w-[2px] shrink-0 gradient-divider-vertical" />
 
       <aside className="flex h-full min-h-0 w-[400px] shrink-0 flex-col">
         <header className="h-12 shrink-0 px-5 border-b border-border/40 flex items-center justify-between gap-3 glass-panel">

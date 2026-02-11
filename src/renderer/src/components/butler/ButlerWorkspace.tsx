@@ -273,9 +273,9 @@ export function ButlerWorkspace(): React.JSX.Element {
 
   return (
     <div className="flex h-full min-h-0">
-      <section className="flex min-w-0 flex-1 flex-col border-r border-border">
-        <header className="h-10 px-3 border-b border-border flex items-center justify-between">
-          <span className="text-xs text-muted-foreground uppercase tracking-[0.18em]">
+      <section className="flex min-w-0 flex-1 flex-col border-r border-border/40">
+        <header className="h-12 px-5 border-b border-border/40 flex items-center justify-between glass-panel">
+          <span className="text-xs text-accent uppercase tracking-[0.2em] font-bold neon-text">
             Butler AI
           </span>
           <Button
@@ -283,19 +283,20 @@ export function ButlerWorkspace(): React.JSX.Element {
             size="sm"
             disabled={clearingHistory}
             onClick={() => void handleClearHistory()}
-            className="h-7 px-2 text-xs"
+            className="h-7 px-3 text-xs rounded-lg"
           >
             {clearingHistory ? "清空中..." : "清空聊天"}
           </Button>
         </header>
-        <div className="flex-1 min-h-0 overflow-y-auto p-3 space-y-3">
+        <div className="flex-1 min-h-0 overflow-y-auto p-5 space-y-5 tech-gradient">
           {hasPendingDispatchChoice && (
-            <div className="text-xs rounded-md border border-amber-500/40 bg-amber-500/10 p-3">
+            <div className="text-xs rounded-xl border border-amber-500/40 bg-amber-500/10 p-4 shadow-[0_0_16px_rgba(245,158,11,0.1)]">
               {pendingChoiceHint}
             </div>
           )}
           {rounds.length === 0 && (
-            <div className="text-xs text-muted-foreground rounded-md border border-border p-3">
+            <div className="text-sm text-muted-foreground rounded-2xl border border-border/40 p-8 text-center glass-panel">
+              <div className="text-accent/60 text-2xl mb-3">&#9672;</div>
               暂无对话，输入你的任务需求后，管家会自动路由。
             </div>
           )}
@@ -310,10 +311,10 @@ export function ButlerWorkspace(): React.JSX.Element {
               ? resolveNoticeCard(round, assistantText, tasks, snapshot)
               : null
             return (
-              <div key={round.id} className="space-y-2">
+              <div key={round.id} className="space-y-4">
                 {!isSystemNotice && (
                   <div className="flex justify-end">
-                    <div className="max-w-[82%] rounded-md border border-primary/30 bg-primary/10 p-3 text-sm whitespace-pre-wrap">
+                    <div className="max-w-[80%] rounded-2xl rounded-tr-sm border border-accent/20 bg-accent/8 p-4 text-sm whitespace-pre-wrap shadow-sm">
                       {round.user}
                     </div>
                   </div>
@@ -321,8 +322,8 @@ export function ButlerWorkspace(): React.JSX.Element {
 
                 {(isSystemNotice || hasAssistantContent) && (
                   <div className="flex justify-start">
-                    <div className="max-w-[86%] rounded-md border border-blue-500/30 bg-blue-500/5 p-3">
-                      <div className="mb-1 text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
+                    <div className="max-w-[85%] rounded-2xl rounded-tl-sm border border-border/40 bg-card/60 backdrop-blur-sm p-4 shadow-sm">
+                      <div className="mb-2 text-[10px] uppercase tracking-[0.15em] text-accent/70 font-bold">
                         {isSystemNotice ? "系统通知" : "管家"}
                       </div>
                       <div className="text-sm whitespace-pre-wrap">
@@ -334,7 +335,7 @@ export function ButlerWorkspace(): React.JSX.Element {
 
                 {isSystemNotice && noticeCard && (
                   <div className="flex justify-start">
-                    <details className="w-[86%] rounded-md border border-border/70 bg-card/60 p-2">
+                    <details className="w-[85%] rounded-xl border border-border/40 bg-card/50 backdrop-blur-sm p-4 glow-border">
                       <summary className="cursor-pointer">
                         <div className="flex items-start justify-between gap-2">
                           <div className="min-w-0">
@@ -353,8 +354,8 @@ export function ButlerWorkspace(): React.JSX.Element {
                           </Badge>
                         </div>
                       </summary>
-                      <div className="mt-2 space-y-2">
-                        <div className="max-h-44 overflow-y-auto whitespace-pre-wrap rounded-sm border border-border/60 bg-background/70 p-2 text-xs">
+                      <div className="mt-3 space-y-2">
+                        <div className="max-h-44 overflow-y-auto whitespace-pre-wrap rounded-lg border border-border/40 bg-background/50 backdrop-blur-sm p-3 text-xs">
                           {resolveTaskDetail(noticeCard)}
                         </div>
                         <div className="flex justify-end">
@@ -365,7 +366,7 @@ export function ButlerWorkspace(): React.JSX.Element {
                               if (!noticeCard.threadId) return
                               void openTaskThread(noticeCard.threadId)
                             }}
-                            className="text-xs text-blue-500 hover:text-blue-400 disabled:text-muted-foreground disabled:cursor-not-allowed"
+                            className="text-xs text-accent hover:text-accent/80 hover:neon-text disabled:text-muted-foreground disabled:cursor-not-allowed transition-all duration-200"
                           >
                             查看线程
                           </button>
@@ -378,7 +379,7 @@ export function ButlerWorkspace(): React.JSX.Element {
             )
           })}
         </div>
-        <div className="border-t border-border p-3 flex items-end gap-2">
+        <div className="border-t border-border/40 p-5 flex items-end gap-3 glass-panel">
           <textarea
             value={input}
             onChange={(event) => setInput(event.target.value)}
@@ -389,7 +390,7 @@ export function ButlerWorkspace(): React.JSX.Element {
               }
             }}
             placeholder="给管家输入需求..."
-            className="min-h-[44px] max-h-[180px] flex-1 resize-y rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
+            className="min-h-[52px] max-h-[200px] flex-1 resize-y rounded-xl border border-input bg-background/50 backdrop-blur-sm px-4 py-3 text-sm transition-all duration-300 focus:outline-none cyber-input"
           />
           <Button onClick={() => void handleSend()} disabled={!canSend}>
             {sending ? "处理中..." : "发送"}
@@ -397,20 +398,20 @@ export function ButlerWorkspace(): React.JSX.Element {
         </div>
       </section>
 
-      <aside className="flex h-full min-h-0 w-[380px] shrink-0 flex-col">
-        <header className="h-10 shrink-0 px-3 border-b border-border flex items-center justify-between gap-2">
+      <aside className="flex h-full min-h-0 w-[400px] shrink-0 flex-col">
+        <header className="h-12 shrink-0 px-5 border-b border-border/40 flex items-center justify-between gap-3 glass-panel">
           <select
             value={rightTab}
             onChange={(event) => setRightTab(event.target.value as "tasks" | "monitor")}
-            className="h-7 min-w-[120px] rounded border border-border bg-background px-2 text-xs"
+            className="h-8 min-w-[130px] rounded-lg border border-border bg-background/50 backdrop-blur-sm px-3 text-xs font-semibold cursor-pointer transition-all duration-200 hover:border-accent/40 focus:outline-none cyber-input"
           >
             <option value="tasks">执行任务</option>
             <option value="monitor">监听任务</option>
           </select>
 
           {rightTab === "tasks" ? (
-            <div className="flex items-center gap-2">
-              <span className="text-[11px] text-muted-foreground">
+            <div className="flex items-center gap-3">
+              <span className="text-[11px] text-accent/70 font-bold tracking-wider">
                 {tasks.filter((task) => task.status === "running").length} Running
               </span>
               <Button
@@ -418,7 +419,7 @@ export function ButlerWorkspace(): React.JSX.Element {
                 size="sm"
                 disabled={clearingTasks}
                 onClick={() => void handleClearTasks()}
-                className="h-7 px-2 text-xs"
+                className="h-7 px-3 text-xs rounded-lg"
               >
                 {clearingTasks ? "清空中..." : "清空任务"}
               </Button>

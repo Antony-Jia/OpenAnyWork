@@ -29,16 +29,17 @@ interface ButlerTaskBoardProps {
 
 export function ButlerTaskBoard({ tasks, onOpenThread }: ButlerTaskBoardProps): React.JSX.Element {
   return (
-    <div className="h-full overflow-y-auto p-3 space-y-3">
+    <div className="h-full overflow-y-auto p-5 space-y-4 tech-gradient">
       {tasks.length === 0 && (
-        <div className="text-xs text-muted-foreground rounded-md border border-border p-3">
+        <div className="text-sm text-muted-foreground rounded-2xl border border-border/40 p-8 text-center glass-panel">
+          <div className="text-accent/50 text-xl mb-2">&#9671;</div>
           暂无任务
         </div>
       )}
 
       {tasks.map((task) => (
-        <div key={task.id} className="rounded-md border border-border bg-card/70 p-3 space-y-2">
-          <div className="flex items-center justify-between gap-2">
+        <div key={task.id} className="rounded-xl border border-border/40 bg-card/50 backdrop-blur-sm p-4 space-y-2.5 status-bar-left pl-6 card-hover" style={{ '--status-color': task.status === 'running' ? 'var(--status-info)' : task.status === 'completed' ? 'var(--status-nominal)' : task.status === 'failed' || task.status === 'cancelled' ? 'var(--status-critical)' : 'var(--accent)' } as React.CSSProperties}>
+          <div className="flex items-center justify-between gap-3">
             <div className="text-sm font-medium truncate" title={task.title}>
               {task.title}
             </div>
@@ -67,22 +68,22 @@ export function ButlerTaskBoard({ tasks, onOpenThread }: ButlerTaskBoardProps): 
                 if (!task.threadId) return
                 onOpenThread(task.threadId)
               }}
-              className="text-xs text-blue-500 hover:text-blue-400 disabled:text-muted-foreground disabled:cursor-not-allowed"
+              className="text-xs text-accent hover:text-accent/80 hover:neon-text disabled:text-muted-foreground disabled:cursor-not-allowed transition-all duration-200"
             >
               查看线程
             </button>
           </div>
 
           {isSettledStatus(task.status) ? (
-            <details className="rounded-sm border border-border/60 bg-background/40 p-2">
-              <summary className="cursor-pointer text-xs text-muted-foreground">详细结果</summary>
-              <div className="mt-2 max-h-48 overflow-y-auto whitespace-pre-wrap text-xs rounded-sm border border-border/60 bg-background/70 p-2">
+            <details className="rounded-lg border border-border/40 bg-background/30 backdrop-blur-sm p-3">
+              <summary className="cursor-pointer text-xs text-muted-foreground font-semibold">详细结果</summary>
+              <div className="mt-2.5 max-h-48 overflow-y-auto whitespace-pre-wrap text-xs rounded-lg border border-border/40 bg-background/50 backdrop-blur-sm p-3">
                 {resolveTaskDetail(task)}
               </div>
             </details>
           ) : (
             task.resultBrief && (
-              <div className="text-xs rounded-sm border border-border/60 bg-background/60 p-2 whitespace-pre-wrap">
+              <div className="text-xs rounded-lg border border-border/40 bg-background/40 backdrop-blur-sm p-3 whitespace-pre-wrap">
                 {task.resultBrief}
               </div>
             )

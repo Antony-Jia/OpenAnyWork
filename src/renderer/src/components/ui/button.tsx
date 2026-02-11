@@ -4,26 +4,26 @@ import { cva, type VariantProps } from "class-variance-authority"
 import { cn } from "@/lib/utils"
 
 const buttonVariants = cva(
-  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-sm text-sm font-medium transition-all disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg:not([class*='size-'])]:size-4 shrink-0 [&_svg]:shrink-0 outline-none focus-visible:ring-2 focus-visible:ring-ring",
+  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-lg text-sm font-semibold tracking-wide cursor-pointer transition-all duration-250 disabled:pointer-events-none disabled:opacity-40 [&_svg]:pointer-events-none [&_svg:not([class*='size-'])]:size-4 shrink-0 [&_svg]:shrink-0 outline-none focus-visible:ring-2 focus-visible:ring-ring/40 focus-visible:ring-offset-1 focus-visible:ring-offset-background",
   {
     variants: {
       variant: {
-        default: "bg-primary text-primary-foreground hover:bg-primary/90",
-        destructive: "bg-destructive text-white hover:bg-destructive/90",
-        outline: "border border-border bg-transparent hover:bg-background-interactive",
-        secondary: "bg-secondary text-secondary-foreground hover:bg-secondary/80",
-        ghost: "hover:bg-background-interactive",
-        link: "text-primary underline-offset-4 hover:underline",
+        default: "bg-accent text-accent-foreground hover:brightness-110 glow-hover shadow-sm",
+        destructive: "bg-destructive text-white hover:brightness-110 shadow-sm",
+        outline: "border border-border bg-transparent hover:bg-background-interactive hover:border-accent/40 hover:shadow-[0_0_12px_color-mix(in_srgb,var(--accent)_10%,transparent)]",
+        secondary: "bg-secondary text-secondary-foreground hover:bg-secondary/70 hover:border-border-emphasis border border-transparent",
+        ghost: "hover:bg-background-interactive hover:shadow-sm",
+        link: "text-accent underline-offset-4 hover:underline",
         // Status variants
-        nominal: "bg-status-nominal text-background hover:bg-status-nominal/90",
-        warning: "bg-status-warning text-background hover:bg-status-warning/90",
-        critical: "bg-status-critical text-white hover:bg-status-critical/90",
-        info: "bg-status-info text-white hover:bg-status-info/90"
+        nominal: "bg-status-nominal text-background hover:brightness-110 shadow-sm",
+        warning: "bg-status-warning text-background hover:brightness-110 shadow-sm",
+        critical: "bg-status-critical text-white hover:brightness-110 shadow-sm",
+        info: "bg-status-info text-white hover:brightness-110 shadow-sm"
       },
       size: {
-        default: "h-9 px-4 py-2",
-        sm: "h-8 px-3 text-xs",
-        lg: "h-10 px-6",
+        default: "h-9 px-5 py-2",
+        sm: "h-8 px-3.5 text-xs",
+        lg: "h-11 px-7 text-base",
         icon: "size-9",
         "icon-sm": "size-8"
       }

@@ -284,24 +284,24 @@ export function ButlerMonitorBoard(): React.JSX.Element {
   }
 
   if (loading) {
-    return <div className="h-full p-3 text-xs text-muted-foreground">加载监听任务中...</div>
+    return <div className="h-full p-5 text-xs text-muted-foreground shimmer-bg">加载监听任务中...</div>
   }
 
   return (
     <div className="h-full min-h-0 flex flex-col">
-      <div className="px-3 py-2 border-b border-border flex items-center justify-between gap-2">
-        <div className="text-[11px] text-muted-foreground">{stats}</div>
+      <div className="px-5 py-2.5 border-b border-border/40 flex items-center justify-between gap-3 glass-panel">
+        <div className="text-[11px] text-accent/60 font-bold tracking-wider">{stats}</div>
         <Button
           variant="ghost"
           size="sm"
-          className="h-7 px-2 text-xs"
+          className="h-7 px-3 text-xs rounded-lg"
           onClick={() => void load({ silent: true })}
         >
           刷新
         </Button>
       </div>
 
-      <div className="px-3 py-2 border-b border-border flex items-center gap-1">
+      <div className="px-5 py-2.5 border-b border-border/40 flex items-center gap-2">
         {(
           [
             { id: "calendar", label: "日历状态" },
@@ -312,10 +312,10 @@ export function ButlerMonitorBoard(): React.JSX.Element {
           <button
             key={tab.id}
             type="button"
-            className={`h-7 px-2 rounded text-xs border ${
+            className={`h-7 px-3 rounded-lg text-xs border transition-all duration-300 ${
               activeTab === tab.id
-                ? "border-blue-500/50 bg-blue-500/10 text-foreground"
-                : "border-border bg-background text-muted-foreground hover:text-foreground"
+                ? "border-accent/50 bg-accent/10 text-foreground font-bold shadow-[0_0_12px_color-mix(in_srgb,var(--accent)_15%,transparent)]"
+                : "border-border/40 bg-background/40 text-muted-foreground hover:text-foreground hover:border-accent/30"
             }`}
             onClick={() => setActiveTab(tab.id)}
           >
@@ -325,27 +325,27 @@ export function ButlerMonitorBoard(): React.JSX.Element {
       </div>
 
       {error && (
-        <div className="mx-3 mt-3 rounded border border-red-500/30 bg-red-500/10 p-2 text-xs text-red-300">
+        <div className="mx-5 mt-3 rounded-xl border border-red-500/30 bg-red-500/10 p-3.5 text-xs text-red-300 shadow-[0_0_16px_rgba(239,68,68,0.1)]">
           {error}
         </div>
       )}
 
-      <div className="flex-1 min-h-0 overflow-y-auto p-3 space-y-3">
+      <div className="flex-1 min-h-0 overflow-y-auto p-5 space-y-4 tech-gradient">
         {activeTab === "calendar" && (
           <>
             <div className="flex items-center justify-end">
-              <Button className="h-7 px-2 text-xs" onClick={() => void handleCreateCalendar()}>
+              <Button className="h-7 px-3 text-xs rounded-lg" onClick={() => void handleCreateCalendar()}>
                 创建日历事件
               </Button>
             </div>
 
             {calendarEvents.length === 0 && (
-              <div className="text-xs text-muted-foreground rounded border border-border p-3">
+              <div className="text-sm text-muted-foreground rounded-2xl border border-border/40 p-6 text-center glass-panel">
                 暂无日历事件
               </div>
             )}
             {calendarEvents.map((event) => (
-              <div key={event.id} className="rounded-md border border-border p-3 space-y-2">
+              <div key={event.id} className="rounded-xl border border-border/40 bg-card/50 backdrop-blur-sm p-4 space-y-2.5 card-hover">
                 <div className="flex items-start justify-between gap-2">
                   <div className="text-sm font-medium truncate" title={event.title}>
                     {event.title}
@@ -380,7 +380,7 @@ export function ButlerMonitorBoard(): React.JSX.Element {
                   <Button
                     variant="ghost"
                     size="sm"
-                    className="h-7 px-2 text-xs"
+                    className="h-7 px-3 text-xs rounded-lg"
                     onClick={() => void handleEditCalendar(event)}
                   >
                     编辑
@@ -388,7 +388,7 @@ export function ButlerMonitorBoard(): React.JSX.Element {
                   <Button
                     variant="ghost"
                     size="sm"
-                    className="h-7 px-2 text-xs text-red-300 hover:text-red-200"
+                    className="h-7 px-3 text-xs rounded-lg text-red-300 hover:text-red-200"
                     onClick={() => {
                       void window.api.butlerMonitor.deleteCalendarEvent(event.id).then(() => load())
                     }}
@@ -404,18 +404,18 @@ export function ButlerMonitorBoard(): React.JSX.Element {
         {activeTab === "countdown" && (
           <>
             <div className="flex items-center justify-end">
-              <Button className="h-7 px-2 text-xs" onClick={() => void handleCreateCountdown()}>
+              <Button className="h-7 px-3 text-xs rounded-lg" onClick={() => void handleCreateCountdown()}>
                 创建倒计时
               </Button>
             </div>
 
             {countdownTimers.length === 0 && (
-              <div className="text-xs text-muted-foreground rounded border border-border p-3">
+              <div className="text-sm text-muted-foreground rounded-2xl border border-border/40 p-6 text-center glass-panel">
                 暂无倒计时
               </div>
             )}
             {countdownTimers.map((timer) => (
-              <div key={timer.id} className="rounded-md border border-border p-3 space-y-2">
+              <div key={timer.id} className="rounded-xl border border-border/40 bg-card/50 backdrop-blur-sm p-4 space-y-2.5 card-hover">
                 <div className="flex items-start justify-between gap-2">
                   <div className="text-sm font-medium truncate" title={timer.title}>
                     {timer.title}
@@ -434,7 +434,7 @@ export function ButlerMonitorBoard(): React.JSX.Element {
                   <Button
                     variant="ghost"
                     size="sm"
-                    className="h-7 px-2 text-xs"
+                    className="h-7 px-3 text-xs rounded-lg"
                     onClick={() => void handleEditCountdown(timer)}
                   >
                     编辑
@@ -443,7 +443,7 @@ export function ButlerMonitorBoard(): React.JSX.Element {
                     <Button
                       variant="ghost"
                       size="sm"
-                      className="h-7 px-2 text-xs"
+                      className="h-7 px-3 text-xs rounded-lg"
                       onClick={() => {
                         void window.api.butlerMonitor
                           .updateCountdownTimer(timer.id, {
@@ -460,7 +460,7 @@ export function ButlerMonitorBoard(): React.JSX.Element {
                   <Button
                     variant="ghost"
                     size="sm"
-                    className="h-7 px-2 text-xs text-red-300 hover:text-red-200"
+                    className="h-7 px-3 text-xs rounded-lg text-red-300 hover:text-red-200"
                     onClick={() => {
                       void window.api.butlerMonitor
                         .deleteCountdownTimer(timer.id)
@@ -477,14 +477,14 @@ export function ButlerMonitorBoard(): React.JSX.Element {
 
         {activeTab === "mail" && (
           <>
-            <div className="flex items-center justify-end gap-2">
-              <Button className="h-7 px-2 text-xs" onClick={() => void handleCreateMailRule()}>
+            <div className="flex items-center justify-end gap-3">
+              <Button className="h-7 px-3 text-xs rounded-lg" onClick={() => void handleCreateMailRule()}>
                 创建邮件规则
               </Button>
               <Button
                 variant="ghost"
                 size="sm"
-                className="h-7 px-2 text-xs"
+                className="h-7 px-3 text-xs rounded-lg"
                 disabled={pulling}
                 onClick={() => void handlePullMailNow()}
               >
@@ -493,14 +493,14 @@ export function ButlerMonitorBoard(): React.JSX.Element {
             </div>
             <div>{pullResult && <div className="text-[11px] text-blue-300">{pullResult}</div>}</div>
 
-            <div className="space-y-2">
+            <div className="space-y-3">
               {mailRules.length === 0 && (
-                <div className="text-xs text-muted-foreground rounded border border-border p-3">
+                <div className="text-sm text-muted-foreground rounded-2xl border border-border/40 p-6 text-center glass-panel">
                   暂无邮件规则
                 </div>
               )}
               {mailRules.map((rule) => (
-                <div key={rule.id} className="rounded-md border border-border p-3 space-y-2">
+                <div key={rule.id} className="rounded-xl border border-border/40 bg-card/50 backdrop-blur-sm p-4 space-y-2.5 card-hover">
                   <div className="flex items-start justify-between gap-2">
                     <div className="text-sm font-medium truncate" title={rule.name}>
                       {rule.name}
@@ -540,7 +540,7 @@ export function ButlerMonitorBoard(): React.JSX.Element {
                     <Button
                       variant="ghost"
                       size="sm"
-                      className="h-7 px-2 text-xs"
+                      className="h-7 px-3 text-xs rounded-lg"
                       onClick={() => void handleEditMailRule(rule)}
                     >
                       编辑
@@ -548,7 +548,7 @@ export function ButlerMonitorBoard(): React.JSX.Element {
                     <Button
                       variant="ghost"
                       size="sm"
-                      className="h-7 px-2 text-xs text-red-300 hover:text-red-200"
+                      className="h-7 px-3 text-xs rounded-lg text-red-300 hover:text-red-200"
                       onClick={() => {
                         void window.api.butlerMonitor.deleteMailRule(rule.id).then(() => load())
                       }}
@@ -560,17 +560,17 @@ export function ButlerMonitorBoard(): React.JSX.Element {
               ))}
             </div>
 
-            <div className="space-y-2">
-              <div className="text-xs text-muted-foreground uppercase tracking-[0.12em]">
+            <div className="space-y-3">
+              <div className="text-xs text-accent/60 uppercase tracking-[0.15em] font-bold">
                 最近邮件
               </div>
               {recentMails.length === 0 && (
-                <div className="text-xs text-muted-foreground rounded border border-border p-3">
+                <div className="text-sm text-muted-foreground rounded-2xl border border-border/40 p-6 text-center glass-panel">
                   暂无邮件记录
                 </div>
               )}
               {recentMails.map((mail) => (
-                <details key={mail.id} className="rounded-md border border-border p-2">
+                <details key={mail.id} className="rounded-xl border border-border/40 bg-card/50 backdrop-blur-sm p-3.5">
                   <summary className="cursor-pointer">
                     <div className="text-xs font-medium truncate">{mail.subject || "(无主题)"}</div>
                     <div className="text-[11px] text-muted-foreground truncate">

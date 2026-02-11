@@ -77,10 +77,10 @@ const isDev = !app.isPackaged
 
 function createWindow(): void {
   mainWindow = new BrowserWindow({
-    width: 1440,
-    height: 900,
-    minWidth: 1200,
-    minHeight: 700,
+    width: 1920,
+    height: 1200,
+    minWidth: 1536,
+    minHeight: 960,
     show: false,
     frame: false, // Frameless mode
     backgroundColor: "#0D0D0F",

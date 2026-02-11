@@ -39,10 +39,10 @@ export function ResizeHandle({ onDrag }: ResizeHandleProps) {
   return (
     <div
       onMouseDown={handleMouseDown}
-      className="group bg-border/50 hover:bg-primary/30 active:bg-primary/50 transition-colors cursor-col-resize flex items-center justify-center shrink-0 select-none"
+      className="group bg-transparent hover:bg-accent/20 active:bg-accent/40 transition-all duration-300 cursor-col-resize flex items-center justify-center shrink-0 select-none hover:shadow-[0_0_12px_color-mix(in_srgb,var(--accent)_15%,transparent)]"
       style={{ width: HANDLE_WIDTH }}
     >
-      <GripVertical className="size-4 text-muted-foreground/50 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />
+      <GripVertical className="size-4 text-muted-foreground/40 opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none" />
     </div>
   )
 }

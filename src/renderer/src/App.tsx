@@ -15,10 +15,10 @@ import { DesktopTaskPopup } from "@/components/notifications/DesktopTaskPopup"
 // Badge customization - unused in new titlebar but kept if logic needs reference
 const BADGE_MIN_SCREEN_WIDTH = 270
 const LEFT_MAX = 350
-const LEFT_DEFAULT = 240
+const LEFT_DEFAULT = 260
 const RIGHT_MIN = 250
 const RIGHT_MAX = 450
-const RIGHT_DEFAULT = 320
+const RIGHT_DEFAULT = 340
 
 function MainApp(): React.JSX.Element {
   const { currentThreadId, loadThreads, createThread, appMode, setAppMode } = useAppStore()
@@ -244,7 +244,7 @@ function MainApp(): React.JSX.Element {
               {/* Sidebar (Thread List) */}
               <div
                 style={{ width: leftWidth }}
-                className="shrink-0 flex flex-col border-r border-border bg-sidebar/50"
+                className="shrink-0 flex flex-col border-r border-border/50 bg-sidebar/40 backdrop-blur-sm"
               >
                 <ThreadSidebar />
               </div>
@@ -255,7 +255,7 @@ function MainApp(): React.JSX.Element {
               <main className="flex flex-1 flex-col min-w-0 min-h-0 overflow-hidden bg-background/50 relative">
                 {/* Center Header with Tabs */}
                 {currentThreadId && (
-                  <div className="h-9 border-b border-border flex items-center px-1 shrink-0 bg-background/50 backdrop-blur-sm">
+                  <div className="h-12 border-b border-border/50 flex items-center px-2.5 shrink-0 bg-background/40 backdrop-blur-md">
                     <TabBar className="h-full border-b-0 w-full" />
                   </div>
                 )}
@@ -264,7 +264,8 @@ function MainApp(): React.JSX.Element {
                   {currentThreadId ? (
                     <TabbedPanel threadId={currentThreadId} showTabBar={false} />
                   ) : (
-                    <div className="flex flex-1 items-center justify-center text-muted-foreground h-full text-sm">
+                    <div className="flex flex-1 flex-col items-center justify-center text-muted-foreground h-full text-sm gap-3">
+                      <div className="text-accent/40 text-3xl">&#9670;</div>
                       Select or create a thread to begin
                     </div>
                   )}
@@ -277,7 +278,7 @@ function MainApp(): React.JSX.Element {
             {/* Right Panel */}
             <div
               style={{ width: rightWidth }}
-              className="shrink-0 border-l border-border bg-sidebar"
+              className="shrink-0 border-l border-border/50 bg-sidebar/60 backdrop-blur-sm"
             >
               <RightPanel />
             </div>

@@ -20,10 +20,17 @@ function ToastItem({ toast, onClose }: ToastItemProps): React.JSX.Element {
   }, [toast.id, onClose])
 
   const bgColor = {
-    info: "bg-blue-600",
-    success: "bg-green-600",
-    warning: "bg-yellow-600",
-    error: "bg-red-600"
+    info: "bg-blue-600/80",
+    success: "bg-emerald-600/80",
+    warning: "bg-amber-600/80",
+    error: "bg-red-600/80"
+  }[toast.type]
+
+  const glowColor = {
+    info: "shadow-[0_0_24px_rgba(37,99,235,0.3)]",
+    success: "shadow-[0_0_24px_rgba(5,150,105,0.3)]",
+    warning: "shadow-[0_0_24px_rgba(217,119,6,0.3)]",
+    error: "shadow-[0_0_24px_rgba(220,38,38,0.3)]"
   }[toast.type]
 
   const icon = {
@@ -35,13 +42,13 @@ function ToastItem({ toast, onClose }: ToastItemProps): React.JSX.Element {
 
   return (
     <div
-      className={`${bgColor} text-white px-4 py-3 rounded-lg shadow-lg flex items-center gap-3 min-w-[300px] max-w-[500px] animate-in slide-in-from-top-2 fade-in duration-200`}
+      className={`${bgColor} ${glowColor} backdrop-blur-xl text-white px-5 py-3.5 rounded-2xl flex items-center gap-3.5 min-w-[340px] max-w-[520px] animate-in slide-in-from-top-2 fade-in duration-300 border border-white/15`}
     >
-      <span className="text-lg">{icon}</span>
-      <span className="flex-1 text-sm">{toast.message}</span>
+      <span className="text-lg neon-text">{icon}</span>
+      <span className="flex-1 text-sm font-semibold tracking-wide">{toast.message}</span>
       <button
         onClick={() => onClose(toast.id)}
-        className="text-white/80 hover:text-white transition-colors"
+        className="text-white/60 hover:text-white transition-all duration-200 rounded-lg p-1 hover:bg-white/15 hover:scale-110"
       >
         ✕
       </button>

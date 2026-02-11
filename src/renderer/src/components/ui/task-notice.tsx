@@ -11,13 +11,13 @@ export function TaskNoticeContainer(props: {
   if (cards.length === 0) return null
 
   return (
-    <div className="fixed bottom-4 right-4 z-50 flex max-h-[60vh] w-[380px] flex-col gap-2 overflow-y-auto">
+    <div className="fixed top-4 right-4 z-[200] flex flex-col gap-3.5 w-[420px]">
       {cards.map((card) => (
         <div
           key={card.id}
           role="button"
           tabIndex={0}
-          className="w-full rounded-lg border border-border bg-card px-3 py-3 text-left shadow-lg hover:border-blue-500/60"
+          className="cursor-pointer rounded-2xl border border-border/40 bg-card/60 backdrop-blur-xl p-5 shadow-lg card-hover glow-border"
           onClick={() => onOpenThread(card)}
           onKeyDown={(event) => {
             if (event.key === "Enter" || event.key === " ") {

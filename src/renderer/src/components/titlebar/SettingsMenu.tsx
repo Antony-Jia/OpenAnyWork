@@ -369,15 +369,15 @@ export function SettingsMenu(_props: SettingsMenuProps): React.JSX.Element {
           <Settings2 className="size-5" />
         </Button>
       </DialogTrigger>
-      <DialogContent className="w-[900px] h-[640px] max-w-[90vw] max-h-[85vh] p-0 border-border/80 bg-background/95 backdrop-blur overflow-hidden flex flex-col gap-0">
+      <DialogContent className="w-[960px] h-[720px] max-w-[90vw] max-h-[85vh] p-0 border-border bg-background/95 backdrop-blur overflow-hidden flex flex-col gap-0">
         <div className="flex flex-1 min-h-0 flex-col">
-          <DialogHeader className="px-4 py-3 border-b border-border/70 bg-background/70">
-            <DialogTitle className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">
+          <DialogHeader className="px-5 py-3.5 border-b border-border bg-background/70">
+            <DialogTitle className="text-[13px] uppercase tracking-[0.2em] text-muted-foreground">
               {t("settings.title")}
             </DialogTitle>
           </DialogHeader>
 
-          <div className="flex items-center gap-1 px-4 py-2 border-b border-border/70">
+          <div className="flex items-center gap-1.5 px-5 py-2.5 border-b border-border">
             {(
               [
                 { id: "general", label: t("settings.tabs.general") },
@@ -392,7 +392,7 @@ export function SettingsMenu(_props: SettingsMenuProps): React.JSX.Element {
                 variant={activeTab === tab.id ? "secondary" : "ghost"}
                 size="sm"
                 onClick={() => setActiveTab(tab.id)}
-                className={cn("h-7 text-xs", activeTab === tab.id && "bg-secondary")}
+                className={cn("h-8 text-[13px]", activeTab === tab.id && "bg-secondary")}
               >
                 {tab.label}
               </Button>
@@ -403,13 +403,13 @@ export function SettingsMenu(_props: SettingsMenuProps): React.JSX.Element {
             {activeTab === "general" && (
               <>
                 {/* Default Workspace */}
-                <div className="px-4 py-3 border-b border-border/70 flex items-center justify-between gap-3">
+                <div className="px-5 py-3.5 border-b border-border flex items-center justify-between gap-3">
                   <div className="min-w-0">
-                    <div className="text-xs text-muted-foreground">
+                    <div className="text-[13px] text-muted-foreground">
                       {t("settings.general.default_workspace")}
                     </div>
                     <div
-                      className="text-[10px] text-muted-foreground truncate"
+                      className="text-[11px] text-muted-foreground truncate"
                       title={defaultWorkspacePath || undefined}
                     >
                       {defaultWorkspacePath || t("settings.general.default_workspace_empty")}
@@ -420,13 +420,13 @@ export function SettingsMenu(_props: SettingsMenuProps): React.JSX.Element {
                   </Button>
                 </div>
 
-                <div className="px-4 py-3 border-b border-border/70 flex items-center justify-between gap-3">
+                <div className="px-5 py-3.5 border-b border-border flex items-center justify-between gap-3">
                   <div className="min-w-0">
-                    <div className="text-xs text-muted-foreground">
+                    <div className="text-[13px] text-muted-foreground">
                       {t("settings.butler.root_path")}
                     </div>
                     <div
-                      className="text-[10px] text-muted-foreground truncate"
+                      className="text-[11px] text-muted-foreground truncate"
                       title={butlerRootPath || undefined}
                     >
                       {butlerRootPath || t("settings.general.default_workspace_empty")}
@@ -437,8 +437,8 @@ export function SettingsMenu(_props: SettingsMenuProps): React.JSX.Element {
                   </Button>
                 </div>
 
-                <div className="px-4 py-3 border-b border-border/70 flex items-center justify-between gap-3">
-                  <div className="text-xs text-muted-foreground">
+                <div className="px-5 py-3.5 border-b border-border flex items-center justify-between gap-3">
+                  <div className="text-[13px] text-muted-foreground">
                     {t("settings.butler.max_concurrent")}
                   </div>
                   <input
@@ -446,12 +446,12 @@ export function SettingsMenu(_props: SettingsMenuProps): React.JSX.Element {
                     min={1}
                     value={butlerMaxConcurrent}
                     onChange={(e) => setButlerMaxConcurrent(e.target.value)}
-                    className="w-24 h-7 px-2 text-xs bg-muted/50 border border-border/50 rounded-md focus:outline-none focus:ring-1 focus:ring-ring"
+                    className="w-24 h-8 px-2.5 text-[13px] bg-muted/50 border border-border rounded-md focus:outline-none focus:ring-1 focus:ring-ring"
                   />
                 </div>
 
-                <div className="px-4 py-3 border-b border-border/70 flex items-center justify-between gap-3">
-                  <div className="text-xs text-muted-foreground">
+                <div className="px-5 py-3.5 border-b border-border flex items-center justify-between gap-3">
+                  <div className="text-[13px] text-muted-foreground">
                     {t("settings.butler.recent_rounds")}
                   </div>
                   <input
@@ -459,12 +459,12 @@ export function SettingsMenu(_props: SettingsMenuProps): React.JSX.Element {
                     min={1}
                     value={butlerRecentRounds}
                     onChange={(e) => setButlerRecentRounds(e.target.value)}
-                    className="w-24 h-7 px-2 text-xs bg-muted/50 border border-border/50 rounded-md focus:outline-none focus:ring-1 focus:ring-ring"
+                    className="w-24 h-8 px-2.5 text-[13px] bg-muted/50 border border-border rounded-md focus:outline-none focus:ring-1 focus:ring-ring"
                   />
                 </div>
 
-                <div className="px-4 py-3 border-b border-border/70 flex items-center justify-between gap-3">
-                  <div className="text-xs text-muted-foreground">
+                <div className="px-5 py-3.5 border-b border-border flex items-center justify-between gap-3">
+                  <div className="text-[13px] text-muted-foreground">
                     {t("settings.butler.monitor_scan_interval")}
                   </div>
                   <input
@@ -472,12 +472,12 @@ export function SettingsMenu(_props: SettingsMenuProps): React.JSX.Element {
                     min={1}
                     value={butlerMonitorScanIntervalSec}
                     onChange={(e) => setButlerMonitorScanIntervalSec(e.target.value)}
-                    className="w-24 h-7 px-2 text-xs bg-muted/50 border border-border/50 rounded-md focus:outline-none focus:ring-1 focus:ring-ring"
+                    className="w-24 h-8 px-2.5 text-[13px] bg-muted/50 border border-border rounded-md focus:outline-none focus:ring-1 focus:ring-ring"
                   />
                 </div>
 
-                <div className="px-4 py-3 border-b border-border/70 flex items-center justify-between gap-3">
-                  <div className="text-xs text-muted-foreground">
+                <div className="px-5 py-3.5 border-b border-border flex items-center justify-between gap-3">
+                  <div className="text-[13px] text-muted-foreground">
                     {t("settings.butler.monitor_pull_interval")}
                   </div>
                   <input
@@ -485,13 +485,13 @@ export function SettingsMenu(_props: SettingsMenuProps): React.JSX.Element {
                     min={1}
                     value={butlerMonitorPullIntervalSec}
                     onChange={(e) => setButlerMonitorPullIntervalSec(e.target.value)}
-                    className="w-24 h-7 px-2 text-xs bg-muted/50 border border-border/50 rounded-md focus:outline-none focus:ring-1 focus:ring-ring"
+                    className="w-24 h-8 px-2.5 text-[13px] bg-muted/50 border border-border rounded-md focus:outline-none focus:ring-1 focus:ring-ring"
                   />
                 </div>
 
                 {/* Language Selection */}
-                <div className="px-4 py-3 border-b border-border/70 flex items-center justify-between">
-                  <span className="text-xs text-muted-foreground">{t("settings.language")}</span>
+                <div className="px-5 py-3.5 border-b border-border flex items-center justify-between">
+                  <span className="text-[13px] text-muted-foreground">{t("settings.language")}</span>
                   <div className="flex gap-2">
                     <Button
                       variant={language === "en" ? "secondary" : "ghost"}
@@ -513,8 +513,8 @@ export function SettingsMenu(_props: SettingsMenuProps): React.JSX.Element {
                 </div>
 
                 {/* Theme Selection */}
-                <div className="px-4 py-3 border-b border-border/70 flex items-center justify-between">
-                  <span className="text-xs text-muted-foreground">{t("settings.theme")}</span>
+                <div className="px-5 py-3.5 border-b border-border flex items-center justify-between">
+                  <span className="text-[13px] text-muted-foreground">{t("settings.theme")}</span>
                   <div className="flex gap-2">
                     <Button
                       variant={theme === "dark" ? "secondary" : "ghost"}
@@ -544,21 +544,21 @@ export function SettingsMenu(_props: SettingsMenuProps): React.JSX.Element {
             )}
 
             {activeTab === "provider" && (
-              <div className="px-4 py-3 border-b border-border/70">
+              <div className="px-5 py-3.5 border-b border-border">
                 <div className="flex items-center justify-between mb-3">
-                  <span className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">
+                  <span className="text-[11px] uppercase tracking-[0.2em] text-muted-foreground">
                     {t("provider.title")}
                   </span>
                   {hasConfig ? (
-                    <span className="text-[10px] text-green-500">{t("provider.saved")}</span>
+                    <span className="text-[11px] text-green-500">{t("provider.saved")}</span>
                   ) : (
-                    <span className="text-[10px] text-status-warning">
+                    <span className="text-[11px] text-status-warning">
                       {t("provider.not_configured")}
                     </span>
                   )}
                 </div>
 
-                <div className="text-[10px] text-muted-foreground/70 mb-3">
+                <div className="text-[11px] text-muted-foreground/70 mb-3">
                   {t("provider.select_hint")}
                 </div>
 
@@ -604,7 +604,7 @@ export function SettingsMenu(_props: SettingsMenuProps): React.JSX.Element {
                             value={ollamaUrl}
                             onChange={(e) => setOllamaUrl(e.target.value)}
                             placeholder={t("provider.url_placeholder_ollama")}
-                            className="w-full h-7 px-2 text-xs bg-muted/50 border border-border/50 rounded-md focus:outline-none focus:ring-1 focus:ring-ring"
+                            className="w-full h-8 px-2.5 text-[13px] bg-muted/50 border border-border rounded-md focus:outline-none focus:ring-1 focus:ring-ring"
                           />
                         </div>
                         <div>
@@ -616,7 +616,7 @@ export function SettingsMenu(_props: SettingsMenuProps): React.JSX.Element {
                             value={ollamaModel}
                             onChange={(e) => setOllamaModel(e.target.value)}
                             placeholder={t("provider.model_placeholder_ollama")}
-                            className="w-full h-7 px-2 text-xs bg-muted/50 border border-border/50 rounded-md focus:outline-none focus:ring-1 focus:ring-ring"
+                            className="w-full h-8 px-2.5 text-[13px] bg-muted/50 border border-border rounded-md focus:outline-none focus:ring-1 focus:ring-ring"
                           />
                         </div>
                       </div>
@@ -663,7 +663,7 @@ export function SettingsMenu(_props: SettingsMenuProps): React.JSX.Element {
                             value={openaiUrl}
                             onChange={(e) => setOpenaiUrl(e.target.value)}
                             placeholder={t("provider.url_placeholder_openai")}
-                            className="w-full h-7 px-2 text-xs bg-muted/50 border border-border/50 rounded-md focus:outline-none focus:ring-1 focus:ring-ring"
+                            className="w-full h-8 px-2.5 text-[13px] bg-muted/50 border border-border rounded-md focus:outline-none focus:ring-1 focus:ring-ring"
                           />
                         </div>
                         <div>
@@ -675,7 +675,7 @@ export function SettingsMenu(_props: SettingsMenuProps): React.JSX.Element {
                             value={openaiKey}
                             onChange={(e) => setOpenaiKey(e.target.value)}
                             placeholder={t("provider.key_placeholder")}
-                            className="w-full h-7 px-2 text-xs bg-muted/50 border border-border/50 rounded-md focus:outline-none focus:ring-1 focus:ring-ring"
+                            className="w-full h-8 px-2.5 text-[13px] bg-muted/50 border border-border rounded-md focus:outline-none focus:ring-1 focus:ring-ring"
                           />
                         </div>
                         <div>
@@ -687,7 +687,7 @@ export function SettingsMenu(_props: SettingsMenuProps): React.JSX.Element {
                             value={openaiModel}
                             onChange={(e) => setOpenaiModel(e.target.value)}
                             placeholder={t("provider.model_placeholder_openai")}
-                            className="w-full h-7 px-2 text-xs bg-muted/50 border border-border/50 rounded-md focus:outline-none focus:ring-1 focus:ring-ring"
+                            className="w-full h-8 px-2.5 text-[13px] bg-muted/50 border border-border rounded-md focus:outline-none focus:ring-1 focus:ring-ring"
                           />
                         </div>
                       </div>
@@ -734,7 +734,7 @@ export function SettingsMenu(_props: SettingsMenuProps): React.JSX.Element {
                             value={multimodalUrl}
                             onChange={(e) => setMultimodalUrl(e.target.value)}
                             placeholder={t("provider.url_placeholder_multimodal")}
-                            className="w-full h-7 px-2 text-xs bg-muted/50 border border-border/50 rounded-md focus:outline-none focus:ring-1 focus:ring-ring"
+                            className="w-full h-8 px-2.5 text-[13px] bg-muted/50 border border-border rounded-md focus:outline-none focus:ring-1 focus:ring-ring"
                           />
                         </div>
                         <div>
@@ -746,7 +746,7 @@ export function SettingsMenu(_props: SettingsMenuProps): React.JSX.Element {
                             value={multimodalKey}
                             onChange={(e) => setMultimodalKey(e.target.value)}
                             placeholder={t("provider.key_placeholder")}
-                            className="w-full h-7 px-2 text-xs bg-muted/50 border border-border/50 rounded-md focus:outline-none focus:ring-1 focus:ring-ring"
+                            className="w-full h-8 px-2.5 text-[13px] bg-muted/50 border border-border rounded-md focus:outline-none focus:ring-1 focus:ring-ring"
                           />
                         </div>
                         <div>
@@ -758,7 +758,7 @@ export function SettingsMenu(_props: SettingsMenuProps): React.JSX.Element {
                             value={multimodalModel}
                             onChange={(e) => setMultimodalModel(e.target.value)}
                             placeholder={t("provider.model_placeholder_multimodal")}
-                            className="w-full h-7 px-2 text-xs bg-muted/50 border border-border/50 rounded-md focus:outline-none focus:ring-1 focus:ring-ring"
+                            className="w-full h-8 px-2.5 text-[13px] bg-muted/50 border border-border rounded-md focus:outline-none focus:ring-1 focus:ring-ring"
                           />
                         </div>
                       </div>
@@ -784,7 +784,7 @@ export function SettingsMenu(_props: SettingsMenuProps): React.JSX.Element {
                     min={1}
                     value={ralphIterations}
                     onChange={(e) => setRalphIterations(e.target.value)}
-                    className="w-full h-7 px-2 text-xs bg-muted/50 border border-border/50 rounded-md focus:outline-none focus:ring-1 focus:ring-ring"
+                    className="w-full h-8 px-2.5 text-[13px] bg-muted/50 border border-border rounded-md focus:outline-none focus:ring-1 focus:ring-ring"
                   />
                 </div>
               </div>
@@ -819,7 +819,7 @@ export function SettingsMenu(_props: SettingsMenuProps): React.JSX.Element {
                     value={emailFrom}
                     onChange={(e) => setEmailFrom(e.target.value)}
                     placeholder="you@example.com"
-                    className="w-full h-7 px-2 text-xs bg-muted/50 border border-border/50 rounded-md focus:outline-none focus:ring-1 focus:ring-ring"
+                    className="w-full h-8 px-2.5 text-[13px] bg-muted/50 border border-border rounded-md focus:outline-none focus:ring-1 focus:ring-ring"
                   />
                 </div>
 
@@ -845,7 +845,7 @@ export function SettingsMenu(_props: SettingsMenuProps): React.JSX.Element {
                       value={smtpHost}
                       onChange={(e) => setSmtpHost(e.target.value)}
                       placeholder="smtp.example.com"
-                      className="w-full h-7 px-2 text-xs bg-muted/50 border border-border/50 rounded-md focus:outline-none focus:ring-1 focus:ring-ring"
+                      className="w-full h-8 px-2.5 text-[13px] bg-muted/50 border border-border rounded-md focus:outline-none focus:ring-1 focus:ring-ring"
                     />
                     <div className="flex gap-2">
                       <input
@@ -853,7 +853,7 @@ export function SettingsMenu(_props: SettingsMenuProps): React.JSX.Element {
                         value={smtpPort}
                         onChange={(e) => setSmtpPort(e.target.value)}
                         placeholder="587"
-                        className="w-full h-7 px-2 text-xs bg-muted/50 border border-border/50 rounded-md focus:outline-none focus:ring-1 focus:ring-ring"
+                        className="w-full h-8 px-2.5 text-[13px] bg-muted/50 border border-border rounded-md focus:outline-none focus:ring-1 focus:ring-ring"
                       />
                       <label className="flex items-center gap-2 text-xs text-muted-foreground">
                         <input
@@ -869,14 +869,14 @@ export function SettingsMenu(_props: SettingsMenuProps): React.JSX.Element {
                       value={smtpUser}
                       onChange={(e) => setSmtpUser(e.target.value)}
                       placeholder={t("settings.email.username")}
-                      className="w-full h-7 px-2 text-xs bg-muted/50 border border-border/50 rounded-md focus:outline-none focus:ring-1 focus:ring-ring"
+                      className="w-full h-8 px-2.5 text-[13px] bg-muted/50 border border-border rounded-md focus:outline-none focus:ring-1 focus:ring-ring"
                     />
                     <input
                       type="password"
                       value={smtpPass}
                       onChange={(e) => setSmtpPass(e.target.value)}
                       placeholder={t("settings.email.password")}
-                      className="w-full h-7 px-2 text-xs bg-muted/50 border border-border/50 rounded-md focus:outline-none focus:ring-1 focus:ring-ring"
+                      className="w-full h-8 px-2.5 text-[13px] bg-muted/50 border border-border rounded-md focus:outline-none focus:ring-1 focus:ring-ring"
                     />
                   </div>
                 </div>
@@ -891,7 +891,7 @@ export function SettingsMenu(_props: SettingsMenuProps): React.JSX.Element {
                       value={imapHost}
                       onChange={(e) => setImapHost(e.target.value)}
                       placeholder="imap.example.com"
-                      className="w-full h-7 px-2 text-xs bg-muted/50 border border-border/50 rounded-md focus:outline-none focus:ring-1 focus:ring-ring"
+                      className="w-full h-8 px-2.5 text-[13px] bg-muted/50 border border-border rounded-md focus:outline-none focus:ring-1 focus:ring-ring"
                     />
                     <div className="flex gap-2">
                       <input
@@ -899,7 +899,7 @@ export function SettingsMenu(_props: SettingsMenuProps): React.JSX.Element {
                         value={imapPort}
                         onChange={(e) => setImapPort(e.target.value)}
                         placeholder="993"
-                        className="w-full h-7 px-2 text-xs bg-muted/50 border border-border/50 rounded-md focus:outline-none focus:ring-1 focus:ring-ring"
+                        className="w-full h-8 px-2.5 text-[13px] bg-muted/50 border border-border rounded-md focus:outline-none focus:ring-1 focus:ring-ring"
                       />
                       <label className="flex items-center gap-2 text-xs text-muted-foreground">
                         <input
@@ -915,14 +915,14 @@ export function SettingsMenu(_props: SettingsMenuProps): React.JSX.Element {
                       value={imapUser}
                       onChange={(e) => setImapUser(e.target.value)}
                       placeholder={t("settings.email.username")}
-                      className="w-full h-7 px-2 text-xs bg-muted/50 border border-border/50 rounded-md focus:outline-none focus:ring-1 focus:ring-ring"
+                      className="w-full h-8 px-2.5 text-[13px] bg-muted/50 border border-border rounded-md focus:outline-none focus:ring-1 focus:ring-ring"
                     />
                     <input
                       type="password"
                       value={imapPass}
                       onChange={(e) => setImapPass(e.target.value)}
                       placeholder={t("settings.email.password")}
-                      className="w-full h-7 px-2 text-xs bg-muted/50 border border-border/50 rounded-md focus:outline-none focus:ring-1 focus:ring-ring"
+                      className="w-full h-8 px-2.5 text-[13px] bg-muted/50 border border-border rounded-md focus:outline-none focus:ring-1 focus:ring-ring"
                     />
                   </div>
                 </div>
@@ -936,7 +936,7 @@ export function SettingsMenu(_props: SettingsMenuProps): React.JSX.Element {
                     value={taskTag}
                     onChange={(e) => setTaskTag(e.target.value)}
                     placeholder="<OpenworkTask>"
-                    className="w-full h-7 px-2 text-xs bg-muted/50 border border-border/50 rounded-md focus:outline-none focus:ring-1 focus:ring-ring"
+                    className="w-full h-8 px-2.5 text-[13px] bg-muted/50 border border-border rounded-md focus:outline-none focus:ring-1 focus:ring-ring"
                   />
                   <div className="text-[10px] text-muted-foreground/70">
                     {t("settings.email.task_tag_hint")}
@@ -953,7 +953,7 @@ export function SettingsMenu(_props: SettingsMenuProps): React.JSX.Element {
                     value={imapPollIntervalSec}
                     onChange={(e) => setImapPollIntervalSec(e.target.value)}
                     placeholder="60"
-                    className="w-full h-7 px-2 text-xs bg-muted/50 border border-border/50 rounded-md focus:outline-none focus:ring-1 focus:ring-ring"
+                    className="w-full h-8 px-2.5 text-[13px] bg-muted/50 border border-border rounded-md focus:outline-none focus:ring-1 focus:ring-ring"
                   />
                   <div className="text-[10px] text-muted-foreground/70">
                     {t("settings.email.poll_interval_hint")}
@@ -986,7 +986,7 @@ export function SettingsMenu(_props: SettingsMenuProps): React.JSX.Element {
                       value={sttUrl}
                       onChange={(e) => setSttUrl(e.target.value)}
                       placeholder="https://example.com/stt"
-                      className="w-full h-7 px-2 text-xs bg-muted/50 border border-border/50 rounded-md focus:outline-none focus:ring-1 focus:ring-ring"
+                      className="w-full h-8 px-2.5 text-[13px] bg-muted/50 border border-border rounded-md focus:outline-none focus:ring-1 focus:ring-ring"
                     />
                     <label className="text-[10px] text-muted-foreground block mb-1">
                       {t("settings.speech.headers")}
@@ -1005,7 +1005,7 @@ export function SettingsMenu(_props: SettingsMenuProps): React.JSX.Element {
                       value={sttLanguage}
                       onChange={(e) => setSttLanguage(e.target.value)}
                       placeholder={t("settings.speech.stt_language")}
-                      className="w-full h-7 px-2 text-xs bg-muted/50 border border-border/50 rounded-md focus:outline-none focus:ring-1 focus:ring-ring"
+                      className="w-full h-8 px-2.5 text-[13px] bg-muted/50 border border-border rounded-md focus:outline-none focus:ring-1 focus:ring-ring"
                     />
                   </div>
                 </div>
@@ -1023,7 +1023,7 @@ export function SettingsMenu(_props: SettingsMenuProps): React.JSX.Element {
                       value={ttsUrl}
                       onChange={(e) => setTtsUrl(e.target.value)}
                       placeholder="https://example.com/tts"
-                      className="w-full h-7 px-2 text-xs bg-muted/50 border border-border/50 rounded-md focus:outline-none focus:ring-1 focus:ring-ring"
+                      className="w-full h-8 px-2.5 text-[13px] bg-muted/50 border border-border rounded-md focus:outline-none focus:ring-1 focus:ring-ring"
                     />
                     <label className="text-[10px] text-muted-foreground block mb-1">
                       {t("settings.speech.headers")}
@@ -1042,7 +1042,7 @@ export function SettingsMenu(_props: SettingsMenuProps): React.JSX.Element {
                       value={ttsVoice}
                       onChange={(e) => setTtsVoice(e.target.value)}
                       placeholder={t("settings.speech.tts_voice")}
-                      className="w-full h-7 px-2 text-xs bg-muted/50 border border-border/50 rounded-md focus:outline-none focus:ring-1 focus:ring-ring"
+                      className="w-full h-8 px-2.5 text-[13px] bg-muted/50 border border-border rounded-md focus:outline-none focus:ring-1 focus:ring-ring"
                     />
                   </div>
                 </div>
@@ -1050,7 +1050,7 @@ export function SettingsMenu(_props: SettingsMenuProps): React.JSX.Element {
             )}
           </div>
 
-          <div className="flex items-center justify-end gap-2 px-4 py-3 border-t border-border/70 bg-background/70">
+          <div className="flex items-center justify-end gap-2 px-5 py-3.5 border-t border-border bg-background/70">
             <div className="flex items-center gap-2">
               {settingsSaved ? (
                 <span className="text-[10px] text-green-500">{t("settings.saved")}</span>

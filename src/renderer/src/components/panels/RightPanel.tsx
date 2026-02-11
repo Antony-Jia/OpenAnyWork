@@ -33,7 +33,7 @@ import { Button } from "@/components/ui/button"
 import { RalphProgress } from "../sidebar/RalphProgress"
 import type { DockerMount, Todo } from "@/types"
 
-const HEADER_HEIGHT = 40 // px
+const HEADER_HEIGHT = 44 // px
 const HANDLE_HEIGHT = 6 // px
 const MIN_CONTENT_HEIGHT = 60 // px
 const COLLAPSE_THRESHOLD = 55 // px - auto-collapse when below this
@@ -60,19 +60,19 @@ function SectionHeader({
   return (
     <button
       onClick={onToggle}
-      className="flex items-center gap-2 px-3 py-2.5 text-section-header hover:bg-background-interactive transition-colors shrink-0 w-full"
+      className="flex items-center gap-2.5 px-3.5 py-2.5 text-section-header hover:bg-background-interactive transition-colors shrink-0 w-full"
       style={{ height: HEADER_HEIGHT }}
     >
       <ChevronRight
         className={cn(
-          "size-3.5 text-muted-foreground transition-transform duration-200",
+          "size-4 text-muted-foreground transition-transform duration-200",
           isOpen && "rotate-90"
         )}
       />
-      <Icon className="size-4" />
-      <span className="flex-1 text-left">{title}</span>
+      <Icon className="size-4.5" />
+      <span className="flex-1 text-left text-[13px]">{title}</span>
       {badge !== undefined && badge > 0 && (
-        <span className="flex items-center justify-center min-w-[16px] h-4 px-1 rounded-full bg-muted text-[9px] font-bold text-muted-foreground tabular-nums">
+        <span className="flex items-center justify-center min-w-[18px] h-4.5 px-1.5 rounded-full bg-muted text-[10px] font-bold text-muted-foreground tabular-nums">
           {badge}
         </span>
       )}
@@ -116,7 +116,7 @@ function ResizeHandle({ onDrag }: ResizeHandleProps): React.JSX.Element {
   return (
     <div
       onMouseDown={handleMouseDown}
-      className="group bg-border/50 hover:bg-primary/30 active:bg-primary/50 transition-colors cursor-row-resize flex items-center justify-center shrink-0 select-none"
+      className="group bg-border/60 hover:bg-primary/30 active:bg-primary/50 transition-colors cursor-row-resize flex items-center justify-center shrink-0 select-none"
       style={{ height: HANDLE_HEIGHT }}
     >
       <GripHorizontal className="size-4 text-muted-foreground/50 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />
@@ -566,10 +566,10 @@ export function RightPanel(): React.JSX.Element {
   return (
     <aside
       ref={containerRef}
-      className="flex h-full w-full flex-col border-l border-border bg-sidebar overflow-hidden"
+      className="flex h-full w-full flex-col border-l border-border/60 bg-sidebar overflow-hidden"
     >
       {/* TASKS */}
-      <div className="flex flex-col shrink-0 border-b border-border">
+      <div className="flex flex-col shrink-0 border-b border-border/60">
         <SectionHeader
           title={t("panel.tasks")}
           icon={ListTodo}
@@ -592,7 +592,7 @@ export function RightPanel(): React.JSX.Element {
           (isRalphMode && ralphOpen)) && <ResizeHandle onDrag={handleTasksResize} />}
 
       {/* FILES */}
-      <div className="flex flex-col shrink-0 border-b border-border">
+      <div className="flex flex-col shrink-0 border-b border-border/60">
         <SectionHeader
           title={t("panel.files")}
           icon={FolderTree}
@@ -613,7 +613,7 @@ export function RightPanel(): React.JSX.Element {
       )}
 
       {/* AGENTS */}
-      <div className="flex flex-col shrink-0 border-b border-border">
+      <div className="flex flex-col shrink-0 border-b border-border/60">
         <SectionHeader
           title={t("panel.agents")}
           icon={GitBranch}
@@ -635,7 +635,7 @@ export function RightPanel(): React.JSX.Element {
 
       {/* MOUNTS */}
       {dockerEnabled && (
-        <div className="flex flex-col shrink-0 border-b border-border">
+        <div className="flex flex-col shrink-0 border-b border-border/60">
           <SectionHeader
             title={t("panel.mounts")}
             icon={Boxes}
@@ -715,10 +715,10 @@ function TasksContent(): React.JSX.Element {
 
   if (todos.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center text-center text-sm text-muted-foreground py-8 px-4">
-        <ListTodo className="size-8 mb-2 opacity-50" />
+      <div className="flex flex-col items-center justify-center text-center text-[14px] text-muted-foreground py-8 px-4">
+        <ListTodo className="size-9 mb-2.5 opacity-50" />
         <span>{t("panel.no_tasks")}</span>
-        <span className="text-xs mt-1">{t("panel.tasks_desc")}</span>
+        <span className="text-[12px] mt-1.5">{t("panel.tasks_desc")}</span>
       </div>
     )
   }
@@ -738,14 +738,14 @@ function TasksContent(): React.JSX.Element {
   return (
     <div>
       {/* Progress bar */}
-      <div className="p-3 border-b border-border/50">
-        <div className="flex items-center justify-between mb-1.5 text-xs">
+      <div className="p-3.5 border-b border-border/50">
+        <div className="flex items-center justify-between mb-1.5 text-[12px]">
           <span className="text-muted-foreground">{t("common.progress")}</span>
           <span className="font-mono">
             {done}/{total}
           </span>
         </div>
-        <div className="h-1.5 rounded-full bg-background overflow-hidden">
+        <div className="h-2 rounded-full bg-background overflow-hidden">
           <div
             className="h-full bg-status-nominal transition-all duration-300"
             style={{ width: `${progress}%` }}
@@ -754,13 +754,13 @@ function TasksContent(): React.JSX.Element {
       </div>
 
       {/* Todo list */}
-      <div className="p-3 space-y-2">
+      <div className="p-3.5 space-y-2.5">
         {/* Completed/Cancelled Section (Collapsible) */}
         {doneItems.length > 0 && (
           <div className="mb-1">
             <button
               onClick={() => setCompletedExpanded(!completedExpanded)}
-              className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors mb-2 w-full"
+              className="flex items-center gap-1.5 text-[12px] text-muted-foreground hover:text-foreground transition-colors mb-2 w-full"
             >
               {completedExpanded ? (
                 <ChevronDown className="size-3.5" />
@@ -821,13 +821,13 @@ function TaskItem({ todo }: { todo: Todo }): React.JSX.Element {
   return (
     <div
       className={cn(
-        "flex items-start gap-3 rounded-sm border border-border p-3",
+        "flex items-start gap-3 rounded-md border border-border/60 p-3.5",
         isDone && "opacity-50"
       )}
     >
-      <Icon className={cn("size-4 shrink-0 mt-0.5", config.color)} />
-      <span className={cn("flex-1 text-sm", isDone && "line-through")}>{todo.content}</span>
-      <Badge variant={config.badge} className="shrink-0 text-[10px]">
+      <Icon className={cn("size-4.5 shrink-0 mt-0.5", config.color)} />
+      <span className={cn("flex-1 text-[13px]", isDone && "line-through")}>{todo.content}</span>
+      <Badge variant={config.badge} className="shrink-0 text-[11px]">
         {getStatusLabel(todo.status)}
       </Badge>
     </div>
@@ -920,9 +920,9 @@ function FilesContent(): React.JSX.Element {
   return (
     <div className="flex flex-col">
       {/* Header with sync button */}
-      <div className="flex items-center justify-between px-3 py-2 border-b border-border/50 bg-background/30 shrink-0">
+      <div className="flex items-center justify-between px-3.5 py-2.5 border-b border-border/60 bg-background/30 shrink-0">
         <span
-          className="text-[10px] text-muted-foreground truncate flex-1"
+          className="text-[11px] text-muted-foreground truncate flex-1"
           title={workspacePath || undefined}
         >
           {workspacePath ? workspacePath.split("/").pop() : "No folder linked"}
@@ -933,7 +933,7 @@ function FilesContent(): React.JSX.Element {
             size="sm"
             onClick={workspaceFiles.length > 0 ? handleSyncToDisk : handleSelectFolder}
             disabled={syncing || !currentThreadId}
-            className="h-5 px-1.5 text-[10px]"
+            className="h-6 px-2 text-[11px]"
             title={
               workspaceFiles.length > 0
                 ? workspacePath
@@ -966,10 +966,10 @@ function FilesContent(): React.JSX.Element {
 
       {/* File tree or empty state */}
       {workspaceFiles.length === 0 ? (
-        <div className="flex flex-col items-center justify-center text-center text-sm text-muted-foreground py-8 px-4">
-          <FolderTree className="size-8 mb-2 opacity-50" />
+        <div className="flex flex-col items-center justify-center text-center text-[14px] text-muted-foreground py-8 px-4">
+          <FolderTree className="size-9 mb-2.5 opacity-50" />
           <span>{t("panel.no_files")}</span>
-          <span className="text-xs mt-1">
+          <span className="text-[12px] mt-1.5">
             {workspacePath ? `Linked to ${workspacePath.split("/").pop()}` : t("panel.link_desc")}
           </span>
         </div>
@@ -1034,24 +1034,24 @@ function MountsContent(): React.JSX.Element {
 
   return (
     <div className="flex flex-col">
-      <div className="flex items-center justify-between px-3 py-2 border-b border-border/50 bg-background/30 shrink-0">
-        <span className="text-[10px] text-muted-foreground truncate flex-1" title={mountLabel}>
+      <div className="flex items-center justify-between px-3.5 py-2.5 border-b border-border/60 bg-background/30 shrink-0">
+        <span className="text-[11px] text-muted-foreground truncate flex-1" title={mountLabel}>
           {mountLabel}
         </span>
         {loading && <Loader2 className="size-3 animate-spin text-muted-foreground" />}
       </div>
 
       {error && (
-        <div className="px-3 py-2 text-xs text-status-critical border-b border-border/50 shrink-0">
+        <div className="px-3.5 py-2.5 text-[12px] text-status-critical border-b border-border/60 shrink-0">
           {error}
         </div>
       )}
 
       {mountFiles.length === 0 ? (
-        <div className="flex flex-col items-center justify-center text-center text-sm text-muted-foreground py-8 px-4">
-          <FolderTree className="size-8 mb-2 opacity-50" />
+        <div className="flex flex-col items-center justify-center text-center text-[14px] text-muted-foreground py-8 px-4">
+          <FolderTree className="size-9 mb-2.5 opacity-50" />
           <span>{t("panel.mounts_empty")}</span>
-          <span className="text-xs mt-1">{t("panel.mounts_desc")}</span>
+          <span className="text-[12px] mt-1.5">{t("panel.mounts_desc")}</span>
         </div>
       ) : (
         <div className="py-1">
@@ -1231,7 +1231,7 @@ function FileTreeNode({
       <div
         onClick={handleClick}
         className={cn(
-          "flex items-center gap-1.5 py-1 pr-3 text-xs hover:bg-background-interactive cursor-pointer"
+          "flex items-center gap-1.5 py-1.5 pr-3 text-[12px] hover:bg-background-interactive cursor-pointer"
         )}
         style={{ paddingLeft }}
       >
@@ -1257,7 +1257,7 @@ function FileTreeNode({
 
         {/* Size for files */}
         {!node.is_dir && node.size !== undefined && (
-          <span className="text-[10px] text-muted-foreground tabular-nums shrink-0">
+          <span className="text-[11px] text-muted-foreground tabular-nums shrink-0">
             {formatSize(node.size)}
           </span>
         )}
@@ -1343,10 +1343,10 @@ function AgentsContent(): React.JSX.Element {
 
   if (subagents.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center text-center text-sm text-muted-foreground py-8 px-4">
-        <GitBranch className="size-8 mb-2 opacity-50" />
+      <div className="flex flex-col items-center justify-center text-center text-[14px] text-muted-foreground py-8 px-4">
+        <GitBranch className="size-9 mb-2.5 opacity-50" />
         <span>No subagent tasks</span>
-        <span className="text-xs mt-1">Subagents appear when spawned</span>
+        <span className="text-[12px] mt-1.5">Subagents appear when spawned</span>
       </div>
     )
   }
@@ -1354,13 +1354,13 @@ function AgentsContent(): React.JSX.Element {
   return (
     <div className="p-3 space-y-2">
       {subagents.map((agent) => (
-        <div key={agent.id} className="p-3 rounded-sm border border-border">
-          <div className="flex items-center gap-2 text-sm font-medium">
+        <div key={agent.id} className="p-3.5 rounded-md border border-border/60">
+          <div className="flex items-center gap-2.5 text-[13px] font-medium">
             <GitBranch className="size-3.5 text-status-info" />
             <span className="flex-1">{agent.name}</span>
             <span
               className={cn(
-                "text-[10px] px-1.5 py-0.5 rounded",
+                "text-[11px] px-2 py-0.5 rounded",
                 agent.status === "pending" && "bg-muted text-muted-foreground",
                 agent.status === "running" && "bg-status-info/20 text-status-info",
                 agent.status === "completed" && "bg-status-nominal/20 text-status-nominal",
@@ -1371,7 +1371,7 @@ function AgentsContent(): React.JSX.Element {
             </span>
           </div>
           {agent.description && (
-            <p className="text-xs text-muted-foreground mt-1">{agent.description}</p>
+            <p className="text-[12px] text-muted-foreground mt-1.5">{agent.description}</p>
           )}
         </div>
       ))}

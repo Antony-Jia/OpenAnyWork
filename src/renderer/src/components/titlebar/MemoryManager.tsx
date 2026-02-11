@@ -102,7 +102,7 @@ export function MemoryManager(): React.JSX.Element {
   }, [summaries, t])
 
   const openButtonClass = cn(
-    "h-7 w-7 rounded-md border border-transparent",
+    "h-8 w-8 rounded-lg border border-transparent",
     open
       ? "bg-background/70 text-foreground border-border/80"
       : "text-muted-foreground hover:text-foreground hover:bg-background/50"

@@ -26,24 +26,26 @@ export function TitleBar({ threadId }: TitleBarProps): React.JSX.Element {
   }
 
   return (
-    <div className="app-titlebar flex h-[40px] w-full shrink-0 items-center justify-between px-3 app-drag-region select-none z-50">
+    <div className="app-titlebar app-titlebar-cyber flex h-14 w-full shrink-0 items-center justify-between px-5 app-drag-region select-none z-50">
       {/* Left: Title & Settings */}
-      <div className="flex items-center gap-3 app-no-drag">
+      <div className="flex items-center gap-4 app-no-drag">
         {/* Logo / Title */}
         <div className="flex items-center justify-center pl-1">
           <button
             type="button"
             onClick={toggleMode}
             className={cn(
-              "text-[13px] font-bold tracking-[0.05em] select-none transition-colors",
-              appMode === "butler" ? "text-blue-500" : "text-foreground"
+              "text-[16px] font-extrabold tracking-[0.08em] uppercase select-none transition-all duration-300",
+              appMode === "butler"
+                ? "text-accent neon-text"
+                : "text-foreground/80 hover:text-accent hover:neon-text"
             )}
           >
             {t("app.title")}
           </button>
         </div>
 
-        <div className="h-4 w-[1px] bg-border mx-1" />
+        <div className="h-6 w-[1px] gradient-divider-vertical mx-2.5" />
 
         <SettingsMenu threadId={threadId} />
         <PromptManager />

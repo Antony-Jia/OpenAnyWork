@@ -16,7 +16,7 @@ export function PluginManager(): React.JSX.Element {
         variant="ghost"
         size="icon-sm"
         className={cn(
-          "h-7 w-7 rounded-md border border-transparent",
+          "h-8 w-8 rounded-lg border border-transparent",
           open
             ? "bg-background/70 text-foreground border-border/80"
             : "text-muted-foreground hover:text-foreground hover:bg-background/50"
@@ -28,14 +28,14 @@ export function PluginManager(): React.JSX.Element {
         <Plug className="size-4" />
       </Button>
 
-      <DialogContent className="w-[900px] h-[640px] max-w-[90vw] max-h-[85vh] p-0 overflow-hidden flex flex-col gap-0">
-        <DialogHeader className="px-6 pt-6 pb-4 border-b border-border/70 shrink-0">
-          <DialogTitle className="text-sm uppercase tracking-[0.2em] text-muted-foreground">
+      <DialogContent className="w-[960px] h-[720px] max-w-[90vw] max-h-[85vh] p-0 overflow-hidden flex flex-col gap-0">
+        <DialogHeader className="px-7 pt-6 pb-4 border-b border-border shrink-0">
+          <DialogTitle className="text-[15px] uppercase tracking-[0.2em] text-muted-foreground">
             {t("plugin.title")}
           </DialogTitle>
         </DialogHeader>
 
-        <div className="min-h-0 flex-1 overflow-y-auto px-6 py-4">
+        <div className="min-h-0 flex-1 overflow-y-auto px-7 py-5">
           <PluginsTab />
         </div>
       </DialogContent>

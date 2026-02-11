@@ -29,9 +29,9 @@ function ThreadLoadingIcon({ threadId }: { threadId: string }): React.JSX.Elemen
   const { isLoading } = useThreadStream(threadId)
 
   if (isLoading) {
-    return <Loader2 className="size-4 shrink-0 text-status-info animate-spin" />
+    return <Loader2 className="size-4.5 shrink-0 text-status-info animate-spin" />
   }
-  return <MessageSquare className="size-4 shrink-0 text-muted-foreground" />
+  return <MessageSquare className="size-4.5 shrink-0 text-muted-foreground" />
 }
 
 // Individual thread list item component
@@ -73,11 +73,11 @@ function ThreadListItem({
       <ContextMenuTrigger asChild>
         <div
           className={cn(
-            "group relative flex items-center gap-2 rounded-md px-2.5 py-2 cursor-pointer transition-all duration-200 overflow-hidden mx-2",
+            "group relative flex items-center gap-3 rounded-xl px-3.5 py-3 cursor-pointer transition-all duration-300 overflow-hidden mx-2",
             modeAccent,
             isSelected
-              ? "bg-sidebar-accent text-foreground shadow-sm ring-1 ring-border/50"
-              : "text-muted-foreground hover:bg-sidebar-accent/50 hover:text-foreground"
+              ? "bg-sidebar-accent text-foreground shadow-md ring-1 ring-accent/30 glow-border"
+              : "text-muted-foreground hover:bg-sidebar-accent/40 hover:text-foreground"
           )}
           onClick={() => {
             if (!isEditing) {
@@ -97,14 +97,14 @@ function ThreadListItem({
                   if (e.key === "Enter") onSaveTitle()
                   if (e.key === "Escape") onCancelEditing()
                 }}
-                className="w-full bg-background border border-border rounded px-1 py-0.5 text-sm outline-none focus:ring-1 focus:ring-ring"
+                className="w-full bg-background/60 backdrop-blur-sm border border-border rounded-lg px-2 py-1 text-sm outline-none cyber-input"
                 autoFocus
                 onClick={(e) => e.stopPropagation()}
               />
             ) : (
               <>
                 <div
-                  className="text-sm truncate block w-full cursor-text"
+                  className="text-[13px] truncate block w-full cursor-text"
                   title={thread.title || thread.thread_id}
                   onDoubleClick={(e) => {
                     e.stopPropagation()
@@ -113,7 +113,7 @@ function ThreadListItem({
                 >
                   {thread.title?.trim() || truncate(thread.thread_id, 20)}
                 </div>
-                <div className="text-[10px] text-muted-foreground truncate">
+                <div className="text-[11px] text-muted-foreground truncate">
                   {formatRelativeTime(thread.updated_at)}
                 </div>
               </>
@@ -128,7 +128,7 @@ function ThreadListItem({
               onDelete()
             }}
           >
-            <Trash2 className="size-3" />
+            <Trash2 className="size-3.5" />
           </Button>
         </div>
       </ContextMenuTrigger>
@@ -230,45 +230,45 @@ export function ThreadSidebar(): React.JSX.Element {
   })
 
   return (
-    <aside className="flex h-full w-full flex-col border-r border-border bg-sidebar overflow-hidden">
+    <aside className="flex h-full w-full flex-col border-r border-border/30 bg-sidebar overflow-hidden">
       {/* New Thread Button - with dynamic safe area padding when zoomed out */}
       <div className="p-2" style={{ paddingTop: "calc(8px + var(--sidebar-safe-padding, 0px))" }}>
         <Popover open={newThreadOpen} onOpenChange={setNewThreadOpen}>
           <PopoverTrigger asChild>
-            <Button variant="ghost" size="sm" className="w-full justify-start gap-2">
-              <Plus className="size-4" />
+            <Button variant="ghost" size="sm" className="w-full justify-start gap-2.5 rounded-xl text-[13px]">
+              <Plus className="size-4.5" />
               {t("sidebar.new_thread")}
-              <ChevronDown className="size-3 ml-auto text-muted-foreground" />
+              <ChevronDown className="size-3.5 ml-auto text-muted-foreground" />
             </Button>
           </PopoverTrigger>
-          <PopoverContent align="start" className="w-[260px] p-2 space-y-1">
+          <PopoverContent align="start" className="w-[280px] p-2.5 space-y-1">
             <button
               type="button"
               onClick={() => handleNewThread("default")}
-              className="w-full rounded-md px-2 py-2 text-left text-xs hover:bg-accent transition-colors"
+              className="w-full rounded-lg px-3 py-2.5 text-left text-[13px] hover:bg-accent/10 transition-all duration-200"
             >
-              <div className="font-medium">{t("sidebar.new_thread.default")}</div>
-              <div className="text-[10px] text-muted-foreground">
+              <div className="font-semibold">{t("sidebar.new_thread.default")}</div>
+              <div className="text-[11px] text-muted-foreground">
                 {t("sidebar.new_thread.default_desc")}
               </div>
             </button>
             <button
               type="button"
               onClick={() => handleNewThread("ralph")}
-              className="w-full rounded-md px-2 py-2 text-left text-xs hover:bg-accent transition-colors"
+              className="w-full rounded-lg px-3 py-2.5 text-left text-[13px] hover:bg-accent/10 transition-all duration-200"
             >
-              <div className="font-medium">{t("sidebar.new_thread.ralph")}</div>
-              <div className="text-[10px] text-muted-foreground">
+              <div className="font-semibold">{t("sidebar.new_thread.ralph")}</div>
+              <div className="text-[11px] text-muted-foreground">
                 {t("sidebar.new_thread.ralph_desc")}
               </div>
             </button>
             <button
               type="button"
               onClick={() => handleNewThread("email")}
-              className="w-full rounded-md px-2 py-2 text-left text-xs hover:bg-accent transition-colors"
+              className="w-full rounded-lg px-3 py-2.5 text-left text-[13px] hover:bg-accent/10 transition-all duration-200"
             >
-              <div className="font-medium">{t("sidebar.new_thread.email")}</div>
-              <div className="text-[10px] text-muted-foreground">
+              <div className="font-semibold">{t("sidebar.new_thread.email")}</div>
+              <div className="text-[11px] text-muted-foreground">
                 {t("sidebar.new_thread.email_desc")}
               </div>
             </button>
@@ -278,10 +278,10 @@ export function ThreadSidebar(): React.JSX.Element {
                 setNewThreadOpen(false)
                 setLoopDialogOpen(true)
               }}
-              className="w-full rounded-md px-2 py-2 text-left text-xs hover:bg-accent transition-colors"
+              className="w-full rounded-lg px-3 py-2.5 text-left text-[13px] hover:bg-accent/10 transition-all duration-200"
             >
-              <div className="font-medium">{t("sidebar.new_thread.loop")}</div>
-              <div className="text-[10px] text-muted-foreground">
+              <div className="font-semibold">{t("sidebar.new_thread.loop")}</div>
+              <div className="text-[11px] text-muted-foreground">
                 {t("sidebar.new_thread.loop_desc")}
               </div>
             </button>
@@ -289,15 +289,15 @@ export function ThreadSidebar(): React.JSX.Element {
         </Popover>
       </div>
 
-      <div className="px-2 pb-2 flex items-center gap-1">
+      <div className="px-2 pb-2 flex items-center gap-1.5">
         <button
           type="button"
           onClick={() => setThreadOriginFilter("all")}
           className={cn(
-            "h-6 px-2 rounded text-[10px] border",
+            "h-8 px-3.5 rounded-lg text-[11px] border transition-all duration-300",
             threadOriginFilter === "all"
-              ? "border-blue-500 text-blue-500 bg-blue-500/10"
-              : "border-border text-muted-foreground"
+              ? "border-accent/50 text-accent bg-accent/10 font-bold shadow-[0_0_10px_color-mix(in_srgb,var(--accent)_15%,transparent)]"
+              : "border-border/40 text-muted-foreground hover:border-accent/30 hover:text-foreground"
           )}
         >
           全部
@@ -306,10 +306,10 @@ export function ThreadSidebar(): React.JSX.Element {
           type="button"
           onClick={() => setThreadOriginFilter("manual")}
           className={cn(
-            "h-6 px-2 rounded text-[10px] border",
+            "h-8 px-3.5 rounded-lg text-[11px] border transition-all duration-300",
             threadOriginFilter === "manual"
-              ? "border-blue-500 text-blue-500 bg-blue-500/10"
-              : "border-border text-muted-foreground"
+              ? "border-accent/50 text-accent bg-accent/10 font-bold shadow-[0_0_10px_color-mix(in_srgb,var(--accent)_15%,transparent)]"
+              : "border-border/40 text-muted-foreground hover:border-accent/30 hover:text-foreground"
           )}
         >
           人工
@@ -318,10 +318,10 @@ export function ThreadSidebar(): React.JSX.Element {
           type="button"
           onClick={() => setThreadOriginFilter("butler")}
           className={cn(
-            "h-6 px-2 rounded text-[10px] border",
+            "h-8 px-3.5 rounded-lg text-[11px] border transition-all duration-300",
             threadOriginFilter === "butler"
-              ? "border-blue-500 text-blue-500 bg-blue-500/10"
-              : "border-border text-muted-foreground"
+              ? "border-accent/50 text-accent bg-accent/10 font-bold shadow-[0_0_10px_color-mix(in_srgb,var(--accent)_15%,transparent)]"
+              : "border-border/40 text-muted-foreground hover:border-accent/30 hover:text-foreground"
           )}
         >
           管家
@@ -330,7 +330,7 @@ export function ThreadSidebar(): React.JSX.Element {
 
       {/* Thread List */}
       <ScrollArea className="flex-1 min-h-0">
-        <div className="p-2 space-y-1 overflow-hidden">
+        <div className="p-2 space-y-1.5 overflow-hidden">
           {filteredThreads.map((thread) => (
             <ThreadListItem
               key={thread.thread_id}

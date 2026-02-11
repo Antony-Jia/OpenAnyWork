@@ -140,17 +140,19 @@ function normalizeCommon(input: z.infer<typeof commonFieldsSchema>): ButlerDispa
 function buildDescription(mode: Exclude<ThreadMode, "butler">): string {
   const example =
     mode === "default"
-      ? `{"taskKey":"news_1","title":"AI新闻汇总","initialPrompt":"收集今天AI大模型新闻并输出表格","threadStrategy":"new_thread","deliverableFormat":"table"}`
+      ? `{"taskKey":"news_1","title":"AI新闻汇总","initialPrompt":"[Task Objective]\\n汇总今天 AI 大模型新闻并形成结构化摘要。\\n\\n[Execution Requirements]\\n1) 覆盖主流来源并去重。\\n2) 记录时间、来源与核心结论。\\n3) 禁止编造事实。\\n\\n[Output & Acceptance]\\n- 输出 Markdown 表格，至少包含标题/来源/时间/要点。","threadStrategy":"new_thread","deliverableFormat":"table"}`
       : mode === "ralph"
-        ? `{"taskKey":"impl_1","title":"实现任务","initialPrompt":"按需求实现","threadStrategy":"new_thread","acceptanceCriteria":["类型检查通过","核心功能可用"],"maxIterations":5}`
+        ? `{"taskKey":"impl_1","title":"实现任务","initialPrompt":"[Task Objective]\\n实现需求并修复相关缺陷。\\n\\n[Execution Requirements]\\n1) 修改代码并补齐关键测试。\\n2) 记录主要设计取舍。\\n3) 不破坏现有行为。\\n\\n[Output & Acceptance]\\n- 提供变更说明与验证结果。","threadStrategy":"new_thread","acceptanceCriteria":["类型检查通过","核心功能可用"],"maxIterations":5}`
         : mode === "email"
-          ? `{"taskKey":"mail_1","title":"邮件处理","initialPrompt":"生成并发送邮件草稿","threadStrategy":"reuse_last_thread","emailIntent":"reply_to_customer","recipientHints":["alice@example.com"],"tone":"professional"}`
-          : `{"taskKey":"loop_1","title":"循环任务","initialPrompt":"建立监控循环","threadStrategy":"new_thread","loopConfig":{"enabled":true,"contentTemplate":"处理触发事件","trigger":{"type":"schedule","cron":"*/5 * * * *"},"queue":{"policy":"strict","mergeWindowSec":300}}}`
+          ? `{"taskKey":"mail_1","title":"邮件处理","initialPrompt":"[Task Objective]\\n生成可直接发送的客户回复邮件。\\n\\n[Execution Requirements]\\n1) 回应用户问题并给出下一步。\\n2) 语气专业且简洁。\\n3) 若信息不足先列出待确认点。\\n\\n[Output & Acceptance]\\n- 产出完整邮件正文和主题建议。","threadStrategy":"reuse_last_thread","emailIntent":"reply_to_customer","recipientHints":["alice@example.com"],"tone":"professional"}`
+          : `{"taskKey":"loop_1","title":"循环任务","initialPrompt":"[Task Objective]\\n建立稳定的周期监控任务。\\n\\n[Execution Requirements]\\n1) 每次触发都执行完整处理流程。\\n2) 失败要记录错误并继续下一轮。\\n\\n[Output & Acceptance]\\n- 触发后可产出可审计结果。","threadStrategy":"new_thread","loopConfig":{"enabled":true,"contentTemplate":"检索 AI 新闻，去重后写入 news_send.json，并发送给指定邮箱","trigger":{"type":"schedule","cron":"*/5 * * * *"},"queue":{"policy":"strict","mergeWindowSec":300}}}`
 
   return [
     `Create a ${mode} mode task for Butler.`,
     "Use valid JSON only. taskKey must be unique within this turn.",
     "dependsOn references other taskKey values in the same turn.",
+    "initialPrompt must preserve user constraints and stay executable.",
+    "initialPrompt must include objective, execution requirements, and output/acceptance criteria.",
     `Example: ${example}`
   ].join(" ")
 }
@@ -234,8 +236,55 @@ export function createButlerDispatchTools(params: {
   return [createDefaultTask, createRalphTask, createEmailTask, createLoopTask]
 }
 
-export function renderTaskPrompt(intent: ButlerDispatchIntent): string {
-  const sections: string[] = [intent.initialPrompt]
+export interface RenderTaskPromptContext {
+  originUserMessage: string
+}
+
+function normalizeOriginUserMessage(originUserMessage: string): string {
+  const trimmed = originUserMessage.trim()
+  return trimmed || "none"
+}
+
+function buildOutputAcceptance(intent: ButlerDispatchIntent): string {
+  if (intent.mode === "default") {
+    const formatLine = intent.deliverableFormat
+      ? `- 输出格式: ${intent.deliverableFormat}`
+      : "- 输出格式: text（默认）"
+    return [formatLine, "- 输出必须可直接交付，且覆盖用户关键约束。"].join("\n")
+  }
+
+  if (intent.mode === "ralph") {
+    return [
+      "- 必须满足全部 Acceptance Criteria。",
+      "- 给出验证过程与最终结论。",
+      intent.maxIterations
+        ? `- 最大迭代轮数: ${intent.maxIterations}`
+        : "- 最大迭代轮数: 按系统默认。"
+    ].join("\n")
+  }
+
+  if (intent.mode === "email") {
+    return ["- 产出可直接发送的邮件内容。", "- 明确邮件目标、对象、语气并避免遗漏关键信息。"].join(
+      "\n"
+    )
+  }
+
+  return [
+    "- loopConfig 是执行事实来源，触发与队列策略必须严格遵守。",
+    "- 每次触发需输出可审计结果或错误摘要。"
+  ].join("\n")
+}
+
+export function renderTaskPrompt(
+  intent: ButlerDispatchIntent,
+  context: RenderTaskPromptContext
+): string {
+  const sections: string[] = [
+    `[Original User Request]\n${normalizeOriginUserMessage(context.originUserMessage)}`,
+    `[Task Objective]\n${intent.title}`,
+    `[Execution Requirements]\n${intent.initialPrompt}`,
+    `[Output & Acceptance]\n${buildOutputAcceptance(intent)}`
+  ]
 
   if (intent.mode === "default" && intent.deliverableFormat) {
     sections.push(`[Deliverable Format]\n${intent.deliverableFormat}`)

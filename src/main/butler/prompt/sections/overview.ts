@@ -23,6 +23,9 @@ export function buildOverviewSection(): ButlerPromptSectionBuilder {
       "[User Request]",
       prompt.userMessage.trim(),
       "",
+      "[Planning Focus]",
+      prompt.planningFocus || "normal",
+      "",
       "[Dispatch Policy]",
       ...formatDispatchPolicy(prompt.dispatchPolicy)
     ]

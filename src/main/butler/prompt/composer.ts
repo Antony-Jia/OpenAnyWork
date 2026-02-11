@@ -2,6 +2,7 @@ import type { ButlerPromptContext } from "../prompt"
 import { buildCapabilitiesSection } from "./sections/capabilities"
 import { buildMemorySection } from "./sections/memory"
 import { buildOverviewSection } from "./sections/overview"
+import { buildRetrySection } from "./sections/retry"
 import { buildRouterSection } from "./sections/router"
 
 export interface ButlerPromptSectionContext {
@@ -10,12 +11,13 @@ export interface ButlerPromptSectionContext {
 }
 
 export interface ButlerPromptSectionBuilder {
-  id: "overview" | "memory" | "router" | "capabilities" | (string & {})
+  id: "overview" | "memory" | "router" | "capabilities" | "retry" | (string & {})
   build: (context: ButlerPromptSectionContext) => string[]
 }
 
 const DEFAULT_SECTION_PIPELINE: ButlerPromptSectionBuilder[] = [
   buildOverviewSection(),
+  buildRetrySection(),
   buildMemorySection(),
   buildRouterSection(),
   buildCapabilitiesSection()

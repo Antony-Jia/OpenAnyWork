@@ -120,7 +120,8 @@ export async function runButlerOrchestratorTurn(
   let userPrompt = composeButlerUserPrompt(
     {
       ...input.promptContext,
-      dispatchPolicy: input.promptContext.dispatchPolicy ?? "standard"
+      dispatchPolicy: input.promptContext.dispatchPolicy ?? "standard",
+      planningFocus: input.promptContext.planningFocus ?? "normal"
     },
     {
       clarificationPrefix: getClarificationPrefix()

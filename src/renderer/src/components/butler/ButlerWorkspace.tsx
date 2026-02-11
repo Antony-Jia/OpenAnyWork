@@ -206,7 +206,9 @@ export function ButlerWorkspace(): React.JSX.Element {
 
   const rounds = state?.recentRounds || []
   const canSend = useMemo(() => input.trim().length > 0 && !sending, [input, sending])
-  const hasPendingDispatchChoice = state?.pendingDispatchChoice?.awaiting === true
+  const pendingChoice = state?.pendingDispatchChoice
+  const hasPendingDispatchChoice = pendingChoice?.awaiting === true
+  const pendingChoiceHint = pendingChoice?.hint || "当前有待确认的任务编排方案。"
 
   const openTaskThread = useCallback(
     async (threadId: string): Promise<void> => {
@@ -289,7 +291,7 @@ export function ButlerWorkspace(): React.JSX.Element {
         <div className="flex-1 min-h-0 overflow-y-auto p-3 space-y-3">
           {hasPendingDispatchChoice && (
             <div className="text-xs rounded-md border border-amber-500/40 bg-amber-500/10 p-3">
-              当前有待确认的任务编排方案，请在输入框回复 A 或 B。
+              {pendingChoiceHint}
             </div>
           )}
           {rounds.length === 0 && (

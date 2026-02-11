@@ -19,11 +19,22 @@ export interface ButlerPromptRecentTask {
   createdAt: string
 }
 
+export interface ButlerRetryPromptContext {
+  failedTaskTitle: string
+  failedTaskMode: ButlerDispatchIntent["mode"]
+  failedTaskPrompt: string
+  failureError: string
+  originUserMessage: string
+}
+
 export interface ButlerPromptContext {
   userMessage: string
   capabilityCatalog: string
   capabilitySummary: string
   dispatchPolicy?: ButlerDispatchPolicy
+  planningFocus?: "normal" | "retry_reassign"
+  retryContext?: ButlerRetryPromptContext
+  forcedMode?: ButlerDispatchIntent["mode"]
   profileText?: string
   comparisonText?: string
   memoryHints: ButlerPromptMemoryHint[]
@@ -122,9 +133,15 @@ export function buildButlerSystemPrompt(): string {
 - 正例（应该这样做）：
   同一请求只创建 1 个 loop 任务，在 loopConfig.contentTemplate 中包含检索、去重记录、发送全流程。
 - 每个任务都应该有明确的意图和目标。
+- initialPrompt 必须完整保留用户关键约束（范围、时间、对象、格式、验收口径），不得弱化为更笼统描述。
+- initialPrompt 必须可执行，至少包含：任务目标、执行约束、输出或验收标准。
 - 使用 dependsOn 通过 taskKey 构建依赖图。
 - 无依赖的任务可并行执行。
 - 有依赖的任务必须通过 dependsOn 保证串行。
+- 若输入中出现 [Retry Reassign Context]，你必须：
+  - 只创建 1 个任务；
+  - mode 必须与失败任务一致；
+  - 在 initialPrompt 中显式吸收错误信息并给出修复策略。
 - 如果关键信息缺失且无法生成有效的工具 JSON，则不要调用工具。
   以 "${CLARIFICATION_PREFIX}" 为前缀回复，仅询问关键问题。
 - 如果能生成有效 JSON，优先派发，避免不必要的追问。

@@ -353,6 +353,9 @@ export interface ButlerTask {
   dependsOnTaskIds?: string[]
   handoff?: ButlerTaskHandoff
   sourceTurnId?: string
+  originUserMessage?: string
+  retryOfTaskId?: string
+  retryAttempt?: number
 }
 
 export interface ButlerRound {
@@ -366,6 +369,9 @@ export interface ButlerPendingDispatchChoice {
   id: string
   awaiting: boolean
   createdAt: string
+  kind: "oversplit_ab" | "retry_confirm"
+  expectedResponse: "ab" | "confirm_cancel"
+  hint: string
 }
 
 export interface ButlerState {

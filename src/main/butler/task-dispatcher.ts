@@ -27,6 +27,9 @@ interface CreateButlerTaskInput {
   handoff?: ButlerTaskHandoff
   sourceTurnId?: string
   reuseThreadId?: string
+  originUserMessage?: string
+  retryOfTaskId?: string
+  retryAttempt?: number
 }
 
 interface ExecuteResult {
@@ -94,7 +97,10 @@ export function createButlerTaskThread(input: CreateButlerTaskInput): ButlerTask
     taskKey: input.taskKey,
     dependsOnTaskIds: input.dependsOnTaskIds,
     handoff: input.handoff,
-    sourceTurnId: input.sourceTurnId
+    sourceTurnId: input.sourceTurnId,
+    originUserMessage: input.originUserMessage,
+    retryOfTaskId: input.retryOfTaskId,
+    retryAttempt: input.retryAttempt
   }
 }
 

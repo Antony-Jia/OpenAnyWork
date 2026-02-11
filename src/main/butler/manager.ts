@@ -57,21 +57,49 @@ interface PendingTask {
   taskId: string
 }
 
+interface DispatchTaskCreationContext {
+  originUserMessage: string
+  retryOfTaskId?: string
+  retryAttempt?: number
+}
+
 interface PendingDispatchOption {
   kind: "dispatch" | "cancel"
   intents: ButlerDispatchIntent[]
   assistantText: string
   summary: string
+  capabilitySummary: string
+  creation: DispatchTaskCreationContext
 }
 
-interface PendingDispatchChoiceState {
+interface OversplitPendingDispatchChoiceState {
+  kind: "oversplit_ab"
   id: string
   createdAt: string
+  hint: string
+  expectedResponse: "ab"
+  promptText: string
   reason: string
   confidence: number
   optionA: PendingDispatchOption
   optionB: PendingDispatchOption
 }
+
+interface RetryConfirmPendingDispatchChoiceState {
+  kind: "retry_confirm"
+  id: string
+  createdAt: string
+  hint: string
+  expectedResponse: "confirm_cancel"
+  promptText: string
+  failedTaskId: string
+  optionConfirm: PendingDispatchOption
+  optionCancel: PendingDispatchOption
+}
+
+type PendingDispatchChoiceState =
+  | OversplitPendingDispatchChoiceState
+  | RetryConfirmPendingDispatchChoiceState
 
 const TASK_NOTICE_MARKER = "[TASK_NOTICE_JSON]"
 
@@ -151,6 +179,7 @@ class ButlerManager {
   private dependencyChildren = new Map<string, Set<string>>()
   private unresolvedDeps = new Map<string, Set<string>>()
   private pendingDispatchChoice: PendingDispatchChoiceState | null = null
+  private queuedDispatchChoices: PendingDispatchChoiceState[] = []
   private taskCompletionUnsubscribe: (() => void) | null = null
   private perceptionQueue: Array<{
     input: ButlerPerceptionInput
@@ -219,7 +248,10 @@ class ButlerManager {
         ? {
             id: this.pendingDispatchChoice.id,
             awaiting: true,
-            createdAt: this.pendingDispatchChoice.createdAt
+            createdAt: this.pendingDispatchChoice.createdAt,
+            kind: this.pendingDispatchChoice.kind,
+            expectedResponse: this.pendingDispatchChoice.expectedResponse,
+            hint: this.pendingDispatchChoice.hint
           }
         : undefined
     }
@@ -233,6 +265,7 @@ class ButlerManager {
     await this.initialize()
     this.messages = []
     this.pendingDispatchChoice = null
+    this.queuedDispatchChoices = []
     clearButlerHistoryMessages()
     this.broadcastState()
     return this.getState()
@@ -442,6 +475,58 @@ class ButlerManager {
     ].join("\n")
   }
 
+  private getCapabilityContext(): { capabilityCatalog: string; capabilitySummary: string } {
+    const capabilitySnapshot = getButlerCapabilitySnapshot()
+    return {
+      capabilityCatalog: buildCapabilityPromptBlock(capabilitySnapshot),
+      capabilitySummary: buildCapabilitySummaryLine(capabilitySnapshot)
+    }
+  }
+
+  private normalizeOriginUserMessage(message: string): string {
+    const normalized = message.trim()
+    return normalized || "none"
+  }
+
+  private buildPromptContextBase(params: {
+    userMessage: string
+    capabilityCatalog: string
+    capabilitySummary: string
+    currentUserMessageId?: string
+  }): Omit<ButlerPromptContext, "dispatchPolicy"> {
+    const { userMessage, capabilityCatalog, capabilitySummary, currentUserMessageId } = params
+    const profile = getLatestDailyProfile()
+    const previousUserMessage = currentUserMessageId
+      ? this.findPreviousUserMessage(currentUserMessageId)?.content
+      : this.findLatestUserMessage()?.content
+    const memoryHints = searchMemoryByTask(userMessage, 5)
+    const recentTasks = this.listTasks()
+      .slice(0, 10)
+      .map((task) => ({
+        id: task.id,
+        title: task.title,
+        mode: task.mode,
+        status: task.status,
+        threadId: task.threadId,
+        createdAt: task.createdAt
+      }))
+
+    return {
+      userMessage,
+      capabilityCatalog,
+      capabilitySummary,
+      profileText: profile?.profileText,
+      comparisonText: profile?.comparisonText,
+      previousUserMessage,
+      memoryHints: memoryHints.map((item) => ({
+        threadId: item.threadId,
+        title: item.title,
+        summaryBrief: item.summaryBrief
+      })),
+      recentTasks
+    }
+  }
+
   async send(message: string): Promise<ButlerState> {
     await this.initialize()
     const trimmed = message.trim()
@@ -455,40 +540,19 @@ class ButlerManager {
     }
     this.pushMessage(userMessage)
 
-    const capabilitySnapshot = getButlerCapabilitySnapshot()
-    const capabilityCatalog = buildCapabilityPromptBlock(capabilitySnapshot)
-    const capabilitySummary = buildCapabilitySummaryLine(capabilitySnapshot)
-
     if (this.pendingDispatchChoice) {
-      return this.handlePendingDispatchChoice(trimmed, capabilitySummary)
+      return this.handlePendingDispatchChoice(trimmed)
     }
 
-    const memoryHints = searchMemoryByTask(trimmed, 5)
-    const profile = getLatestDailyProfile()
-    const previousUserMessage = this.findPreviousUserMessage(userMessage.id)?.content
-    const recentTasks = this.listTasks()
-      .slice(0, 10)
-      .map((task) => ({
-        id: task.id,
-        title: task.title,
-        mode: task.mode,
-        status: task.status,
-        threadId: task.threadId,
-        createdAt: task.createdAt
-      }))
-    const promptContextBase: Omit<ButlerPromptContext, "dispatchPolicy"> = {
+    const { capabilityCatalog, capabilitySummary } = this.getCapabilityContext()
+    const promptContextBase = this.buildPromptContextBase({
       userMessage: trimmed,
       capabilityCatalog,
       capabilitySummary,
-      profileText: profile?.profileText,
-      comparisonText: profile?.comparisonText,
-      previousUserMessage,
-      memoryHints: memoryHints.map((item) => ({
-        threadId: item.threadId,
-        title: item.title,
-        summaryBrief: item.summaryBrief
-      })),
-      recentTasks
+      currentUserMessageId: userMessage.id
+    })
+    const creation: DispatchTaskCreationContext = {
+      originUserMessage: this.normalizeOriginUserMessage(trimmed)
     }
 
     const orchestrator = await runButlerOrchestratorTurn({
@@ -516,7 +580,8 @@ class ButlerManager {
       return this.dispatchIntentsAndReply({
         intents: orchestrator.dispatchIntents,
         assistantText: orchestrator.assistantText || "已完成任务编排并开始执行。",
-        capabilitySummary
+        capabilitySummary,
+        creation
       })
     }
 
@@ -528,7 +593,8 @@ class ButlerManager {
       return this.dispatchIntentsAndReply({
         intents: orchestrator.dispatchIntents,
         assistantText: orchestrator.assistantText || "已完成任务编排并开始执行。",
-        capabilitySummary
+        capabilitySummary,
+        creation
       })
     }
 
@@ -550,14 +616,18 @@ class ButlerManager {
           kind: "dispatch",
           intents: replanned.dispatchIntents,
           assistantText: replanned.assistantText || "已按方案A（单任务优先）执行。",
-          summary: this.buildDispatchOptionSummary(replanned.dispatchIntents)
+          summary: this.buildDispatchOptionSummary(replanned.dispatchIntents),
+          capabilitySummary,
+          creation
         }
       } else {
         optionA = {
           kind: "cancel",
           intents: [],
           assistantText: "已取消本次执行，请重述需求后我会重新编排。",
-          summary: "单任务重编排未产生可执行的单任务方案。"
+          summary: "单任务重编排未产生可执行的单任务方案。",
+          capabilitySummary,
+          creation
         }
       }
     } catch (error) {
@@ -566,7 +636,9 @@ class ButlerManager {
         kind: "cancel",
         intents: [],
         assistantText: "已取消本次执行，请重述需求后我会重新编排。",
-        summary: `单任务重编排失败：${message}`
+        summary: `单任务重编排失败：${message}`,
+        capabilitySummary,
+        creation
       }
     }
 
@@ -574,55 +646,78 @@ class ButlerManager {
       kind: "dispatch",
       intents: orchestrator.dispatchIntents,
       assistantText: orchestrator.assistantText || "已按方案B（原始拆分）执行。",
-      summary: this.buildDispatchOptionSummary(orchestrator.dispatchIntents)
+      summary: this.buildDispatchOptionSummary(orchestrator.dispatchIntents),
+      capabilitySummary,
+      creation
     }
 
-    this.pendingDispatchChoice = {
+    const promptText = this.buildOversplitDispatchChoicePrompt(
+      optionA,
+      optionB,
+      detection.reason,
+      detection.confidence
+    )
+
+    const choice: OversplitPendingDispatchChoiceState = {
+      kind: "oversplit_ab",
       id: uuid(),
       createdAt: nowIso(),
+      hint: "当前存在待确认的任务编排方案，请在输入框回复 A 或 B。",
+      expectedResponse: "ab",
+      promptText,
       reason: detection.reason,
       confidence: detection.confidence,
       optionA,
       optionB
     }
-
-    this.pushMessage({
-      id: uuid(),
-      role: "assistant",
-      content: this.buildDispatchChoicePrompt(
-        optionA,
-        optionB,
-        detection.reason,
-        detection.confidence
-      ),
-      ts: nowIso()
-    })
-    this.broadcastState()
+    this.schedulePendingDispatchChoice(choice)
     return this.getState()
   }
 
-  private handlePendingDispatchChoice(choiceText: string, capabilitySummary: string): ButlerState {
+  private handlePendingDispatchChoice(choiceText: string): ButlerState {
     const pending = this.pendingDispatchChoice
     if (!pending) return this.getState()
 
-    const choice = this.parseChoiceText(choiceText)
-    if (!choice) {
-      this.pushMessage({
-        id: uuid(),
-        role: "assistant",
-        content: [
-          "当前存在待确认的编排方案。",
-          "请回复 A 或 B 进行选择。",
-          "A: 单任务优先方案",
-          "B: 原始拆分方案"
-        ].join("\n"),
-        ts: nowIso()
-      })
-      this.broadcastState()
-      return this.getState()
+    let selected: PendingDispatchOption
+
+    if (pending.kind === "oversplit_ab") {
+      const choice = this.parseABChoiceText(choiceText)
+      if (!choice) {
+        this.pushMessage({
+          id: uuid(),
+          role: "assistant",
+          content: [
+            "当前存在待确认的编排方案。",
+            "请回复 A 或 B 进行选择。",
+            "A: 单任务优先方案",
+            "B: 原始拆分方案"
+          ].join("\n"),
+          ts: nowIso()
+        })
+        this.broadcastState()
+        return this.getState()
+      }
+      selected = choice === "A" ? pending.optionA : pending.optionB
+    } else {
+      const choice = this.parseConfirmCancelChoiceText(choiceText)
+      if (!choice) {
+        this.pushMessage({
+          id: uuid(),
+          role: "assistant",
+          content: [
+            "当前存在待确认的失败重分配方案。",
+            "请回复 确认 或 取消。",
+            "确认: 按建议创建重试任务",
+            "取消: 不创建重试任务"
+          ].join("\n"),
+          ts: nowIso()
+        })
+        this.broadcastState()
+        return this.getState()
+      }
+      selected = choice === "confirm" ? pending.optionConfirm : pending.optionCancel
     }
 
-    const selected = choice === "A" ? pending.optionA : pending.optionB
     this.pendingDispatchChoice = null
 
     if (selected.kind === "cancel") {
@@ -633,6 +728,7 @@ class ButlerManager {
         ts: nowIso()
       })
       this.broadcastState()
+      this.promoteNextQueuedDispatchChoice()
       return this.getState()
     }
 
@@ -644,17 +740,21 @@ class ButlerManager {
         ts: nowIso()
       })
       this.broadcastState()
+      this.promoteNextQueuedDispatchChoice()
       return this.getState()
     }
 
-    return this.dispatchIntentsAndReply({
+    const state = this.dispatchIntentsAndReply({
       intents: selected.intents,
       assistantText: selected.assistantText,
-      capabilitySummary
+      capabilitySummary: selected.capabilitySummary,
+      creation: selected.creation
     })
+    this.promoteNextQueuedDispatchChoice()
+    return state
   }
 
-  private parseChoiceText(raw: string): "A" | "B" | null {
+  private parseABChoiceText(raw: string): "A" | "B" | null {
     const normalized = raw.trim().toLowerCase().replace(/\s+/g, "")
     if (!normalized) return null
 
@@ -667,7 +767,20 @@ class ButlerManager {
     return null
   }
 
-  private buildDispatchChoicePrompt(
+  private parseConfirmCancelChoiceText(raw: string): "confirm" | "cancel" | null {
+    const normalized = raw.trim().toLowerCase().replace(/\s+/g, "")
+    if (!normalized) return null
+
+    const confirm = new Set(["确认", "同意", "yes", "y", "ok", "好的", "继续"])
+    if (confirm.has(normalized)) return "confirm"
+
+    const cancel = new Set(["取消", "拒绝", "no", "n", "不用", "停止"])
+    if (cancel.has(normalized)) return "cancel"
+
+    return null
+  }
+
+  private buildOversplitDispatchChoicePrompt(
     optionA: PendingDispatchOption,
     optionB: PendingDispatchOption,
     reason: string,
@@ -687,6 +800,62 @@ class ButlerManager {
       "",
       "请回复 A 或 B。"
     ].join("\n")
+  }
+
+  private buildRetryDispatchChoicePrompt(
+    failedTask: ButlerTask,
+    errorMessage: string,
+    confirmOption: PendingDispatchOption
+  ): string {
+    return [
+      "检测到任务异常失败，已生成重分配方案。",
+      `失败任务: [${failedTask.mode}] ${failedTask.title}`,
+      `错误信息: ${errorMessage}`,
+      "",
+      "建议方案（单任务同模式）",
+      confirmOption.summary,
+      "",
+      "请回复 确认 或 取消。"
+    ].join("\n")
+  }
+
+  private promoteNextQueuedDispatchChoice(): void {
+    if (this.pendingDispatchChoice) return
+    const next = this.queuedDispatchChoices.shift()
+    if (!next) return
+
+    this.pendingDispatchChoice = next
+
+    this.pushMessage({
+      id: uuid(),
+      role: "assistant",
+      content: next.promptText,
+      ts: nowIso()
+    })
+    this.broadcastState()
+  }
+
+  private schedulePendingDispatchChoice(choice: PendingDispatchChoiceState): void {
+    if (this.pendingDispatchChoice) {
+      this.queuedDispatchChoices.push(choice)
+      this.pushMessage({
+        id: uuid(),
+        role: "assistant",
+        content: `检测到新的待确认方案，已加入确认队列（${choice.kind}）。请先处理当前方案。`,
+        ts: nowIso()
+      })
+      this.broadcastState()
+      return
+    }
+
+    this.pendingDispatchChoice = choice
+    this.pushMessage({
+      id: uuid(),
+      role: "assistant",
+      content: choice.promptText,
+      ts: nowIso()
+    })
+    this.broadcastState()
   }
 
   private buildDispatchOptionSummary(intents: ButlerDispatchIntent[]): string {
@@ -719,6 +888,7 @@ class ButlerManager {
     intents: ButlerDispatchIntent[]
     assistantText: string
     capabilitySummary: string
+    creation: DispatchTaskCreationContext
   }): ButlerState {
     const graphValidation = this.validateDispatchGraph(params.intents)
     if (!graphValidation.ok) {
@@ -742,7 +912,8 @@ class ButlerManager {
     const created = this.createTasksFromIntents({
       intents: params.intents,
       groupId,
-      sourceTurnId
+      sourceTurnId,
+      creation: params.creation
     })
     this.pendingDispatchChoice = null
 
@@ -834,6 +1005,14 @@ class ButlerManager {
     return null
   }
 
+  private findLatestUserMessage(): ButlerMessage | null {
+    for (let index = this.messages.length - 1; index >= 0; index -= 1) {
+      const message = this.messages[index]
+      if (message.role === "user") return message
+    }
+    return null
+  }
+
   private validateDispatchGraph(
     intents: ButlerDispatchIntent[]
   ): { ok: true } | { ok: false; error: string } {
@@ -887,12 +1066,13 @@ class ButlerManager {
     intents: ButlerDispatchIntent[]
     groupId: string
     sourceTurnId: string
+    creation: DispatchTaskCreationContext
   }): {
     tasks: ButlerTask[]
     readyTaskIds: string[]
     notes: string[]
   } {
-    const { intents, groupId, sourceTurnId } = params
+    const { intents, groupId, sourceTurnId, creation } = params
     const createdByTaskKey = new Map<string, ButlerTask>()
     const notes: string[] = []
 
@@ -905,7 +1085,7 @@ class ButlerManager {
 
       const task = createButlerTaskThread({
         mode: intent.mode,
-        prompt: renderTaskPrompt(intent),
+        prompt: renderTaskPrompt(intent, { originUserMessage: creation.originUserMessage }),
         title: intent.title,
         rootPath: this.getRootPath(),
         requester: "user",
@@ -914,7 +1094,10 @@ class ButlerManager {
         taskKey: intent.taskKey,
         handoff: intent.handoff,
         sourceTurnId,
-        reuseThreadId: reusableThreadId
+        reuseThreadId: reusableThreadId,
+        originUserMessage: creation.originUserMessage,
+        retryOfTaskId: creation.retryOfTaskId,
+        retryAttempt: creation.retryAttempt
       })
 
       this.tasks.set(task.id, task)
@@ -1152,6 +1335,144 @@ class ButlerManager {
     }
   }
 
+  private getRetryAttempt(task: ButlerTask): number {
+    const raw = task.retryAttempt
+    if (typeof raw !== "number" || !Number.isFinite(raw)) return 0
+    return Math.max(0, Math.floor(raw))
+  }
+
+  private resolveRetryRootTask(task: ButlerTask): ButlerTask {
+    let current = task
+    const visited = new Set<string>()
+
+    while (current.retryOfTaskId) {
+      if (visited.has(current.id)) break
+      visited.add(current.id)
+      const parent = this.tasks.get(current.retryOfTaskId)
+      if (!parent) break
+      current = parent
+    }
+
+    return current
+  }
+
+  private isDependencyFailureTask(task: ButlerTask): boolean {
+    const reason = [task.resultBrief || "", task.resultDetail || ""].join("\n")
+    return reason.includes("依赖任务失败:") || reason.includes("依赖任务不存在:")
+  }
+
+  private async prepareRetryReassignmentForFailure(
+    task: ButlerTask,
+    errorMessage: string
+  ): Promise<void> {
+    if (task.status !== "failed") return
+    if (this.isDependencyFailureTask(task)) return
+
+    const root = this.resolveRetryRootTask(task)
+    const rootAttempt = Math.max(this.getRetryAttempt(root), this.getRetryAttempt(task))
+    if (rootAttempt >= 1) {
+      return
+    }
+
+    const originUserMessage = this.normalizeOriginUserMessage(
+      task.originUserMessage || task.prompt || task.title
+    )
+    const { capabilityCatalog, capabilitySummary } = this.getCapabilityContext()
+    const promptContextBase = this.buildPromptContextBase({
+      userMessage: originUserMessage,
+      capabilityCatalog,
+      capabilitySummary
+    })
+
+    try {
+      const replanned = await runButlerOrchestratorTurn({
+        threadId: this.mainThreadId,
+        promptContext: {
+          ...promptContextBase,
+          dispatchPolicy: "single_task_first",
+          planningFocus: "retry_reassign",
+          forcedMode: task.mode,
+          retryContext: {
+            failedTaskTitle: task.title,
+            failedTaskMode: task.mode,
+            failedTaskPrompt: task.prompt,
+            failureError: errorMessage,
+            originUserMessage
+          }
+        }
+      })
+
+      const validSingleTask =
+        replanned.dispatchIntents.length === 1 &&
+        replanned.dispatchIntents[0]?.mode === task.mode &&
+        this.validateDispatchGraph(replanned.dispatchIntents).ok
+
+      if (!validSingleTask) {
+        this.pushMessage({
+          id: uuid(),
+          role: "assistant",
+          content: [
+            `任务失败：${task.title}`,
+            `错误: ${errorMessage}`,
+            "自动重分配未生成可执行的同模式单任务方案，请手动重述需求。"
+          ].join("\n"),
+          ts: nowIso()
+        })
+        this.broadcastState()
+        return
+      }
+
+      const creation: DispatchTaskCreationContext = {
+        originUserMessage,
+        retryOfTaskId: task.id,
+        retryAttempt: rootAttempt + 1
+      }
+      const optionConfirm: PendingDispatchOption = {
+        kind: "dispatch",
+        intents: replanned.dispatchIntents,
+        assistantText: replanned.assistantText || "已确认失败重分配方案并开始执行。",
+        summary: this.buildDispatchOptionSummary(replanned.dispatchIntents),
+        capabilitySummary,
+        creation
+      }
+      const optionCancel: PendingDispatchOption = {
+        kind: "cancel",
+        intents: [],
+        assistantText: "已取消本次失败重分配。你可以稍后手动重述需求。",
+        summary: "用户取消失败重分配。",
+        capabilitySummary,
+        creation
+      }
+      const promptText = this.buildRetryDispatchChoicePrompt(task, errorMessage, optionConfirm)
+      const choice: RetryConfirmPendingDispatchChoiceState = {
+        kind: "retry_confirm",
+        id: uuid(),
+        createdAt: nowIso(),
+        hint: "检测到失败重分配方案，请回复 确认 或 取消。",
+        expectedResponse: "confirm_cancel",
+        promptText,
+        failedTaskId: task.id,
+        optionConfirm,
+        optionCancel
+      }
+      this.schedulePendingDispatchChoice(choice)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      this.pushMessage({
+        id: uuid(),
+        role: "assistant",
+        content: [
+          `任务失败：${task.title}`,
+          `错误: ${errorMessage}`,
+          `自动重分配生成失败：${message}`,
+          "请手动重述需求。"
+        ].join("\n"),
+        ts: nowIso()
+      })
+      this.broadcastState()
+    }
+  }
+
   private handleTaskCompleted(payload: TaskCompletionPayload): void {
     const byThread = this.listTasks()
       .filter((task) => task.threadId === payload.threadId)
@@ -1170,6 +1491,10 @@ class ButlerManager {
         this.onTaskSettled(target)
       }
       this.broadcastTasks()
+
+      if (payload.source === "butler" && payload.error) {
+        void this.prepareRetryReassignmentForFailure(target, payload.error)
+      }
     }
   }
 

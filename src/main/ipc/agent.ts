@@ -11,6 +11,8 @@ import { ensureDockerRunning, getDockerRuntimeConfig } from "../docker/session"
 import { appendRalphLogEntry } from "../ralph-log"
 import { runAgentStream } from "../agent/run"
 import { extractAssistantChunkText } from "../agent/stream-utils"
+import { runExpertPipeline } from "../expert/runner"
+import { normalizeStoredExpertConfig } from "../expert/config"
 import { emitTaskCompleted, emitTaskStarted } from "../tasks/lifecycle"
 import type {
   AgentInvokeParams,
@@ -419,6 +421,43 @@ export function registerAgentHandlers(ipcMain: IpcMain): void {
           threadMode: mode,
           capabilityScope: "classic",
           forceToolNames: ["send_email"]
+        })
+
+        if (!abortController.signal.aborted) {
+          emitTaskCompleted({
+            threadId,
+            result: output,
+            source: "agent"
+          })
+          window.webContents.send(channel, { type: "done" })
+        }
+        return
+      }
+
+      if (mode === "expert") {
+        const expertConfig = normalizeStoredExpertConfig(metadata.expert)
+        if (!expertConfig) {
+          window.webContents.send(channel, {
+            type: "error",
+            error: "EXPERT_CONFIG_MISSING",
+            message: "请先配置专家模式（至少一位专家，且填写角色与 prompt）。"
+          })
+          return
+        }
+
+        emitAgentStarted()
+        const output = await runExpertPipeline({
+          threadId,
+          expertConfig,
+          message,
+          workspacePath: normalizedWorkspace,
+          modelId,
+          dockerConfig,
+          dockerContainerId,
+          capabilityScope: "classic",
+          window,
+          channel,
+          abortController
         })
 
         if (!abortController.signal.aborted) {

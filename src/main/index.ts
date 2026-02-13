@@ -36,6 +36,7 @@ import { registerAttachmentHandlers } from "./ipc/attachments"
 import { initializeDatabase } from "./db"
 import { registerMcpHandlers } from "./ipc/mcp"
 import { registerLoopHandlers } from "./ipc/loop"
+import { registerExpertHandlers } from "./ipc/expert"
 import { registerButlerHandlers } from "./ipc/butler"
 import { registerButlerMonitorHandlers } from "./ipc/butler-monitor"
 import { registerPromptHandlers } from "./ipc/prompts"
@@ -362,6 +363,7 @@ app.whenReady().then(async () => {
   })
   registerSpeechHandlers(ipcMain)
   registerLoopHandlers(ipcMain)
+  registerExpertHandlers(ipcMain)
   registerButlerHandlers(ipcMain)
   if (butlerMonitorManager) {
     registerButlerMonitorHandlers(ipcMain, butlerMonitorManager)

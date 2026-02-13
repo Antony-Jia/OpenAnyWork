@@ -1090,6 +1090,7 @@ class ButlerManager {
         rootPath: this.getRootPath(),
         requester: "user",
         loopConfig: intent.mode === "loop" ? intent.loopConfig : undefined,
+        expertConfig: intent.mode === "expert" ? intent.expertConfig : undefined,
         groupId,
         taskKey: intent.taskKey,
         handoff: intent.handoff,

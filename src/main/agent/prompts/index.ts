@@ -2,6 +2,7 @@ import type { ThreadMode } from "../../types"
 import { buildBasePrompt } from "./base"
 import { buildDefaultModePrompt } from "./modes/default"
 import { buildEmailModePrompt } from "./modes/email"
+import { buildExpertModePrompt } from "./modes/expert"
 import { buildLoopModePrompt } from "./modes/loop"
 import { buildRalphModePrompt } from "./modes/ralph"
 import type { AgentPromptContext, AgentPromptMode, ComposeAgentSystemPromptInput } from "./types"
@@ -37,6 +38,8 @@ export function resolveAgentPromptMode(threadMode?: ThreadMode): AgentPromptMode
       return "loop"
     case "email":
       return "email"
+    case "expert":
+      return "expert"
     default:
       return "default"
   }
@@ -50,6 +53,8 @@ export function buildModePrompt(mode: AgentPromptMode, context: AgentPromptConte
       return buildLoopModePrompt(context)
     case "email":
       return buildEmailModePrompt(context)
+    case "expert":
+      return buildExpertModePrompt(context)
     case "default":
     default:
       return buildDefaultModePrompt(context)

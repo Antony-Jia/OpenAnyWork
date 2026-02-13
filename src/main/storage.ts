@@ -49,6 +49,10 @@ export function getThreadRalphLogPath(threadId: string): string {
   return join(getThreadCheckpointDir(), `${threadId}.ralph.jsonl`)
 }
 
+export function getThreadExpertLogPath(threadId: string): string {
+  return join(getThreadCheckpointDir(), `${threadId}.expert.jsonl`)
+}
+
 export function deleteThreadCheckpoint(threadId: string): void {
   const path = getThreadCheckpointPath(threadId)
   if (existsSync(path)) {

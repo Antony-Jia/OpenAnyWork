@@ -27,9 +27,12 @@ import type {
   SpeechTtsRequest,
   SpeechTtsResponse,
   RalphLogEntry,
+  ExpertLogEntry,
   Attachment,
   ContentBlock,
   LoopConfig,
+  ExpertConfig,
+  ExpertConfigInput,
   ButlerState,
   ButlerTask,
   TaskCompletionNotice,
@@ -189,6 +192,9 @@ const api = {
     getRalphLogTail: (threadId: string, limit?: number): Promise<RalphLogEntry[]> => {
       return ipcRenderer.invoke("threads:ralphLogTail", threadId, limit)
     },
+    getExpertLogTail: (threadId: string, limit?: number): Promise<ExpertLogEntry[]> => {
+      return ipcRenderer.invoke("threads:expertLogTail", threadId, limit)
+    },
     generateTitle: (message: string): Promise<string> => {
       return ipcRenderer.invoke("threads:generateTitle", message)
     }
@@ -208,6 +214,17 @@ const api = {
     },
     status: (threadId: string): Promise<{ running: boolean; queueLength: number }> => {
       return ipcRenderer.invoke("loop:status", threadId)
+    }
+  },
+  expert: {
+    getConfig: (threadId: string): Promise<ExpertConfig | null> => {
+      return ipcRenderer.invoke("expert:getConfig", threadId)
+    },
+    updateConfig: (
+      threadId: string,
+      config: ExpertConfigInput | ExpertConfig
+    ): Promise<ExpertConfig> => {
+      return ipcRenderer.invoke("expert:updateConfig", { threadId, config })
     }
   },
   butler: {

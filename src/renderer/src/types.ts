@@ -1,6 +1,6 @@
 // Re-export types from electron for use in renderer
 export type ThreadStatus = "idle" | "busy" | "interrupted" | "error"
-export type ThreadMode = "default" | "ralph" | "email" | "loop" | "butler"
+export type ThreadMode = "default" | "ralph" | "email" | "loop" | "expert" | "butler"
 
 export type LoopTriggerType = "schedule" | "api" | "file"
 export type LoopConditionOp = "equals" | "contains" | "truthy"
@@ -48,6 +48,35 @@ export interface LoopConfig {
   nextRunAt?: string | null
 }
 
+export interface ExpertLoopConfig {
+  enabled: boolean
+  maxCycles: number
+}
+
+export interface ExpertAgentConfig {
+  id: string
+  role: string
+  prompt: string
+  agentThreadId: string
+}
+
+export interface ExpertAgentConfigInput {
+  id?: string
+  role: string
+  prompt: string
+  agentThreadId?: string
+}
+
+export interface ExpertConfig {
+  experts: ExpertAgentConfig[]
+  loop: ExpertLoopConfig
+}
+
+export interface ExpertConfigInput {
+  experts: ExpertAgentConfigInput[]
+  loop?: Partial<ExpertLoopConfig>
+}
+
 export interface Thread {
   thread_id: string
   created_at: Date
@@ -70,6 +99,9 @@ export interface ThreadMetadata {
   butlerTaskId?: string
   nonInterruptible?: boolean
   disableApprovals?: boolean
+  ralph?: RalphState
+  loop?: LoopConfig
+  expert?: ExpertConfig
 }
 
 export interface RalphState {
@@ -92,6 +124,21 @@ export interface RalphLogEntry {
   toolCallId?: string
   toolName?: string
   toolArgs?: Record<string, unknown>
+}
+
+export interface ExpertLogEntry {
+  id: string
+  ts: string
+  threadId: string
+  runId: string
+  role: "user" | "expert" | "system"
+  cycle?: number
+  expertId?: string
+  expertRole?: string
+  content: string
+  summary?: string
+  handoff?: string
+  stop?: boolean
 }
 
 export type RunStatus = "pending" | "running" | "error" | "success" | "interrupted"
@@ -348,6 +395,7 @@ export interface ButlerTask {
   resultDetail?: string
   requester: "user" | "system"
   loopConfig?: LoopConfig
+  expertConfig?: ExpertConfig
   groupId?: string
   taskKey?: string
   dependsOnTaskIds?: string[]

@@ -20,7 +20,8 @@ import type {
   Subagent,
   HITLRequest,
   DockerConfig,
-  RalphLogEntry
+  RalphLogEntry,
+  ExpertLogEntry
 } from "@/types"
 import type { DeepAgent } from "../../../main/agent/types"
 
@@ -57,6 +58,7 @@ export interface ThreadState {
   dockerConfig: DockerConfig | null
   dockerEnabled: boolean
   ralphLog: RalphLogEntry[]
+  expertLog: ExpertLogEntry[]
 }
 
 // Stream instance type
@@ -88,6 +90,8 @@ export interface ThreadActions {
   setFileContents: (path: string, content: string) => void
   setRalphLog: (entries: RalphLogEntry[]) => void
   appendRalphLog: (entry: RalphLogEntry) => void
+  setExpertLog: (entries: ExpertLogEntry[]) => void
+  appendExpertLog: (entry: ExpertLogEntry) => void
 }
 
 // Context value
@@ -117,7 +121,8 @@ const createDefaultThreadState = (): ThreadState => ({
   tokenUsage: null,
   dockerConfig: null,
   dockerEnabled: false,
-  ralphLog: []
+  ralphLog: [],
+  expertLog: []
 })
 
 const defaultStreamData: StreamData = {
@@ -142,7 +147,7 @@ interface CustomEventData {
     startedAt?: Date
     completedAt?: Date
   }>
-  entry?: RalphLogEntry
+  entry?: RalphLogEntry | ExpertLogEntry
   usage?: {
     inputTokens?: number
     outputTokens?: number
@@ -566,6 +571,13 @@ export function ThreadProvider({ children }: { children: ReactNode }) {
             }))
           }
           break
+        case "expert_log":
+          if (data.entry) {
+            updateThreadState(threadId, (prev) => ({
+              expertLog: [...prev.expertLog, data.entry as ExpertLogEntry].slice(-1000)
+            }))
+          }
+          break
       }
     },
     [updateThreadState]
@@ -735,6 +747,14 @@ export function ThreadProvider({ children }: { children: ReactNode }) {
           updateThreadState(threadId, (state) => ({
             ralphLog: [...state.ralphLog, entry].slice(-500)
           }))
+        },
+        setExpertLog: (entries: ExpertLogEntry[]) => {
+          updateThreadState(threadId, () => ({ expertLog: entries }))
+        },
+        appendExpertLog: (entry: ExpertLogEntry) => {
+          updateThreadState(threadId, (state) => ({
+            expertLog: [...state.expertLog, entry].slice(-1000)
+          }))
         }
       }
 
@@ -782,6 +802,12 @@ export function ThreadProvider({ children }: { children: ReactNode }) {
               200
             )) as RalphLogEntry[]
             actions.setRalphLog(Array.isArray(logEntries) ? logEntries : [])
+          } else if (mode === "expert") {
+            const logEntries = (await window.api.threads.getExpertLogTail(
+              threadId,
+              500
+            )) as ExpertLogEntry[]
+            actions.setExpertLog(Array.isArray(logEntries) ? logEntries : [])
           }
         }
       } catch (error) {

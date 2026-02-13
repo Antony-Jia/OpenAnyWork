@@ -10,10 +10,18 @@ import { selectWorkspaceFolder } from "@/lib/workspace-utils"
 import { ChatTodos } from "./ChatTodos"
 import { ContextUsageIndicator } from "./ContextUsageIndicator"
 import { LoopPanel } from "@/components/loop/LoopPanel"
+import { ExpertPanel } from "@/components/expert/ExpertPanel"
 import { cn } from "@/lib/utils"
 import { useLanguage } from "@/lib/i18n"
 import { useDockerState } from "@/lib/docker-state"
-import type { Attachment, ContentBlock, Message, ThreadMode, RalphLogEntry } from "@/types"
+import type {
+  Attachment,
+  ContentBlock,
+  Message,
+  ThreadMode,
+  RalphLogEntry,
+  ExpertLogEntry
+} from "@/types"
 
 interface AgentStreamValues {
   todos?: Array<{ id?: string; content?: string; status?: string }>
@@ -86,12 +94,15 @@ export function ChatContainer({ threadId }: ChatContainerProps): React.JSX.Eleme
         ? "bg-violet-50/40 dark:bg-violet-950/30"
         : threadMode === "loop"
           ? "bg-amber-50/40 dark:bg-amber-950/30"
-          : "bg-blue-50/40 dark:bg-blue-950/30"
+          : threadMode === "expert"
+            ? "bg-cyan-50/40 dark:bg-cyan-950/30"
+            : "bg-blue-50/40 dark:bg-blue-950/30"
 
   // Get persisted thread state and actions from context
   const {
     messages: threadMessages,
     ralphLog,
+    expertLog,
     pendingApproval,
     todos,
     error: threadError,
@@ -385,11 +396,49 @@ export function ChatContainer({ threadId }: ChatContainerProps): React.JSX.Eleme
     })
 
     return [...messages, ...logMessages]
-  }, [ralphLog, threadId, threadMode])
+  }, [ralphLog, threadMode])
+
+  const expertMessages = useMemo(() => {
+    if (threadMode !== "expert") return []
+
+    return (expertLog || []).flatMap((entry: ExpertLogEntry) => {
+      if (!entry) return []
+      const createdAt = entry.ts ? new Date(entry.ts) : new Date()
+
+      if (entry.role === "user") {
+        return [
+          {
+            id: entry.id,
+            role: "user",
+            content: entry.content,
+            created_at: createdAt
+          } as Message
+        ]
+      }
+
+      const header =
+        entry.role === "expert"
+          ? `[${entry.expertRole || "Expert"}${entry.cycle ? ` · Round ${entry.cycle}` : ""}]`
+          : `[System${entry.cycle ? ` · Round ${entry.cycle}` : ""}]`
+      const body = entry.content?.trim() || entry.summary || ""
+      const content = body ? `${header}\n${body}` : header
+      return [
+        {
+          id: entry.id,
+          role: "assistant",
+          content,
+          created_at: createdAt
+        } as Message
+      ]
+    })
+  }, [expertLog, threadMode])
 
   const displayMessages = useMemo(() => {
     if (threadMode === "ralph") {
       return ralphMessages
+    }
+    if (threadMode === "expert") {
+      return expertMessages
     }
 
     const threadMessageIds = new Set(threadMessages.map((m) => m.id))
@@ -418,7 +467,7 @@ export function ChatContainer({ threadId }: ChatContainerProps): React.JSX.Eleme
       })
 
     return [...threadMessages, ...streamingMsgs]
-  }, [ralphMessages, streamData.messages, threadMessages, threadMode])
+  }, [expertMessages, ralphMessages, streamData.messages, threadMessages, threadMode])
 
   // Build tool results map from tool messages
   const toolResults = useMemo(() => {
@@ -635,6 +684,7 @@ export function ChatContainer({ threadId }: ChatContainerProps): React.JSX.Eleme
         <div className="p-4 pb-2">
           <div className="max-w-3xl mx-auto space-y-4">
             {threadMode === "loop" && <LoopPanel threadId={threadId} />}
+            {threadMode === "expert" && <ExpertPanel threadId={threadId} />}
             {displayMessages.length === 0 && !isLoading && (
               <div className="flex flex-col items-center justify-center py-20 text-muted-foreground animate-in fade-in duration-500">
                 <div className="text-section-header mb-4 text-xs tracking-[0.2em] opacity-50">

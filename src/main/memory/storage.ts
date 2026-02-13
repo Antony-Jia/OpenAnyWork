@@ -155,7 +155,13 @@ function readSingleRow<T>(query: string, params: Array<string | number | null> =
 }
 
 function normalizeMode(mode: string): ThreadMode {
-  if (mode === "ralph" || mode === "email" || mode === "loop" || mode === "butler") {
+  if (
+    mode === "ralph" ||
+    mode === "email" ||
+    mode === "loop" ||
+    mode === "expert" ||
+    mode === "butler"
+  ) {
     return mode
   }
   return "default"

@@ -7,6 +7,7 @@ import { useThreadStream } from "@/lib/thread-context"
 import { cn, formatRelativeTime, truncate } from "@/lib/utils"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { LoopConfigDialog } from "@/components/loop/LoopConfigDialog"
+import { ExpertConfigDialog } from "@/components/expert/ExpertConfigDialog"
 import {
   Dialog,
   DialogContent,
@@ -67,7 +68,9 @@ function ThreadListItem({
         ? "border-l-2 border-violet-400/60 bg-violet-50/30 dark:bg-violet-950/20"
         : mode === "loop"
           ? "border-l-2 border-amber-400/60 bg-amber-50/30 dark:bg-amber-950/20"
-          : "border-l-2 border-blue-400/40 bg-blue-50/30 dark:bg-blue-950/20"
+          : mode === "expert"
+            ? "border-l-2 border-cyan-400/60 bg-cyan-50/30 dark:bg-cyan-950/20"
+            : "border-l-2 border-blue-400/40 bg-blue-50/30 dark:bg-blue-950/20"
   return (
     <ContextMenu>
       <ContextMenuTrigger asChild>
@@ -164,6 +167,7 @@ export function ThreadSidebar(): React.JSX.Element {
   const [editingTitle, setEditingTitle] = useState("")
   const [newThreadOpen, setNewThreadOpen] = useState(false)
   const [loopDialogOpen, setLoopDialogOpen] = useState(false)
+  const [expertDialogOpen, setExpertDialogOpen] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState<Thread | null>(null)
   const [deleteMemory, setDeleteMemory] = useState(false)
   const [deleting, setDeleting] = useState(false)
@@ -235,7 +239,11 @@ export function ThreadSidebar(): React.JSX.Element {
       <div className="p-2" style={{ paddingTop: "calc(8px + var(--sidebar-safe-padding, 0px))" }}>
         <Popover open={newThreadOpen} onOpenChange={setNewThreadOpen}>
           <PopoverTrigger asChild>
-            <Button variant="ghost" size="sm" className="w-full justify-start gap-2.5 rounded-xl text-[13px]">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="w-full justify-start gap-2.5 rounded-xl text-[13px]"
+            >
               <Plus className="size-4.5" />
               {t("sidebar.new_thread")}
               <ChevronDown className="size-3.5 ml-auto text-muted-foreground" />
@@ -283,6 +291,19 @@ export function ThreadSidebar(): React.JSX.Element {
               <div className="font-semibold">{t("sidebar.new_thread.loop")}</div>
               <div className="text-[11px] text-muted-foreground">
                 {t("sidebar.new_thread.loop_desc")}
+              </div>
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setNewThreadOpen(false)
+                setExpertDialogOpen(true)
+              }}
+              className="w-full rounded-lg px-3 py-2.5 text-left text-[13px] hover:bg-accent/10 transition-all duration-200"
+            >
+              <div className="font-semibold">{t("sidebar.new_thread.expert")}</div>
+              <div className="text-[11px] text-muted-foreground">
+                {t("sidebar.new_thread.expert_desc")}
               </div>
             </button>
           </PopoverContent>
@@ -356,6 +377,11 @@ export function ThreadSidebar(): React.JSX.Element {
       </ScrollArea>
 
       <LoopConfigDialog open={loopDialogOpen} onOpenChange={setLoopDialogOpen} mode="create" />
+      <ExpertConfigDialog
+        open={expertDialogOpen}
+        onOpenChange={setExpertDialogOpen}
+        mode="create"
+      />
 
       <Dialog
         open={!!deleteTarget}

@@ -38,7 +38,13 @@ const lifecycleEmitter = new EventEmitter()
 
 function normalizeMode(metadata: Record<string, unknown>): ThreadMode {
   const mode = metadata.mode
-  if (mode === "ralph" || mode === "email" || mode === "loop" || mode === "butler") {
+  if (
+    mode === "ralph" ||
+    mode === "email" ||
+    mode === "loop" ||
+    mode === "expert" ||
+    mode === "butler"
+  ) {
     return mode
   }
   return "default"

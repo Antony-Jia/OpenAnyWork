@@ -12,9 +12,15 @@ import { deleteThreadCheckpoint } from "../storage"
 import { generateTitle } from "../services/title-generator"
 import { broadcastThreadsChanged } from "./events"
 import { readRalphLogTail } from "../ralph-log"
+import { readExpertLogTail, deleteExpertLog } from "../expert-log"
 import { loopManager } from "../loop/manager"
 import { butlerManager } from "../butler/manager"
 import { removeConversationMemoryByThread } from "../memory"
+import {
+  normalizeExpertConfigInput,
+  normalizeStoredExpertConfig,
+  cleanupExpertAgentContexts
+} from "../expert/config"
 import type { Thread, ThreadDeleteOptions, ThreadUpdateParams } from "../types"
 
 export function registerThreadHandlers(ipcMain: IpcMain): void {
@@ -56,6 +62,10 @@ export function registerThreadHandlers(ipcMain: IpcMain): void {
       createdBy: "user",
       ...metadata,
       title
+    }
+
+    if (mergedMetadata.mode === "expert") {
+      mergedMetadata.expert = normalizeExpertConfigInput(mergedMetadata.expert)
     }
 
     // Note: For email threads created via email (processStartWorkTask in worker.ts),
@@ -120,6 +130,14 @@ export function registerThreadHandlers(ipcMain: IpcMain): void {
       console.log("[Threads] Deleting thread:", threadId)
       loopManager.cleanupThread(threadId)
 
+      const row = getThread(threadId)
+      const metadata = row?.metadata ? (JSON.parse(row.metadata) as Record<string, unknown>) : {}
+      const expertConfig = normalizeStoredExpertConfig(metadata.expert)
+      if (expertConfig?.experts?.length) {
+        await cleanupExpertAgentContexts(expertConfig.experts.map((item) => item.agentThreadId))
+      }
+      deleteExpertLog(threadId)
+
       // Delete from our metadata store
       dbDeleteThread(threadId)
       console.log("[Threads] Deleted from metadata store")
@@ -170,6 +188,10 @@ export function registerThreadHandlers(ipcMain: IpcMain): void {
 
   ipcMain.handle("threads:ralphLogTail", async (_event, threadId: string, limit?: number) => {
     return readRalphLogTail(threadId, typeof limit === "number" ? limit : 200)
+  })
+
+  ipcMain.handle("threads:expertLogTail", async (_event, threadId: string, limit?: number) => {
+    return readExpertLogTail(threadId, typeof limit === "number" ? limit : 200)
   })
 
   // Generate a title from a message

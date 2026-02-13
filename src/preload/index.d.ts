@@ -27,9 +27,12 @@ import type {
   DockerConfig,
   DockerSessionStatus,
   RalphLogEntry,
+  ExpertLogEntry,
   ContentBlock,
   Attachment,
   LoopConfig,
+  ExpertConfig,
+  ExpertConfigInput,
   ButlerState,
   ButlerTask,
   TaskCompletionNotice,
@@ -103,6 +106,7 @@ interface CustomAPI {
     delete: (threadId: string, options?: ThreadDeleteOptions) => Promise<void>
     getHistory: (threadId: string) => Promise<unknown[]>
     getRalphLogTail: (threadId: string, limit?: number) => Promise<RalphLogEntry[]>
+    getExpertLogTail: (threadId: string, limit?: number) => Promise<ExpertLogEntry[]>
     generateTitle: (message: string) => Promise<string>
   }
   loop: {
@@ -111,6 +115,13 @@ interface CustomAPI {
     start: (threadId: string) => Promise<LoopConfig>
     stop: (threadId: string) => Promise<LoopConfig>
     status: (threadId: string) => Promise<{ running: boolean; queueLength: number }>
+  }
+  expert: {
+    getConfig: (threadId: string) => Promise<ExpertConfig | null>
+    updateConfig: (
+      threadId: string,
+      config: ExpertConfigInput | ExpertConfig
+    ) => Promise<ExpertConfig>
   }
   butler: {
     getState: () => Promise<ButlerState>

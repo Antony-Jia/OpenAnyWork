@@ -6,12 +6,14 @@ import {
 } from "../db"
 import { ensureDockerRunning, getDockerRuntimeConfig } from "../docker/session"
 import { runAgentStream } from "../agent/run"
+import { runExpertPipeline } from "../expert/runner"
 import { emitTaskCompleted } from "../tasks/lifecycle"
 import { loopManager } from "../loop/manager"
 import { broadcastThreadsChanged } from "../ipc/events"
 import { getPreferredMainWindow } from "../window-target"
 import { createButlerTaskFolder } from "./task-folder"
-import type { ButlerTask, ButlerTaskHandoff, LoopConfig, ThreadMode } from "../types"
+import { normalizeStoredExpertConfig } from "../expert/config"
+import type { ButlerTask, ButlerTaskHandoff, ExpertConfig, LoopConfig, ThreadMode } from "../types"
 
 interface CreateButlerTaskInput {
   mode: Exclude<ThreadMode, "butler">
@@ -20,6 +22,7 @@ interface CreateButlerTaskInput {
   rootPath: string
   requester: ButlerTask["requester"]
   loopConfig?: LoopConfig
+  expertConfig?: ExpertConfig
   groupId?: string
   taskKey?: string
   dependsOnTaskIds?: string[]
@@ -64,6 +67,10 @@ export function createButlerTaskThread(input: CreateButlerTaskInput): ButlerTask
     nonInterruptible: true,
     disableApprovals: true
   }
+  const normalizedExpertConfig =
+    input.mode === "expert"
+      ? normalizeStoredExpertConfig(input.expertConfig ?? metadataBase.expert)
+      : null
 
   if (input.mode === "ralph") {
     metadata.ralph = { phase: "init", iterations: 0 }
@@ -71,6 +78,12 @@ export function createButlerTaskThread(input: CreateButlerTaskInput): ButlerTask
 
   if (input.mode === "loop" && input.loopConfig) {
     metadata.loop = input.loopConfig
+  }
+  if (input.mode === "expert") {
+    if (!normalizedExpertConfig) {
+      throw new Error("Missing expertConfig for expert mode task.")
+    }
+    metadata.expert = normalizedExpertConfig
   }
 
   if (input.reuseThreadId) {
@@ -92,6 +105,7 @@ export function createButlerTaskThread(input: CreateButlerTaskInput): ButlerTask
     status: "queued",
     requester: input.requester,
     loopConfig: input.loopConfig,
+    expertConfig: normalizedExpertConfig ?? undefined,
     groupId: input.groupId,
     taskKey: input.taskKey,
     dependsOnTaskIds: input.dependsOnTaskIds,
@@ -105,6 +119,47 @@ export function createButlerTaskThread(input: CreateButlerTaskInput): ButlerTask
 
 export async function executeButlerTask(task: ButlerTask): Promise<ExecuteResult> {
   try {
+    if (task.mode === "expert") {
+      const row = dbGetThread(task.threadId)
+      const metadata = parseMetadata(row?.metadata ?? null)
+      const resolvedExpertConfig = normalizeStoredExpertConfig(task.expertConfig ?? metadata.expert)
+      if (!resolvedExpertConfig) {
+        throw new Error("Missing expertConfig for expert task.")
+      }
+
+      const window = getPreferredMainWindow()
+      if (!window) {
+        throw new Error("No active window available for task execution.")
+      }
+
+      await ensureDockerRunning()
+      const dockerRuntime = getDockerRuntimeConfig()
+      const dockerConfig = dockerRuntime.config ?? undefined
+      const dockerContainerId = dockerRuntime.containerId ?? undefined
+      const abortController = new AbortController()
+      const channel = `agent:stream:${task.threadId}`
+
+      const result = await runExpertPipeline({
+        threadId: task.threadId,
+        expertConfig: resolvedExpertConfig,
+        message: task.prompt,
+        workspacePath: task.workspacePath,
+        dockerConfig,
+        dockerContainerId,
+        capabilityScope: "butler",
+        window,
+        channel,
+        abortController
+      })
+
+      emitTaskCompleted({
+        threadId: task.threadId,
+        result,
+        source: "butler"
+      })
+      return { result }
+    }
+
     if (task.mode === "loop") {
       const resolvedLoopConfig: LoopConfig =
         task.loopConfig ??

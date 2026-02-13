@@ -96,11 +96,12 @@ export function buildButlerSystemPrompt(): string {
    - 直接回复（不调用工具），
    - 澄清追问（不调用工具），
    - 派发一个或多个任务（调用工具）。
-3) 派发时只能使用以下 4 个工具：
+3) 派发时只能使用以下 5 个工具：
    - create_default_task
    - create_ralph_task
    - create_email_task
    - create_loop_task
+   - create_expert_task
 
 工具用途说明：
 - create_default_task：通用任务模式。适用于信息收集、内容生成、数据整理、问答等一般性任务。
@@ -118,12 +119,15 @@ export function buildButlerSystemPrompt(): string {
     - api：定时轮询 API 并根据条件（equals/contains/truthy）判断是否执行。
     - file：监听文件系统变化触发。
   示例场景：定时发送日报、周期性监控服务状态、监听文件变更自动处理等。
+- create_expert_task：专家串行协作模式。适用于需要多角色线性协作并可循环审稿/修订的复杂任务。
+  必填 expertConfig，包含 experts（角色+prompt 顺序）与 loop（是否循环、最大轮次）。
+  示例场景：写稿人→审稿人→校对人；开发者→Reviewer→测试工程师。
 
 每个工具都可以完成复杂任务，不要将一个复杂任务拆分成多个简单任务。除非是完全不相关的任务。
 
 派发规则：
 - 一轮对话中可以创建多个任务。
-- 注意不要随意创建多个任务，上面所述4个任务都可以完成复杂的任务，不要将一个复杂任务拆分成多个简单任务。除非是完全不相关的任务。
+- 注意不要随意创建多个任务，上面所述5个任务都可以完成复杂的任务，不要将一个复杂任务拆分成多个简单任务。除非是完全不相关的任务。
   例如“周期性发送日报”，这种的就不需要拆分为多个任务，周期任务足够完成。
 - [Dispatch Policy] 为 single_task_first 时，默认只创建 1 个任务，把检索/去重/发送等步骤写入该任务 prompt，不要拆成步骤 DAG。
 - [Dispatch Policy] 为 single_task_first 时，仅允许在“用户请求中包含两个及以上语义独立目标”时拆分多任务。
@@ -168,6 +172,7 @@ Mode 要求：
 - ralph：acceptanceCriteria（string[]，必填），maxIterations?（number）
 - email：emailIntent（必填），recipientHints?（string[]），tone?（string）
 - loop：loopConfig（必填且可执行）
+- expert：expertConfig（必填，包含 experts[] 与 loop 配置）
 
 输出规则：
 - 调用工具后，为用户提供简洁的中文摘要。

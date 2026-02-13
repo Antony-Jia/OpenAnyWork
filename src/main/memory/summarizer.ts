@@ -39,7 +39,13 @@ export function summarizeTaskMemory(source: TaskSummarySource): MemoryTaskSummar
       { label: "调研分析", patterns: [/调研|research|对比|分析|benchmark|评估|报告/] },
       { label: "邮件任务", patterns: [/邮件|email|smtp|imap|回复/] }
     ]) ??
-    (payload.mode === "email" ? "邮件任务" : payload.mode === "loop" ? "自动化任务" : "通用任务")
+    (payload.mode === "email"
+      ? "邮件任务"
+      : payload.mode === "loop"
+        ? "自动化任务"
+        : payload.mode === "expert"
+          ? "专家协作任务"
+          : "通用任务")
 
   const usageHabits =
     firstMatch(allText, [

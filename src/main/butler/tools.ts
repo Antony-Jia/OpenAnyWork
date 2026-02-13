@@ -1,6 +1,6 @@
 import { tool } from "langchain"
 import { z } from "zod"
-import type { ButlerTaskHandoff, LoopConfig, ThreadMode } from "../types"
+import type { ButlerTaskHandoff, ExpertConfig, LoopConfig, ThreadMode } from "../types"
 
 export type ButlerThreadStrategy = "new_thread" | "reuse_last_thread"
 export type ButlerDeliverableFormat = "text" | "data" | "table" | "page"
@@ -37,11 +37,17 @@ export interface LoopTaskIntent extends ButlerDispatchIntentBase {
   loopConfig: LoopConfig
 }
 
+export interface ExpertTaskIntent extends ButlerDispatchIntentBase {
+  mode: "expert"
+  expertConfig: ExpertConfig
+}
+
 export type ButlerDispatchIntent =
   | DefaultTaskIntent
   | RalphTaskIntent
   | EmailTaskIntent
   | LoopTaskIntent
+  | ExpertTaskIntent
 
 const commonFieldsSchema = z.object({
   taskKey: z
@@ -120,6 +126,25 @@ const loopTaskSchema = commonFieldsSchema.extend({
   loopConfig: loopConfigSchema
 })
 
+const expertAgentConfigSchema = z.object({
+  id: z.string().trim().optional(),
+  role: z.string().trim().min(1),
+  prompt: z.string().trim().min(1),
+  agentThreadId: z.string().trim().optional()
+})
+
+const expertTaskSchema = commonFieldsSchema.extend({
+  expertConfig: z.object({
+    experts: z.array(expertAgentConfigSchema).min(1),
+    loop: z
+      .object({
+        enabled: z.boolean(),
+        maxCycles: z.number().int().min(1).max(20)
+      })
+      .optional()
+  })
+})
+
 function normalizeCommon(input: z.infer<typeof commonFieldsSchema>): ButlerDispatchIntentBase {
   return {
     taskKey: input.taskKey.trim(),
@@ -145,7 +170,9 @@ function buildDescription(mode: Exclude<ThreadMode, "butler">): string {
         ? `{"taskKey":"impl_1","title":"实现任务","initialPrompt":"[Task Objective]\\n实现需求并修复相关缺陷。\\n\\n[Execution Requirements]\\n1) 修改代码并补齐关键测试。\\n2) 记录主要设计取舍。\\n3) 不破坏现有行为。\\n\\n[Output & Acceptance]\\n- 提供变更说明与验证结果。","threadStrategy":"new_thread","acceptanceCriteria":["类型检查通过","核心功能可用"],"maxIterations":5}`
         : mode === "email"
           ? `{"taskKey":"mail_1","title":"邮件处理","initialPrompt":"[Task Objective]\\n生成可直接发送的客户回复邮件。\\n\\n[Execution Requirements]\\n1) 回应用户问题并给出下一步。\\n2) 语气专业且简洁。\\n3) 若信息不足先列出待确认点。\\n\\n[Output & Acceptance]\\n- 产出完整邮件正文和主题建议。","threadStrategy":"reuse_last_thread","emailIntent":"reply_to_customer","recipientHints":["alice@example.com"],"tone":"professional"}`
-          : `{"taskKey":"loop_1","title":"循环任务","initialPrompt":"[Task Objective]\\n建立稳定的周期监控任务。\\n\\n[Execution Requirements]\\n1) 每次触发都执行完整处理流程。\\n2) 失败要记录错误并继续下一轮。\\n\\n[Output & Acceptance]\\n- 触发后可产出可审计结果。","threadStrategy":"new_thread","loopConfig":{"enabled":true,"contentTemplate":"检索 AI 新闻，去重后写入 news_send.json，并发送给指定邮箱","trigger":{"type":"schedule","cron":"*/5 * * * *"},"queue":{"policy":"strict","mergeWindowSec":300}}}`
+          : mode === "loop"
+            ? `{"taskKey":"loop_1","title":"循环任务","initialPrompt":"[Task Objective]\\n建立稳定的周期监控任务。\\n\\n[Execution Requirements]\\n1) 每次触发都执行完整处理流程。\\n2) 失败要记录错误并继续下一轮。\\n\\n[Output & Acceptance]\\n- 触发后可产出可审计结果。","threadStrategy":"new_thread","loopConfig":{"enabled":true,"contentTemplate":"检索 AI 新闻，去重后写入 news_send.json，并发送给指定邮箱","trigger":{"type":"schedule","cron":"*/5 * * * *"},"queue":{"policy":"strict","mergeWindowSec":300}}}`
+            : `{"taskKey":"expert_1","title":"专家协作写作","initialPrompt":"[Task Objective]\\n通过多专家串行流程完成高质量稿件。\\n\\n[Execution Requirements]\\n1) 先起草，再审稿，再校对。\\n2) 各角色按顺序交接，不并行。\\n3) 保持结构化交接信息。\\n\\n[Output & Acceptance]\\n- 产出最终可发布稿件与审稿意见记录。","threadStrategy":"new_thread","expertConfig":{"experts":[{"role":"写稿人","prompt":"先产出完整初稿，强调结构与论据。"},{"role":"审稿人","prompt":"聚焦逻辑漏洞、事实风险与改进建议。"},{"role":"校对人","prompt":"修复语法措辞并统一术语风格。"}],"loop":{"enabled":true,"maxCycles":5}}}`
 
   return [
     `Create a ${mode} mode task for Butler.`,
@@ -233,7 +260,35 @@ export function createButlerDispatchTools(params: {
     }
   )
 
-  return [createDefaultTask, createRalphTask, createEmailTask, createLoopTask]
+  const createExpertTask = tool(
+    async (input: z.infer<typeof expertTaskSchema>) => {
+      const common = normalizeCommon(input)
+      onIntent({
+        ...common,
+        mode: "expert",
+        expertConfig: {
+          experts: input.expertConfig.experts.map((expert) => ({
+            id: expert.id?.trim() || "",
+            role: expert.role.trim(),
+            prompt: expert.prompt.trim(),
+            agentThreadId: expert.agentThreadId?.trim() || ""
+          })),
+          loop: {
+            enabled: input.expertConfig.loop?.enabled === true,
+            maxCycles: input.expertConfig.loop?.maxCycles ?? 5
+          }
+        }
+      })
+      return { ok: true, mode: "expert", taskKey: common.taskKey }
+    },
+    {
+      name: "create_expert_task",
+      description: buildDescription("expert"),
+      schema: expertTaskSchema
+    }
+  )
+
+  return [createDefaultTask, createRalphTask, createEmailTask, createLoopTask, createExpertTask]
 }
 
 export interface RenderTaskPromptContext {
@@ -267,6 +322,14 @@ function buildOutputAcceptance(intent: ButlerDispatchIntent): string {
     return ["- 产出可直接发送的邮件内容。", "- 明确邮件目标、对象、语气并避免遗漏关键信息。"].join(
       "\n"
     )
+  }
+
+  if (intent.mode === "expert") {
+    return [
+      "- 专家链路必须严格串行执行（不并行、不分支）。",
+      "- 每位专家输出必须包含结构化 summary/handoff。",
+      `- 循环配置: enabled=${intent.expertConfig.loop.enabled}, maxCycles=${intent.expertConfig.loop.maxCycles}`
+    ].join("\n")
   }
 
   return [
@@ -309,6 +372,25 @@ export function renderTaskPrompt(
 
   if (intent.mode === "loop") {
     sections.push(`[Loop Behavior]\nUse provided loopConfig as execution source of truth.`)
+  }
+
+  if (intent.mode === "expert") {
+    sections.push(
+      `[Expert Behavior]\nUse provided expertConfig as source of truth. Execute experts strictly in order with structured handoff.`
+    )
+    sections.push(
+      `[Expert Config]\n${JSON.stringify(
+        {
+          experts: intent.expertConfig.experts.map((expert) => ({
+            role: expert.role,
+            prompt: expert.prompt
+          })),
+          loop: intent.expertConfig.loop
+        },
+        null,
+        2
+      )}`
+    )
   }
 
   return sections.join("\n\n")

@@ -1,4 +1,4 @@
-import { tool } from "langchain"
+import { tool } from "@langchain/core/tools"
 import { z } from "zod"
 import type { ButlerTaskHandoff, ExpertConfig, LoopConfig, ThreadMode } from "../types"
 

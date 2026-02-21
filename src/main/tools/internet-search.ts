@@ -1,4 +1,4 @@
-import { tool } from "langchain"
+import { tool } from "@langchain/core/tools"
 import { TavilySearch } from "@langchain/tavily"
 import { z } from "zod"
 import { resolveToolKey } from "./config"

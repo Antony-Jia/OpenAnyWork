@@ -1,4 +1,4 @@
-import { tool } from "langchain"
+import { tool } from "@langchain/core/tools"
 import { z } from "zod"
 import { createCalendarWatchEvent } from "../butler/monitoring/store"
 import type { ToolDefinition } from "../types"

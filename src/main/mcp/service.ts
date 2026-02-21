@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto"
-import { tool } from "langchain"
+import { tool } from "@langchain/core/tools"
 import { z } from "zod"
 import { Client } from "@modelcontextprotocol/sdk/client/index.js"
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js"

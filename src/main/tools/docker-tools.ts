@@ -1,7 +1,7 @@
 import { spawn } from "node:child_process"
 import * as fs from "node:fs/promises"
 import * as path from "node:path"
-import { tool } from "langchain"
+import { tool } from "@langchain/core/tools"
 import { z } from "zod"
 import type { DockerConfig, DockerMount } from "../types"
 

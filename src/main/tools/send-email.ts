@@ -1,5 +1,5 @@
 import { existsSync } from "node:fs"
-import { tool } from "langchain"
+import { tool } from "@langchain/core/tools"
 import { z } from "zod"
 import { buildEmailSubject, sendEmail } from "../email/service"
 import type { ToolDefinition } from "../types"

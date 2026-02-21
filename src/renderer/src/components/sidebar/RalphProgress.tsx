@@ -114,6 +114,9 @@ export function RalphProgress(): React.JSX.Element | null {
         init: t("ralph.phase.init"),
         awaiting_confirm: t("ralph.phase.awaiting_confirm"),
         running: t("ralph.phase.running"),
+        verifying: t("ralph.phase.verifying"),
+        replanning: t("ralph.phase.replanning"),
+        awaiting_continue: t("ralph.phase.awaiting_continue"),
         done: t("ralph.phase.done")
       }[ralph.phase] || ralph.phase
     : "-"

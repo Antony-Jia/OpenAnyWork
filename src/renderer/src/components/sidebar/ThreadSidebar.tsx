@@ -196,7 +196,7 @@ export function ThreadSidebar(): React.JSX.Element {
       mode
     }
     if (mode === "ralph") {
-      metadata.ralph = { phase: "init", iterations: 0 }
+      metadata.ralph = { phase: "init", round: 0, iterations: 0, totalIterations: 0 }
     }
     await createThread(metadata)
     setNewThreadOpen(false)

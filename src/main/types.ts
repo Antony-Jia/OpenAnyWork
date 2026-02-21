@@ -165,8 +165,17 @@ export interface ThreadMetadata {
 }
 
 export interface RalphState {
-  phase: "init" | "awaiting_confirm" | "running" | "done"
+  phase:
+    | "init"
+    | "awaiting_confirm"
+    | "running"
+    | "verifying"
+    | "replanning"
+    | "awaiting_continue"
+    | "done"
+  round?: number
   iterations?: number
+  totalIterations?: number
 }
 
 export type RalphLogRole = "user" | "ai" | "tool" | "tool_call"
@@ -456,6 +465,7 @@ export interface ButlerTask {
   resultBrief?: string
   resultDetail?: string
   requester: "user" | "system"
+  ralphMaxIterations?: number
   loopConfig?: LoopConfig
   expertConfig?: ExpertConfig
   groupId?: string

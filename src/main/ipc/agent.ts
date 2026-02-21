@@ -1,11 +1,11 @@
 import { IpcMain, BrowserWindow } from "electron"
-import { appendFileSync, existsSync } from "node:fs"
+import { existsSync } from "node:fs"
 import { join } from "node:path"
 import { randomUUID } from "node:crypto"
 import { Command } from "@langchain/langgraph"
-import { createAgentRuntime, closeCheckpointer } from "../agent/runtime"
+import { createAgentRuntime } from "../agent/runtime"
 import { getThread, updateThread as dbUpdateThread } from "../db"
-import { deleteThreadCheckpoint, hasThreadCheckpoint } from "../storage"
+import { hasThreadCheckpoint } from "../storage"
 import { getSettings } from "../settings"
 import { ensureDockerRunning, getDockerRuntimeConfig } from "../docker/session"
 import { appendRalphLogEntry } from "../ralph-log"
@@ -13,6 +13,7 @@ import { runAgentStream } from "../agent/run"
 import { extractAssistantChunkText } from "../agent/stream-utils"
 import { runExpertPipeline } from "../expert/runner"
 import { normalizeStoredExpertConfig } from "../expert/config"
+import { ensureRalphPlan, runRalphWorkflow } from "../ralph/workflow"
 import { emitTaskCompleted, emitTaskStarted } from "../tasks/lifecycle"
 import type {
   AgentInvokeParams,
@@ -48,81 +49,6 @@ function updateMetadata(threadId: string, updates: Record<string, unknown>): voi
     }
   }
   dbUpdateThread(threadId, { metadata: JSON.stringify(next) })
-}
-
-async function resetRalphCheckpoint(threadId: string): Promise<void> {
-  await closeCheckpointer(threadId)
-  deleteThreadCheckpoint(threadId)
-}
-
-function appendProgressEntry(workspacePath: string, storyId = "INIT"): void {
-  const entry = [
-    `## [${new Date().toLocaleString()}] - ${storyId}`,
-    "- 实现内容",
-    "- 修改的文件",
-    "- **后续迭代的经验教训：**",
-    "  - 发现的模式",
-    "  - 遇到的坑",
-    "  - 有用的上下文",
-    "---",
-    ""
-  ].join("\n")
-
-  const progressPath = join(workspacePath, "progress.txt")
-  appendFileSync(progressPath, entry)
-}
-
-function buildRalphInitPrompt(userMessage: string): string {
-  const example = [
-    "{",
-    '  "project": "MyApp",',
-    '  "branchName": "ralph/task-priority",',
-    '  "description": "任务优先级系统 - 为任务添加优先级",',
-    '  "userStories": [',
-    "    {",
-    '      "id": "US-001",',
-    '      "title": "在数据库中添加优先级字段",',
-    '      "description": "作为开发者，我需要存储任务优先级以便跨会话持久化。",',
-    '      "acceptanceCriteria": [',
-    "        \"在 tasks 表中添加 priority 列：'high' | 'medium' | 'low'（默认 'medium'）\",",
-    '        "成功生成并运行迁移",',
-    '        "类型检查通过"',
-    "      ],",
-    '      "priority": 1,',
-    '      "passes": false,',
-    '      "notes": ""',
-    "    },",
-    "    {",
-    '      "id": "US-002",',
-    '      "title": "在任务卡片上显示优先级指示器",',
-    '      "description": "作为用户，我希望能一眼看到任务优先级。",',
-    '      "acceptanceCriteria": [',
-    '        "每个任务卡片显示彩色优先级徽章（红色=高，黄色=中，灰色=低）",',
-    '        "无需悬停或点击即可看到优先级",',
-    '        "类型检查通过",',
-    '        "使用 dev-browser 技能在浏览器中验证"',
-    "      ],",
-    '      "priority": 2,',
-    '      "passes": false,',
-    '      "notes": ""',
-    "    }",
-    "  ]",
-    "}"
-  ].join("\n")
-
-  return [
-    "Ralph 模式初始化：",
-    "1) 与用户确认任务详情。",
-    "2) 按照下面的 JSON 格式生成计划。",
-    "3) 将 JSON 保存到工作区的 ralph_plan.json 文件中。",
-    "4) 请用户回复 /confirm 以开始迭代。",
-    "",
-    "JSON 格式示例：",
-    example,
-    "",
-    "用户请求：",
-    userMessage.trim()
-  ].join("\n")
 }
 
 function extractTextFromContent(content: string | ContentBlock[]): string {
@@ -239,32 +165,83 @@ export function registerAgentHandlers(ipcMain: IpcMain): void {
           })
         }
 
-        const ralph = (metadata.ralph as RalphState) || { phase: "init", iterations: 0 }
+        const ralph = (metadata.ralph as RalphState) || {
+          phase: "init",
+          round: 0,
+          iterations: 0,
+          totalIterations: 0
+        }
         const trimmed = trimmedMessage
         const isConfirm = trimmed.toLowerCase() === "/confirm"
+        const runClassicRalphWorkflow = async (): Promise<void> => {
+          updateMetadata(threadId, {
+            ralph: {
+              phase: "running",
+              round: ralph.round ?? 0,
+              iterations: ralph.iterations ?? 0,
+              totalIterations: ralph.totalIterations ?? 0
+            }
+          })
 
-        if (ralph.phase === "awaiting_confirm" && !isConfirm) {
-          // 计划阶段不清空记忆
-          // await resetRalphCheckpoint(threadId)
-          const initPrompt = buildRalphInitPrompt(trimmed)
-
-          emitAgentStarted()
-          const output = await runAgentStream({
+          const workflowResult = await runRalphWorkflow({
             threadId,
             workspacePath: normalizedWorkspace,
             modelId,
             dockerConfig,
             dockerContainerId,
-            disableApprovals: true,
-            message: initPrompt,
             window,
             channel,
             abortController,
-            threadMode: mode,
             capabilityScope: "classic",
-            ralphLog: { enabled: true, iteration: 0, phase: ralph.phase }
+            perRoundIterationLimit: settings.ralphIterations || 5,
+            mode: "classic",
+            disableApprovals: true,
+            initialRound: ralph.round ?? 0,
+            initialTotalIterations: ralph.totalIterations ?? 0,
+            updateRalphState: (updates) => {
+              updateMetadata(threadId, { ralph: updates })
+            },
+            onAgentStarted: emitAgentStarted
           })
-          updateMetadata(threadId, { ralph: { phase: "awaiting_confirm", iterations: 0 } })
+
+          if (abortController.signal.aborted || workflowResult.status === "aborted") {
+            return
+          }
+
+          emitTaskCompleted({
+            threadId,
+            result: workflowResult.finalOutput || "Ralph workflow finished.",
+            source: "agent"
+          })
+          window.webContents.send(channel, { type: "done" })
+        }
+
+        if (ralph.phase === "awaiting_confirm" && !isConfirm) {
+          const planningMessage = trimmed || messageText
+          const output = await ensureRalphPlan({
+            threadId,
+            workspacePath: normalizedWorkspace,
+            modelId,
+            dockerConfig,
+            dockerContainerId,
+            window,
+            channel,
+            abortController,
+            capabilityScope: "classic",
+            requireConfirm: true,
+            userMessage: planningMessage,
+            disableApprovals: true,
+            onAgentStarted: emitAgentStarted,
+            ralphLogPhase: "init"
+          })
+          updateMetadata(threadId, {
+            ralph: {
+              phase: "awaiting_confirm",
+              round: 0,
+              iterations: 0,
+              totalIterations: 0
+            }
+          })
           if (!abortController.signal.aborted) {
             emitTaskCompleted({
               threadId,
@@ -276,7 +253,19 @@ export function registerAgentHandlers(ipcMain: IpcMain): void {
           return
         }
 
-        if (ralph.phase === "awaiting_confirm" && isConfirm) {
+        if (ralph.phase === "awaiting_continue" && !isConfirm) {
+          window.webContents.send(channel, {
+            type: "error",
+            error: "RALPH_AWAITING_CONTINUE",
+            message: "Ralph 检证建议继续执行。请回复 /confirm 继续下一轮。"
+          })
+          return
+        }
+
+        if (
+          (ralph.phase === "awaiting_confirm" || ralph.phase === "awaiting_continue") &&
+          isConfirm
+        ) {
           const planPath = join(normalizedWorkspace, "ralph_plan.json")
           if (!existsSync(planPath)) {
             window.webContents.send(channel, {
@@ -287,77 +276,27 @@ export function registerAgentHandlers(ipcMain: IpcMain): void {
             return
           }
 
-          appendProgressEntry(normalizedWorkspace)
-          updateMetadata(threadId, { ralph: { phase: "running", iterations: 0 } })
-
-          let lastIterationOutput = ""
-          const maxIterations = settings.ralphIterations || 5
-          for (let i = 1; i <= maxIterations; i += 1) {
-            if (abortController.signal.aborted) break
-            const doneFlag = join(normalizedWorkspace, ".ralph_done")
-            if (existsSync(doneFlag)) {
-              updateMetadata(threadId, { ralph: { phase: "done", iterations: i } })
-              break
-            }
-
-            // 迭代阶段清空记忆，从文件记忆中读取内容
-            await resetRalphCheckpoint(threadId)
-            const iterationPrompt = [
-              `Ralph 迭代 ${i}/${maxIterations}：`,
-              "- 在修改前先阅读 ralph_plan.json 和 progress.txt。",
-              "- 以文件系统作为唯一的真实来源。",
-              "- 实现下一个最高优先级的用户故事。",
-              "- 使用规定的模板追加到 progress.txt（不要覆盖）。",
-              "- 如果工作完成，创建一个 .ralph_done 文件并写入简短总结。",
-              "- 如果工作未完成，创建一个 .ralph_ongoing 文件。",
-              "- 工作过程的重要信息你需要写入在工作路径中，并写在 progress.txt 中，提示下一轮迭代读取或者最终总结。"
-            ].join("\n")
-
-            emitAgentStarted()
-            lastIterationOutput = await runAgentStream({
-              threadId,
-              workspacePath: normalizedWorkspace,
-              modelId,
-              dockerConfig,
-              dockerContainerId,
-              disableApprovals: true,
-              message: iterationPrompt,
-              window,
-              channel,
-              abortController,
-              threadMode: mode,
-              capabilityScope: "classic",
-              ralphLog: { enabled: true, iteration: i, phase: "running" }
-            })
-            updateMetadata(threadId, { ralph: { iterations: i } })
-
-            if (existsSync(doneFlag)) {
-              updateMetadata(threadId, { ralph: { phase: "done", iterations: i } })
-              break
-            }
-          }
-
-          if (!abortController.signal.aborted) {
-            updateMetadata(threadId, { ralph: { phase: "done" } })
-          }
-
-          if (!abortController.signal.aborted) {
-            emitTaskCompleted({
-              threadId,
-              result: lastIterationOutput || "Ralph iteration finished.",
-              source: "agent"
-            })
-            window.webContents.send(channel, { type: "done" })
-          }
+          await runClassicRalphWorkflow()
           return
         }
 
-        if (ralph.phase === "running") {
+        if (
+          ralph.phase === "running" ||
+          ralph.phase === "verifying" ||
+          ralph.phase === "replanning"
+        ) {
           // 检查是否有 checkpoint，如果有则说明是上次运行中断，自动重置状态
           if (hasThreadCheckpoint(threadId)) {
             console.log("[Agent] Ralph stuck in running state, resetting to awaiting_confirm")
-            updateMetadata(threadId, { ralph: { phase: "awaiting_confirm", iterations: 0 } })
-            // 继续执行，不返回错误
+            updateMetadata(threadId, {
+              ralph: { phase: "awaiting_confirm", round: 0, iterations: 0, totalIterations: 0 }
+            })
+            window.webContents.send(channel, {
+              type: "error",
+              error: "RALPH_RESET",
+              message: "检测到 Ralph 中断状态，已重置为等待确认。请重新描述需求或回复 /confirm。"
+            })
+            return
           } else {
             window.webContents.send(channel, {
               type: "error",
@@ -369,30 +308,37 @@ export function registerAgentHandlers(ipcMain: IpcMain): void {
         }
 
         if (ralph.phase === "done") {
-          updateMetadata(threadId, { ralph: { phase: "init", iterations: 0 } })
+          updateMetadata(threadId, {
+            ralph: { phase: "init", round: 0, iterations: 0, totalIterations: 0 }
+          })
         }
 
         if (ralph.phase === "init" || ralph.phase === "done") {
-          await resetRalphCheckpoint(threadId)
-          const initPrompt = buildRalphInitPrompt(messageText)
-
-          emitAgentStarted()
-          const output = await runAgentStream({
+          const planningMessage = trimmed || messageText
+          const output = await ensureRalphPlan({
             threadId,
             workspacePath: normalizedWorkspace,
             modelId,
             dockerConfig,
             dockerContainerId,
-            disableApprovals: true,
-            message: initPrompt,
             window,
             channel,
             abortController,
-            threadMode: mode,
             capabilityScope: "classic",
-            ralphLog: { enabled: true, iteration: 0, phase: ralph.phase }
+            requireConfirm: true,
+            userMessage: planningMessage,
+            disableApprovals: true,
+            onAgentStarted: emitAgentStarted,
+            ralphLogPhase: ralph.phase
           })
-          updateMetadata(threadId, { ralph: { phase: "awaiting_confirm", iterations: 0 } })
+          updateMetadata(threadId, {
+            ralph: {
+              phase: "awaiting_confirm",
+              round: 0,
+              iterations: 0,
+              totalIterations: 0
+            }
+          })
           if (!abortController.signal.aborted) {
             emitTaskCompleted({
               threadId,
@@ -578,7 +524,7 @@ export function registerAgentHandlers(ipcMain: IpcMain): void {
       const config = {
         configurable: { thread_id: threadId },
         signal: abortController.signal,
-        streamMode: ["messages", "values"] as const,
+        streamMode: ["messages", "values"] as Array<"messages" | "values">,
         recursionLimit: 1000
       }
 
@@ -691,7 +637,7 @@ export function registerAgentHandlers(ipcMain: IpcMain): void {
       const config = {
         configurable: { thread_id: threadId },
         signal: abortController.signal,
-        streamMode: ["messages", "values"] as const,
+        streamMode: ["messages", "values"] as Array<"messages" | "values">,
         recursionLimit: 1000
       }
 

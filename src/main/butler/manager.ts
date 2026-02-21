@@ -1089,6 +1089,7 @@ class ButlerManager {
         title: intent.title,
         rootPath: this.getRootPath(),
         requester: "user",
+        ralphMaxIterations: intent.mode === "ralph" ? intent.maxIterations : undefined,
         loopConfig: intent.mode === "loop" ? intent.loopConfig : undefined,
         expertConfig: intent.mode === "expert" ? intent.expertConfig : undefined,
         groupId,

@@ -1,4 +1,6 @@
 import { v4 as uuid } from "uuid"
+import { existsSync } from "node:fs"
+import { join } from "node:path"
 import {
   createThread as dbCreateThread,
   getThread as dbGetThread,
@@ -13,7 +15,16 @@ import { broadcastThreadsChanged } from "../ipc/events"
 import { getPreferredMainWindow } from "../window-target"
 import { createButlerTaskFolder } from "./task-folder"
 import { normalizeStoredExpertConfig } from "../expert/config"
-import type { ButlerTask, ButlerTaskHandoff, ExpertConfig, LoopConfig, ThreadMode } from "../types"
+import { getSettings } from "../settings"
+import { ensureRalphPlan, runRalphWorkflow } from "../ralph/workflow"
+import type {
+  ButlerTask,
+  ButlerTaskHandoff,
+  ExpertConfig,
+  LoopConfig,
+  RalphState,
+  ThreadMode
+} from "../types"
 
 interface CreateButlerTaskInput {
   mode: Exclude<ThreadMode, "butler">
@@ -21,6 +32,7 @@ interface CreateButlerTaskInput {
   title: string
   rootPath: string
   requester: ButlerTask["requester"]
+  ralphMaxIterations?: number
   loopConfig?: LoopConfig
   expertConfig?: ExpertConfig
   groupId?: string
@@ -48,6 +60,19 @@ function parseMetadata(raw: string | null): Record<string, unknown> {
   }
 }
 
+function updateRalphMetadata(threadId: string, updates: Partial<RalphState>): void {
+  const row = dbGetThread(threadId)
+  const metadata = parseMetadata(row?.metadata ?? null)
+  const next = {
+    ...metadata,
+    ralph: {
+      ...(metadata.ralph as Record<string, unknown> | undefined),
+      ...updates
+    }
+  }
+  dbUpdateThread(threadId, { metadata: JSON.stringify(next) })
+}
+
 export function createButlerTaskThread(input: CreateButlerTaskInput): ButlerTask {
   const taskId = uuid()
   const workspacePath = createButlerTaskFolder(input.rootPath, input.mode)
@@ -73,7 +98,7 @@ export function createButlerTaskThread(input: CreateButlerTaskInput): ButlerTask
       : null
 
   if (input.mode === "ralph") {
-    metadata.ralph = { phase: "init", iterations: 0 }
+    metadata.ralph = { phase: "init", round: 0, iterations: 0, totalIterations: 0 }
   }
 
   if (input.mode === "loop" && input.loopConfig) {
@@ -104,6 +129,7 @@ export function createButlerTaskThread(input: CreateButlerTaskInput): ButlerTask
     createdAt: nowIso,
     status: "queued",
     requester: input.requester,
+    ralphMaxIterations: input.ralphMaxIterations,
     loopConfig: input.loopConfig,
     expertConfig: normalizedExpertConfig ?? undefined,
     groupId: input.groupId,
@@ -179,6 +205,81 @@ export async function executeButlerTask(task: ButlerTask): Promise<ExecuteResult
         source: "butler"
       })
       return { result }
+    }
+
+    if (task.mode === "ralph") {
+      const window = getPreferredMainWindow()
+      if (!window) {
+        throw new Error("No active window available for task execution.")
+      }
+
+      await ensureDockerRunning()
+      const dockerRuntime = getDockerRuntimeConfig()
+      const dockerConfig = dockerRuntime.config ?? undefined
+      const dockerContainerId = dockerRuntime.containerId ?? undefined
+      const abortController = new AbortController()
+      const channel = `agent:stream:${task.threadId}`
+
+      const planExists = existsSync(join(task.workspacePath, "ralph_plan.json"))
+      if (!planExists) {
+        await ensureRalphPlan({
+          threadId: task.threadId,
+          workspacePath: task.workspacePath,
+          modelId: undefined,
+          dockerConfig,
+          dockerContainerId,
+          window,
+          channel,
+          abortController,
+          capabilityScope: "butler",
+          requireConfirm: false,
+          userMessage: task.originUserMessage || task.prompt || task.title,
+          disableApprovals: true,
+          ralphLogPhase: "init"
+        })
+      }
+
+      const settings = getSettings()
+      const perRoundIterationLimit =
+        task.ralphMaxIterations && task.ralphMaxIterations > 0
+          ? task.ralphMaxIterations
+          : settings.ralphIterations || 5
+
+      const row = dbGetThread(task.threadId)
+      const metadata = parseMetadata(row?.metadata ?? null)
+      const ralphState = (metadata.ralph as RalphState | undefined) || {
+        phase: "init",
+        round: 0,
+        iterations: 0,
+        totalIterations: 0
+      }
+
+      const runResult = await runRalphWorkflow({
+        threadId: task.threadId,
+        workspacePath: task.workspacePath,
+        dockerConfig,
+        dockerContainerId,
+        window,
+        channel,
+        abortController,
+        capabilityScope: "butler",
+        perRoundIterationLimit,
+        mode: "butler",
+        disableApprovals: true,
+        initialRound: ralphState.round ?? 0,
+        initialTotalIterations: ralphState.totalIterations ?? 0,
+        updateRalphState: (updates) => {
+          updateRalphMetadata(task.threadId, updates)
+        }
+      })
+
+      const resultText = runResult.finalOutput || "Ralph workflow finished."
+      emitTaskCompleted({
+        threadId: task.threadId,
+        result: resultText,
+        source: "butler"
+      })
+      return { result: resultText }
     }
 
     const window = getPreferredMainWindow()

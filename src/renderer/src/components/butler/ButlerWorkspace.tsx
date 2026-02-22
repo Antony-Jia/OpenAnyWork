@@ -363,13 +363,13 @@ export function ButlerWorkspace(): React.JSX.Element {
   const handleSend = (): void => {
     const message = input.trim()
     if (!message || sending) return
-    setInput("")
     setSending(true)
 
     window.api.butler
       .send(message)
       .then((nextState) => {
         setState(nextState)
+        setInput("")
         return window.api.butler.listTasks()
       })
       .then((nextTasks) => {
@@ -676,6 +676,7 @@ export function ButlerWorkspace(): React.JSX.Element {
           <textarea
             value={input}
             onChange={(event) => setInput(event.target.value)}
+            disabled={sending}
             onKeyDown={(event) => {
               if (event.key === "Enter" && !event.shiftKey) {
                 event.preventDefault()
@@ -683,14 +684,14 @@ export function ButlerWorkspace(): React.JSX.Element {
               }
             }}
             placeholder="给管家输入需求..."
-            className="min-h-[52px] max-h-[200px] flex-1 resize-y rounded-xl border border-input bg-background/50 backdrop-blur-sm px-4 py-3 text-sm transition-all duration-300 focus:outline-none cyber-input"
+            className="min-h-[52px] max-h-[200px] flex-1 resize-y rounded-xl border border-input bg-background/50 backdrop-blur-sm px-4 py-3 text-sm transition-all duration-300 focus:outline-none disabled:cursor-not-allowed disabled:opacity-50 cyber-input"
           />
           <Button
             onClick={() => void handleSend()}
             disabled={!canSend}
             className="h-[52px] px-8 rounded-xl text-sm"
           >
-            {sending ? "处理中..." : "发送"}
+            {sending ? "正在处理任务中" : "发送"}
           </Button>
         </div>
       </section>

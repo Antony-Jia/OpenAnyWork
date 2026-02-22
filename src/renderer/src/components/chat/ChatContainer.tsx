@@ -1,10 +1,20 @@
 import { useState, useRef, useEffect, useMemo, useCallback } from "react"
-import { Send, Square, Loader2, AlertCircle, X, ImagePlus, Mic, MicOff } from "lucide-react"
+import {
+  Send,
+  Square,
+  Loader2,
+  AlertCircle,
+  X,
+  ImagePlus,
+  FileText,
+  Mic,
+  MicOff,
+  Folder
+} from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { useAppStore } from "@/lib/store"
 import { useCurrentThread, useThreadStream } from "@/lib/thread-context"
 import { MessageBubble } from "./MessageBubble"
-import { Folder } from "lucide-react"
 import { WorkspacePicker } from "./WorkspacePicker"
 import { selectWorkspaceFolder } from "@/lib/workspace-utils"
 import { ChatTodos } from "./ChatTodos"
@@ -59,6 +69,23 @@ function pickRecorderMimeType(): string | undefined {
     }
   }
   return undefined
+}
+
+function buildDocumentPromptText(attachment: Extract<Attachment, { kind: "document" }>): string {
+  const parserLabel = attachment.parser.toUpperCase()
+  return [
+    "[Attached Document]",
+    `file_path: ${attachment.path}`,
+    `file_name: ${attachment.name}`,
+    `parser: ${parserLabel}`,
+    `parse_notice: ${attachment.parseNotice}`,
+    `full_text_length: ${attachment.fullTextLength}`,
+    `returned_text_length: ${attachment.returnedTextLength}`,
+    `truncated: ${attachment.truncated ? "true" : "false"}`,
+    "",
+    "[Document Text]",
+    attachment.extractedText || "(empty)"
+  ].join("\n")
 }
 
 interface ChatContainerProps {
@@ -550,6 +577,18 @@ export function ChatContainer({ threadId }: ChatContainerProps): React.JSX.Eleme
     }
   }
 
+  const handlePickDocuments = async (): Promise<void> => {
+    try {
+      const picked = await window.api.attachments.pick({ kind: "document" })
+      if (picked && picked.length > 0) {
+        setAttachments((prev) => [...prev, ...picked].slice(0, 6))
+      }
+    } catch (e) {
+      const message = e instanceof Error ? e.message : t("chat.document_parse_failed")
+      setError(message)
+    }
+  }
+
   const handleRemoveAttachment = (index: number): void => {
     setAttachments((prev) => prev.filter((_, i) => i !== index))
   }
@@ -588,10 +627,16 @@ export function ChatContainer({ threadId }: ChatContainerProps): React.JSX.Eleme
             type: "image_url",
             image_url: { url: attachment.dataUrl }
           })
+        } else if (attachment.kind === "document") {
+          messageBlocks.push({
+            type: "text",
+            text: buildDocumentPromptText(attachment)
+          })
         }
       }
     }
     const messageContent: Message["content"] = attachments.length > 0 ? messageBlocks : message
+    const hasDocumentAttachment = attachments.some((attachment) => attachment.kind === "document")
     setAttachments([])
 
     const isFirstMessage = threadMessages.length === 0
@@ -605,7 +650,10 @@ export function ChatContainer({ threadId }: ChatContainerProps): React.JSX.Eleme
     appendMessage(userMessage)
 
     if (isFirstMessage) {
-      generateTitleForFirstMessage(threadId, message || t("chat.image_message_title"))
+      const fallbackTitle = hasDocumentAttachment
+        ? t("chat.document_message_title")
+        : t("chat.image_message_title")
+      generateTitleForFirstMessage(threadId, message || fallbackTitle)
     }
 
     let streamContent: string | StreamContentBlock[] = ""
@@ -774,13 +822,31 @@ export function ChatContainer({ threadId }: ChatContainerProps): React.JSX.Eleme
                 {attachments.map((attachment, index) => (
                   <div
                     key={`${attachment.name}-${index}`}
-                    className="relative h-16 w-16 rounded-md overflow-hidden border border-border bg-muted/30"
+                    className="relative min-h-16 rounded-md overflow-hidden border border-border bg-muted/30"
                   >
-                    <img
-                      src={attachment.dataUrl}
-                      alt={attachment.name}
-                      className="h-full w-full object-cover"
-                    />
+                    {attachment.kind === "image" ? (
+                      <img
+                        src={attachment.dataUrl}
+                        alt={attachment.name}
+                        className="h-16 w-16 object-cover"
+                      />
+                    ) : attachment.kind === "document" ? (
+                      <div className="flex h-16 min-w-48 max-w-64 items-center gap-2 px-2">
+                        <FileText className="size-4 shrink-0 text-muted-foreground" />
+                        <div className="min-w-0 text-xs leading-tight">
+                          <div className="truncate font-medium">{attachment.name}</div>
+                          <div className="truncate text-muted-foreground">
+                            {attachment.truncated
+                              ? `${attachment.returnedTextLength}/${attachment.fullTextLength}`
+                              : `${attachment.returnedTextLength} chars`}
+                          </div>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex h-16 min-w-32 items-center px-2 text-xs">
+                        {attachment.name}
+                      </div>
+                    )}
                     <button
                       type="button"
                       onClick={() => handleRemoveAttachment(index)}
@@ -818,6 +884,18 @@ export function ChatContainer({ threadId }: ChatContainerProps): React.JSX.Eleme
                   className={cn("h-7 w-7", isRecording && "bg-destructive/20 text-destructive")}
                 >
                   {isRecording ? <MicOff className="size-3.5" /> : <Mic className="size-3.5" />}
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  onClick={handlePickDocuments}
+                  disabled={isLoading}
+                  title={t("chat.attach_document")}
+                  aria-label={t("chat.attach_document")}
+                  className="h-7 w-7"
+                >
+                  <FileText className="size-3.5" />
                 </Button>
                 <Button
                   type="button"

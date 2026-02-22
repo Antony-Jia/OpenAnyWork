@@ -6,6 +6,10 @@ import { internetSearchDefinition, internetSearchTool } from "./internet-search"
 import { addCalendarEventDefinition, addCalendarEventTool } from "./add-calendar-event"
 import { addCountdownTimerDefinition, addCountdownTimerTool } from "./add-countdown-timer"
 import { sendEmailDefinition, sendEmailTool } from "./send-email"
+import {
+  parseWorkspaceDocumentDefinition,
+  parseWorkspaceDocumentTool
+} from "./parse-workspace-document"
 import type { ToolDefinition } from "../types"
 
 export const toolRegistry: Array<{
@@ -16,7 +20,8 @@ export const toolRegistry: Array<{
   { definition: internetSearchDefinition, instance: internetSearchTool },
   { definition: addCalendarEventDefinition, instance: addCalendarEventTool },
   { definition: addCountdownTimerDefinition, instance: addCountdownTimerTool },
-  { definition: sendEmailDefinition, instance: sendEmailTool }
+  { definition: sendEmailDefinition, instance: sendEmailTool },
+  { definition: parseWorkspaceDocumentDefinition, instance: parseWorkspaceDocumentTool }
 ]
 
 export const toolDefinitions: ToolDefinition[] = toolRegistry.map((entry) => entry.definition)

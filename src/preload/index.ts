@@ -372,7 +372,7 @@ const api = {
     }
   },
   attachments: {
-    pick: (input: { kind: "image" }): Promise<Attachment[] | null> => {
+    pick: (input: { kind: "image" | "document" }): Promise<Attachment[] | null> => {
       return ipcRenderer.invoke("attachments:pick", input)
     }
   },

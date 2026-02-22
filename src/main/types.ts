@@ -854,6 +854,19 @@ export interface ContentBlock {
 
 export type Attachment =
   | { kind: "image"; name: string; mimeType: string; dataUrl: string; size: number }
+  | {
+      kind: "document"
+      name: string
+      path: string
+      mimeType: string
+      size: number
+      parser: "pdf" | "docx" | "text"
+      parseNotice: string
+      extractedText: string
+      fullTextLength: number
+      returnedTextLength: number
+      truncated: boolean
+    }
   | { kind: "file"; name: string; mimeType: string; size: number; dataUrl?: string }
 
 export interface ToolCall {

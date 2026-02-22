@@ -182,7 +182,7 @@ interface CustomAPI {
     setConfig: (config: ProviderState) => Promise<void>
   }
   attachments: {
-    pick: (input: { kind: "image" }) => Promise<Attachment[] | null>
+    pick: (input: { kind: "image" | "document" }) => Promise<Attachment[] | null>
   }
   subagents: {
     list: () => Promise<SubagentConfig[]>

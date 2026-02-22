@@ -44,7 +44,9 @@ const defaultSettings: AppSettings = {
     maxConcurrent: 2,
     recentRounds: 5,
     monitorScanIntervalSec: 30,
-    monitorPullIntervalSec: 60
+    monitorPullIntervalSec: 60,
+    serviceDigestIntervalMin: 1,
+    mutedTaskIdentities: []
   },
   plugins: {
     actionbook: {

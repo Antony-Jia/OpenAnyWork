@@ -239,6 +239,7 @@ export function SettingsMenu(_props: SettingsMenuProps): React.JSX.Element {
       }
       await window.api.provider.setConfig(providerState)
       setHasConfig(Boolean(configs[providerType]))
+      const currentSettings = (await window.api.settings.get()) as AppSettings
 
       // Save other settings
       await window.api.settings.update({
@@ -247,6 +248,7 @@ export function SettingsMenu(_props: SettingsMenuProps): React.JSX.Element {
             Number.isFinite(iterationsValue) && iterationsValue > 0 ? iterationsValue : 5,
           defaultWorkspacePath: defaultWorkspacePath.trim() || null,
           butler: {
+            ...currentSettings.butler,
             rootPath: butlerRootPath.trim(),
             maxConcurrent:
               Number.isFinite(butlerMaxConcurrentValue) && butlerMaxConcurrentValue > 0

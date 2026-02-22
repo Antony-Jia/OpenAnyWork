@@ -1,4 +1,5 @@
 import type { TaskCompletionNotice } from "@/types"
+import { DigestTaskCards } from "@/components/notifications/DigestTaskCards"
 
 export type TaskNoticeCard = TaskCompletionNotice
 
@@ -6,8 +7,9 @@ export function TaskNoticeContainer(props: {
   cards: TaskNoticeCard[]
   onClose: (id: string) => void
   onOpenThread: (card: TaskNoticeCard) => void
+  onMuteTask: (taskIdentity: string, card: TaskNoticeCard) => void
 }): React.JSX.Element | null {
-  const { cards, onClose, onOpenThread } = props
+  const { cards, onClose, onOpenThread, onMuteTask } = props
   if (cards.length === 0) return null
 
   return (
@@ -29,24 +31,51 @@ export function TaskNoticeContainer(props: {
           <div className="flex items-start justify-between gap-2">
             <div className="min-w-0">
               <div className="text-xs text-muted-foreground uppercase tracking-[0.15em]">
-                {card.noticeType === "event" ? "事件提醒" : "Task Done"}
+                {card.noticeType === "event"
+                  ? "事件提醒"
+                  : card.noticeType === "digest"
+                    ? "管家服务汇总"
+                    : "Task Done"}
               </div>
               <div className="text-sm font-medium truncate">{card.title}</div>
             </div>
-            <button
-              type="button"
-              onClick={(event) => {
-                event.stopPropagation()
-                onClose(card.id)
-              }}
-              className="text-xs text-muted-foreground hover:text-foreground"
-            >
-              关闭
-            </button>
+            <div className="flex items-center gap-2">
+              {card.noticeType !== "digest" && card.taskIdentity ? (
+                <button
+                  type="button"
+                  onClick={(event) => {
+                    event.stopPropagation()
+                    onMuteTask(card.taskIdentity as string, card)
+                  }}
+                  className="text-xs text-muted-foreground hover:text-foreground"
+                >
+                  不再提示
+                </button>
+              ) : null}
+              <button
+                type="button"
+                onClick={(event) => {
+                  event.stopPropagation()
+                  onClose(card.id)
+                }}
+                className="text-xs text-muted-foreground hover:text-foreground"
+              >
+                关闭
+              </button>
+            </div>
           </div>
           <div className="mt-2 text-xs text-muted-foreground whitespace-pre-wrap">
-            {card.resultBrief}
+            {card.noticeType === "digest" && card.digest ? card.digest.summaryText : card.resultBrief}
           </div>
+          {card.noticeType === "digest" && card.digest ? (
+            <DigestTaskCards
+              tasks={card.digest.tasks}
+              onOpenThread={(threadId) => {
+                onOpenThread({ ...card, threadId, noticeType: "task" })
+              }}
+              onMuteTask={(taskIdentity) => onMuteTask(taskIdentity, card)}
+            />
+          ) : null}
           <div className="mt-2 text-[10px] text-muted-foreground">
             {new Date(card.completedAt).toLocaleString()}
           </div>

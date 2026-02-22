@@ -31,11 +31,13 @@ import {
   getButlerCapabilitySnapshot
 } from "./capabilities"
 import { detectOversplitByModel } from "./granularity"
-import { runButlerOrchestratorTurn, runButlerPerceptionTurn } from "./runtime"
+import { runButlerDigestTurn, runButlerOrchestratorTurn, runButlerPerceptionTurn } from "./runtime"
 import type { ButlerPromptContext } from "./prompt"
 import { createButlerTaskThread, executeButlerTask } from "./task-dispatcher"
 import { renderTaskPrompt, type ButlerDispatchIntent } from "./tools"
+import { notificationMuteRegistry } from "../notifications/mute-registry"
 import type {
+  ButlerDigestTaskCard,
   ButlerPerceptionInput,
   TaskLifecycleNotice,
   ButlerRound,
@@ -102,6 +104,7 @@ type PendingDispatchChoiceState =
   | RetryConfirmPendingDispatchChoiceState
 
 const TASK_NOTICE_MARKER = "[TASK_NOTICE_JSON]"
+const TASK_DIGEST_MARKER = "[TASK_DIGEST_JSON]"
 
 function nowIso(): string {
   return new Date().toISOString()
@@ -325,6 +328,7 @@ class ButlerManager {
     }
 
     removeButlerTasks(removableIds)
+    notificationMuteRegistry.cleanupByButlerTaskIds(removableIds)
     this.broadcastTasks()
     this.broadcastState()
     return this.listTasks()
@@ -359,7 +363,8 @@ class ButlerManager {
         completedAt: notice.at,
         mode: notice.mode,
         source: notice.source,
-        noticeType: "task"
+        noticeType: "task",
+        taskIdentity: notice.taskIdentity
       })
       return
     }
@@ -377,6 +382,41 @@ class ButlerManager {
       ts: nowIso()
     })
     this.broadcastState()
+  }
+
+  notifyDigestNotice(notice: TaskCompletionNotice): void {
+    if (notice.noticeType !== "digest" || !notice.digest) {
+      this.notifyCompletionNotice(notice)
+      return
+    }
+
+    const content = [
+      `管家服务汇总：${notice.title}`,
+      `时间窗: ${new Date(notice.digest.windowStart).toLocaleString()} - ${new Date(notice.digest.windowEnd).toLocaleString()}`,
+      `摘要: ${notice.resultBrief || "已生成本时段任务汇总。"}`,
+      `${TASK_DIGEST_MARKER}${JSON.stringify(notice)}`
+    ].join("\n")
+
+    this.pushMessage({
+      id: uuid(),
+      role: "assistant",
+      content,
+      ts: notice.completedAt || nowIso()
+    })
+    this.broadcastState()
+  }
+
+  async summarizeDigest(input: {
+    windowStart: string
+    windowEnd: string
+    tasks: ButlerDigestTaskCard[]
+  }): Promise<string> {
+    await this.initialize()
+    const result = await runButlerDigestTurn({
+      threadId: this.mainThreadId,
+      digest: input
+    })
+    return result.summaryText.trim()
   }
 
   async ingestPerception(input: ButlerPerceptionInput): Promise<TaskCompletionNotice> {

@@ -437,6 +437,8 @@ export interface ButlerSettings {
   recentRounds: number
   monitorScanIntervalSec: number
   monitorPullIntervalSec: number
+  serviceDigestIntervalMin: number
+  mutedTaskIdentities: string[]
   avatarDataUrl?: string
 }
 
@@ -623,6 +625,26 @@ export interface ButlerPerceptionInput {
   snapshot: ButlerMonitorSnapshot
 }
 
+export interface ButlerDigestTaskCard {
+  taskIdentity: string
+  threadId: string
+  title: string
+  status: ButlerTaskStatus
+  mode: ThreadMode
+  source: "agent" | "loop" | "email" | "butler"
+  updatedAt: string
+  resultBrief: string
+  resultDetail?: string
+}
+
+export interface ButlerDigestPayload {
+  id: string
+  windowStart: string
+  windowEnd: string
+  summaryText: string
+  tasks: ButlerDigestTaskCard[]
+}
+
 export interface TaskCompletionNotice {
   id: string
   threadId: string
@@ -632,8 +654,10 @@ export interface TaskCompletionNotice {
   completedAt: string
   mode: ThreadMode
   source: "agent" | "loop" | "email" | "butler"
-  noticeType?: "task" | "event"
+  noticeType?: "task" | "event" | "digest"
   eventKind?: ButlerPerceptionKind
+  taskIdentity?: string
+  digest?: ButlerDigestPayload
 }
 
 export interface TaskStartedPayload {
@@ -655,6 +679,7 @@ export interface TaskLifecycleNotice {
   at: string
   resultBrief?: string
   resultDetail?: string
+  taskIdentity?: string
 }
 
 export interface MemorySummary {

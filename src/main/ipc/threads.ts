@@ -15,6 +15,7 @@ import { readRalphLogTail } from "../ralph-log"
 import { readExpertLogTail, deleteExpertLog } from "../expert-log"
 import { loopManager } from "../loop/manager"
 import { butlerManager } from "../butler/manager"
+import { notificationMuteRegistry } from "../notifications/mute-registry"
 import { removeConversationMemoryByThread } from "../memory"
 import {
   normalizeExpertConfigInput,
@@ -147,6 +148,7 @@ export function registerThreadHandlers(ipcMain: IpcMain): void {
       } catch (e) {
         console.warn("[Threads] Failed to sync Butler tasks:", e)
       }
+      notificationMuteRegistry.cleanupByThreadId(threadId)
 
       // Close any open checkpointer for this thread
       try {

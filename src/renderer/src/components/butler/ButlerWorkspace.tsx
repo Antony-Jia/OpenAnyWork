@@ -4,9 +4,17 @@ import { Badge } from "@/components/ui/badge"
 import { useAppStore } from "@/lib/store"
 import { ButlerTaskBoard } from "./ButlerTaskBoard"
 import { ButlerMonitorBoard } from "./ButlerMonitorBoard"
-import type { AppSettings, ButlerState, ButlerTask, TaskCompletionNotice } from "@/types"
+import { DigestTaskCards } from "@/components/notifications/DigestTaskCards"
+import type {
+  AppSettings,
+  ButlerDigestPayload,
+  ButlerState,
+  ButlerTask,
+  TaskCompletionNotice
+} from "@/types"
 
 const TASK_NOTICE_MARKER = "[TASK_NOTICE_JSON]"
+const TASK_DIGEST_MARKER = "[TASK_DIGEST_JSON]"
 
 function toStatusVariant(
   status: ButlerTask["status"]
@@ -53,11 +61,39 @@ function isTaskCompletionNotice(value: unknown): value is TaskCompletionNotice {
   )
 }
 
-function extractNoticeSnapshot(text: string): TaskCompletionNotice | null {
-  const markerIndex = text.lastIndexOf(TASK_NOTICE_MARKER)
+function isDigestPayload(value: unknown): value is ButlerDigestPayload {
+  if (!value || typeof value !== "object") return false
+  const record = value as Record<string, unknown>
+  if (
+    typeof record.id !== "string" ||
+    typeof record.windowStart !== "string" ||
+    typeof record.windowEnd !== "string" ||
+    typeof record.summaryText !== "string" ||
+    !Array.isArray(record.tasks)
+  ) {
+    return false
+  }
+  return record.tasks.every((task) => {
+    if (!task || typeof task !== "object") return false
+    const item = task as Record<string, unknown>
+    return (
+      typeof item.taskIdentity === "string" &&
+      typeof item.threadId === "string" &&
+      typeof item.title === "string" &&
+      typeof item.status === "string" &&
+      typeof item.mode === "string" &&
+      typeof item.source === "string" &&
+      typeof item.updatedAt === "string" &&
+      typeof item.resultBrief === "string"
+    )
+  })
+}
+
+function extractNoticeSnapshot(text: string, marker: string): TaskCompletionNotice | null {
+  const markerIndex = text.lastIndexOf(marker)
   if (markerIndex < 0) return null
 
-  const jsonText = text.slice(markerIndex + TASK_NOTICE_MARKER.length).trim()
+  const jsonText = text.slice(markerIndex + marker.length).trim()
   if (!jsonText) return null
 
   try {
@@ -68,8 +104,8 @@ function extractNoticeSnapshot(text: string): TaskCompletionNotice | null {
   }
 }
 
-function stripNoticeSnapshot(text: string): string {
-  const markerIndex = text.lastIndexOf(TASK_NOTICE_MARKER)
+function stripNoticeSnapshot(text: string, marker: string): string {
+  const markerIndex = text.lastIndexOf(marker)
   if (markerIndex < 0) return text
   return text.slice(0, markerIndex).trimEnd()
 }
@@ -77,6 +113,17 @@ function stripNoticeSnapshot(text: string): string {
 function inferSnapshotStatus(notice: TaskCompletionNotice): ButlerTask["status"] {
   const normalized = `${notice.resultBrief}\n${notice.resultDetail}`.toLowerCase()
   return normalized.includes("任务失败") || normalized.includes("错误:") ? "failed" : "completed"
+}
+
+function isDigestNotice(notice: TaskCompletionNotice | null): notice is TaskCompletionNotice & {
+  noticeType: "digest"
+  digest: ButlerDigestPayload
+} {
+  return (
+    !!notice &&
+    notice.noticeType === "digest" &&
+    isDigestPayload((notice as { digest?: unknown }).digest)
+  )
 }
 
 function extractNoticeThreadId(text: string): string | null {
@@ -166,13 +213,33 @@ export function ButlerWorkspace(): React.JSX.Element {
   const [clearingHistory, setClearingHistory] = useState(false)
   const [clearingTasks, setClearingTasks] = useState(false)
   const [rightTab, setRightTab] = useState<"tasks" | "monitor">("tasks")
+  const [mutedTaskIdentities, setMutedTaskIdentities] = useState<Set<string>>(new Set())
+  const [digestPreset, setDigestPreset] = useState<"0" | "1" | "5" | "60" | "custom">("1")
+  const [digestCustomValue, setDigestCustomValue] = useState("1")
+  const [savingDigestInterval, setSavingDigestInterval] = useState(false)
 
-  const loadAvatar = useCallback(async (): Promise<void> => {
+  const loadButlerSettings = useCallback(async (): Promise<void> => {
     try {
       const settings = (await window.api.settings.get()) as AppSettings
       setButlerAvatarDataUrl(settings.butler?.avatarDataUrl || "")
+      const interval = settings.butler?.serviceDigestIntervalMin ?? 1
+      if (interval === 0 || interval === 1 || interval === 5 || interval === 60) {
+        setDigestPreset(String(interval) as "0" | "1" | "5" | "60")
+      } else {
+        setDigestPreset("custom")
+      }
+      setDigestCustomValue(String(interval <= 0 ? 1 : interval))
     } catch (error) {
-      console.error("[Butler] failed to load avatar:", error)
+      console.error("[Butler] failed to load settings:", error)
+    }
+  }, [])
+
+  const loadMutedTaskIdentities = useCallback(async (): Promise<void> => {
+    try {
+      const list = await window.api.notifications.listMutedTasks()
+      setMutedTaskIdentities(new Set(list.map((item) => item.trim()).filter(Boolean)))
+    } catch (error) {
+      console.error("[Butler] failed to load muted task identities:", error)
     }
   }, [])
 
@@ -190,15 +257,17 @@ export function ButlerWorkspace(): React.JSX.Element {
   }, [load])
 
   useEffect(() => {
-    void loadAvatar()
+    void loadButlerSettings()
+    void loadMutedTaskIdentities()
     const handleSettingsUpdated = (): void => {
-      void loadAvatar()
+      void loadButlerSettings()
+      void loadMutedTaskIdentities()
     }
     window.addEventListener("openwork:settings-updated", handleSettingsUpdated)
     return () => {
       window.removeEventListener("openwork:settings-updated", handleSettingsUpdated)
     }
-  }, [loadAvatar])
+  }, [loadButlerSettings, loadMutedTaskIdentities])
 
   useEffect(() => {
     const cleanups: Array<() => void> = []
@@ -240,6 +309,37 @@ export function ButlerWorkspace(): React.JSX.Element {
     },
     [setAppMode]
   )
+
+  const muteTaskIdentity = useCallback(async (taskIdentity: string): Promise<void> => {
+    const normalized = taskIdentity.trim()
+    if (!normalized) return
+    await window.api.notifications.muteTask(normalized)
+    setMutedTaskIdentities((prev) => new Set([...prev, normalized]))
+  }, [])
+
+  const handleSaveDigestInterval = useCallback(async (): Promise<void> => {
+    if (savingDigestInterval) return
+    const value =
+      digestPreset === "custom" ? Number.parseInt(digestCustomValue, 10) : Number.parseInt(digestPreset, 10)
+    const normalized = Number.isFinite(value) ? value : 1
+    const finalValue = digestPreset === "0" ? 0 : Math.max(1, normalized)
+
+    setSavingDigestInterval(true)
+    try {
+      const currentSettings = (await window.api.settings.get()) as AppSettings
+      await window.api.settings.update({
+        updates: {
+          butler: {
+            ...currentSettings.butler,
+            serviceDigestIntervalMin: finalValue
+          }
+        }
+      })
+      window.dispatchEvent(new CustomEvent("openwork:settings-updated"))
+    } finally {
+      setSavingDigestInterval(false)
+    }
+  }, [digestCustomValue, digestPreset, savingDigestInterval])
 
   const handleSend = (): void => {
     const message = input.trim()
@@ -299,15 +399,49 @@ export function ButlerWorkspace(): React.JSX.Element {
           <span className="text-xs text-accent uppercase tracking-[0.2em] font-bold neon-text">
             Butler AI
           </span>
-          <Button
-            variant="ghost"
-            size="sm"
-            disabled={clearingHistory}
-            onClick={() => void handleClearHistory()}
-            className="h-7 px-3 text-xs rounded-lg"
-          >
-            {clearingHistory ? "清空中..." : "清空聊天"}
-          </Button>
+          <div className="flex items-center gap-2">
+            <div className="text-[11px] text-muted-foreground">服务频率</div>
+            <select
+              value={digestPreset}
+              onChange={(event) =>
+                setDigestPreset(event.target.value as "0" | "1" | "5" | "60" | "custom")
+              }
+              className="h-7 rounded-lg border border-border bg-background/50 px-2 text-[11px]"
+            >
+              <option value="0">实时</option>
+              <option value="1">每1分钟</option>
+              <option value="5">每5分钟</option>
+              <option value="60">每60分钟</option>
+              <option value="custom">自定义</option>
+            </select>
+            {digestPreset === "custom" ? (
+              <input
+                type="number"
+                min={1}
+                value={digestCustomValue}
+                onChange={(event) => setDigestCustomValue(event.target.value)}
+                className="h-7 w-20 rounded-lg border border-border bg-background/50 px-2 text-[11px]"
+              />
+            ) : null}
+            <Button
+              variant="ghost"
+              size="sm"
+              disabled={savingDigestInterval}
+              onClick={() => void handleSaveDigestInterval()}
+              className="h-7 px-3 text-xs rounded-lg"
+            >
+              {savingDigestInterval ? "保存中..." : "保存频率"}
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              disabled={clearingHistory}
+              onClick={() => void handleClearHistory()}
+              className="h-7 px-3 text-xs rounded-lg"
+            >
+              {clearingHistory ? "清空中..." : "清空聊天"}
+            </Button>
+          </div>
         </header>
         <div className="flex-1 min-h-0 overflow-y-auto p-5 space-y-5 tech-gradient">
           {hasPendingDispatchChoice && (
@@ -323,14 +457,27 @@ export function ButlerWorkspace(): React.JSX.Element {
           )}
           {rounds.map((round) => {
             const isSystemNotice = round.user === "[系统通知]"
-            const snapshot = isSystemNotice ? extractNoticeSnapshot(round.assistant) : null
+            const digestSnapshot = isSystemNotice
+              ? extractNoticeSnapshot(round.assistant, TASK_DIGEST_MARKER)
+              : null
+            const taskSnapshot = isSystemNotice
+              ? extractNoticeSnapshot(round.assistant, TASK_NOTICE_MARKER)
+              : null
+            const digestNotice = isDigestNotice(digestSnapshot) ? digestSnapshot : null
             const assistantText = isSystemNotice
-              ? stripNoticeSnapshot(round.assistant)
+              ? stripNoticeSnapshot(
+                  stripNoticeSnapshot(round.assistant, TASK_DIGEST_MARKER),
+                  TASK_NOTICE_MARKER
+                )
               : round.assistant
             const hasAssistantContent = assistantText.trim().length > 0
             const noticeCard = isSystemNotice
-              ? resolveNoticeCard(round, assistantText, tasks, snapshot)
+              ? resolveNoticeCard(round, assistantText, tasks, taskSnapshot)
               : null
+            const digestTasks = (digestNotice?.digest.tasks || []).filter(
+              (task) => !mutedTaskIdentities.has(task.taskIdentity)
+            )
+            const taskSnapshotIdentity = taskSnapshot?.taskIdentity?.trim() || ""
             return (
               <div key={round.id} className="space-y-4">
                 {!isSystemNotice && (
@@ -365,7 +512,43 @@ export function ButlerWorkspace(): React.JSX.Element {
                   </div>
                 )}
 
-                {isSystemNotice && noticeCard && (
+                {isSystemNotice && digestNotice ? (
+                  <div className="flex justify-start">
+                    <details className="w-[85%] rounded-xl border border-border/40 bg-card/50 backdrop-blur-sm p-4 glow-border">
+                      <summary className="cursor-pointer">
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0">
+                            <div className="truncate text-sm font-medium" title={digestNotice.title}>
+                              {digestNotice.title}
+                            </div>
+                            <div className="mt-1 max-h-16 overflow-hidden whitespace-pre-wrap text-xs text-muted-foreground">
+                              {digestNotice.digest.summaryText}
+                            </div>
+                            <div className="mt-1 text-[10px] text-muted-foreground">
+                              {new Date(digestNotice.completedAt).toLocaleString()}
+                            </div>
+                          </div>
+                          <Badge variant="info">{digestTasks.length} tasks</Badge>
+                        </div>
+                      </summary>
+                      {digestTasks.length > 0 ? (
+                        <DigestTaskCards
+                          tasks={digestTasks}
+                          onOpenThread={(threadId) => {
+                            void openTaskThread(threadId)
+                          }}
+                          onMuteTask={(taskIdentity) => {
+                            void muteTaskIdentity(taskIdentity)
+                          }}
+                        />
+                      ) : (
+                        <div className="mt-3 text-xs text-muted-foreground">当前汇总任务均已静默。</div>
+                      )}
+                    </details>
+                  </div>
+                ) : null}
+
+                {isSystemNotice && !digestNotice && noticeCard && (
                   <div className="flex justify-start">
                     <details className="w-[85%] rounded-xl border border-border/40 bg-card/50 backdrop-blur-sm p-4 glow-border">
                       <summary className="cursor-pointer">
@@ -391,6 +574,17 @@ export function ButlerWorkspace(): React.JSX.Element {
                           {resolveTaskDetail(noticeCard)}
                         </div>
                         <div className="flex justify-end">
+                          {taskSnapshotIdentity ? (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                void muteTaskIdentity(taskSnapshotIdentity)
+                              }}
+                              className="mr-3 text-xs text-muted-foreground hover:text-foreground"
+                            >
+                              不再提示
+                            </button>
+                          ) : null}
                           <button
                             type="button"
                             disabled={!noticeCard.threadId}

@@ -1,5 +1,6 @@
 import { onTaskCompleted, type TaskCompletionPayload } from "../tasks/lifecycle"
 import type { TaskCompletionNotice } from "../types"
+import { resolveTaskIdentityFromCompletionPayload } from "./task-identity"
 
 export interface TaskCompletionBusDeps {
   notifyButler: (notice: TaskCompletionNotice) => void
@@ -7,6 +8,7 @@ export interface TaskCompletionBusDeps {
   notifyThreadHistoryUpdated: (threadId: string) => void
   shouldShowDesktopPopup: () => boolean
   enqueueDesktopPopup: (notice: TaskCompletionNotice) => void
+  isTaskMuted: (taskIdentity: string) => boolean
 }
 
 const MAX_SEEN_EVENT_IDS = 5000
@@ -28,25 +30,11 @@ function parseTimestampMs(value: string): number {
   return Number.isFinite(parsed) ? parsed : Date.now()
 }
 
-function resolveTaskIdentity(payload: TaskCompletionPayload): string {
-  const butlerTaskId = payload.metadata.butlerTaskId
-  if (typeof butlerTaskId === "string" && butlerTaskId.trim().length > 0) {
-    return `butlerTask:${butlerTaskId.trim()}`
-  }
-
-  const taskKey = payload.metadata.taskKey
-  if (typeof taskKey === "string" && taskKey.trim().length > 0) {
-    return `taskKey:${taskKey.trim()}`
-  }
-
-  return `thread:${payload.threadId}`
-}
-
 function buildThrottleKey(payload: TaskCompletionPayload): string {
-  return `${payload.source}:${resolveTaskIdentity(payload)}`
+  return `${payload.source}:${resolveTaskIdentityFromCompletionPayload(payload)}`
 }
 
-function buildNotice(payload: TaskCompletionPayload): TaskCompletionNotice {
+function buildNotice(payload: TaskCompletionPayload, taskIdentity: string): TaskCompletionNotice {
   const id = buildEventId(payload)
   const title = payload.title || "Task Completed"
   const content = payload.error ? `任务失败: ${payload.error}` : payload.result || "任务已完成。"
@@ -70,7 +58,8 @@ function buildNotice(payload: TaskCompletionPayload): TaskCompletionNotice {
     completedAt: payload.finishedAt,
     mode: payload.mode,
     source: payload.source,
-    noticeType: "task"
+    noticeType: "task",
+    taskIdentity
   }
 }
 
@@ -116,14 +105,18 @@ export class TaskCompletionBus {
 
     this.markSeen(eventId)
     this.markReported(throttleKey, finishedAtMs)
-    const notice = buildNotice(payload)
-    this.deps.notifyButler(notice)
-    this.deps.notifyInAppCard(notice)
+    const taskIdentity = resolveTaskIdentityFromCompletionPayload(payload)
+    const notice = buildNotice(payload, taskIdentity)
+    const isMuted = this.deps.isTaskMuted(taskIdentity)
+    if (!isMuted) {
+      this.deps.notifyButler(notice)
+      this.deps.notifyInAppCard(notice)
+    }
     if (payload.source !== "agent") {
       this.deps.notifyThreadHistoryUpdated(payload.threadId)
     }
 
-    if (this.deps.shouldShowDesktopPopup()) {
+    if (!isMuted && this.deps.shouldShowDesktopPopup()) {
       this.deps.enqueueDesktopPopup(notice)
     }
   }

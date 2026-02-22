@@ -72,6 +72,20 @@ export class TaskPopupController {
     this.finishActiveAndContinue()
   }
 
+  removeByTaskIdentity(taskIdentity: string): void {
+    const normalized = taskIdentity.trim()
+    if (!normalized) return
+    for (let index = this.pendingQueue.length - 1; index >= 0; index -= 1) {
+      const queued = this.pendingQueue[index]
+      if (queued.taskIdentity === normalized) {
+        this.pendingQueue.splice(index, 1)
+      }
+    }
+    if (this.activeNotice?.taskIdentity === normalized) {
+      this.finishActiveAndContinue()
+    }
+  }
+
   clear(): void {
     this.pendingQueue.length = 0
     this.finishActiveOnly()

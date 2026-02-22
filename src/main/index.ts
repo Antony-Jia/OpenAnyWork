@@ -41,6 +41,7 @@ import { registerButlerHandlers } from "./ipc/butler"
 import { registerButlerMonitorHandlers } from "./ipc/butler-monitor"
 import { registerPromptHandlers } from "./ipc/prompts"
 import { registerMemoryHandlers } from "./ipc/memory"
+import { registerNotificationHandlers } from "./ipc/notifications"
 import { startAutoMcpServers } from "./mcp/service"
 import { registerSettingsHandlers } from "./ipc/settings"
 import { registerSpeechHandlers } from "./ipc/speech"
@@ -58,6 +59,8 @@ import { ButlerMonitorBus } from "./butler/monitoring/bus"
 import { TaskPopupController } from "./notifications/popup-controller"
 import { TaskCompletionBus } from "./notifications/task-completion-bus"
 import { TaskLifecycleButlerBus } from "./notifications/task-lifecycle-butler-bus"
+import { ButlerDigestService } from "./notifications/butler-digest-service"
+import { notificationMuteRegistry } from "./notifications/mute-registry"
 import { registerPluginsIpc } from "./plugins/ipc"
 import { pluginHost } from "./plugins/core/host"
 
@@ -67,6 +70,7 @@ let tray: Tray | null = null
 let taskPopupController: TaskPopupController | null = null
 let taskCompletionBus: TaskCompletionBus | null = null
 let taskLifecycleButlerBus: TaskLifecycleButlerBus | null = null
+let butlerDigestService: ButlerDigestService | null = null
 let butlerMonitorManager: ButlerMonitorManager | null = null
 let butlerMonitorBus: ButlerMonitorBus | null = null
 let unsubscribeButlerMonitorBus: (() => void) | null = null
@@ -323,6 +327,8 @@ app.whenReady().then(async () => {
   await initializeMemoryService()
   await generateDailyProfileOnStartup()
   await butlerManager.initialize()
+  notificationMuteRegistry.initialize()
+  notificationMuteRegistry.compact()
   butlerMonitorBus = new ButlerMonitorBus()
   butlerMonitorManager = new ButlerMonitorManager({
     bus: butlerMonitorBus,
@@ -359,6 +365,7 @@ app.whenReady().then(async () => {
   registerSettingsHandlers(ipcMain, {
     onSettingsUpdated: () => {
       butlerMonitorManager?.refreshIntervals()
+      butlerDigestService?.refreshInterval()
     }
   })
   registerSpeechHandlers(ipcMain)
@@ -368,6 +375,12 @@ app.whenReady().then(async () => {
   if (butlerMonitorManager) {
     registerButlerMonitorHandlers(ipcMain, butlerMonitorManager)
   }
+  registerNotificationHandlers(ipcMain, {
+    onMutedTaskIdentity: (taskIdentity) => {
+      taskPopupController?.removeByTaskIdentity(taskIdentity)
+      butlerDigestService?.removeTaskIdentity(taskIdentity)
+    }
+  })
   registerPromptHandlers(ipcMain)
   registerMemoryHandlers(ipcMain)
   unsubscribePluginEvents = registerPluginsIpc(ipcMain)
@@ -389,12 +402,31 @@ app.whenReady().then(async () => {
     activateThread
   })
 
+  butlerDigestService = new ButlerDigestService({
+    notifyButler: (notice) => {
+      butlerManager.notifyDigestNotice(notice)
+    },
+    notifyInAppCard: (notice) => {
+      broadcastTaskCard(notice)
+    },
+    isTaskMuted: (taskIdentity) => {
+      return notificationMuteRegistry.isMuted(taskIdentity)
+    },
+    getButlerMainThreadId: () => {
+      return butlerManager.getState().mainThreadId
+    },
+    summarize: (input) => {
+      return butlerManager.summarizeDigest(input)
+    }
+  })
+  butlerDigestService.start()
+
   taskCompletionBus = new TaskCompletionBus({
     notifyButler: () => {
       // Butler lifecycle notifications are handled by TaskLifecycleButlerBus.
     },
-    notifyInAppCard: (notice) => {
-      broadcastTaskCard(notice)
+    notifyInAppCard: () => {
+      // In-app task feed is aggregated by ButlerDigestService to avoid notification flooding.
     },
     notifyThreadHistoryUpdated: (threadId) => {
       broadcastThreadHistoryUpdated(threadId)
@@ -405,12 +437,15 @@ app.whenReady().then(async () => {
     },
     enqueueDesktopPopup: (notice) => {
       taskPopupController?.enqueue(notice)
+    },
+    isTaskMuted: (taskIdentity) => {
+      return notificationMuteRegistry.isMuted(taskIdentity)
     }
   })
   taskCompletionBus.start()
   taskLifecycleButlerBus = new TaskLifecycleButlerBus({
     notifyButler: (notice) => {
-      butlerManager.notifyLifecycleNotice(notice)
+      butlerDigestService?.ingest(notice)
     }
   })
   taskLifecycleButlerBus.start()
@@ -515,6 +550,8 @@ app.on("before-quit", () => {
   taskCompletionBus = null
   taskLifecycleButlerBus?.stop()
   taskLifecycleButlerBus = null
+  butlerDigestService?.stop()
+  butlerDigestService = null
   taskPopupController?.dispose()
   taskPopupController = null
   stopEmailPolling()

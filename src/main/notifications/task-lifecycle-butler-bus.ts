@@ -5,6 +5,11 @@ import {
   type TaskStartedPayload
 } from "../tasks/lifecycle"
 import type { TaskLifecycleNotice } from "../types"
+import {
+  resolveStableTaskIdentityFromMetadata,
+  resolveTaskIdentityFromCompletionPayload,
+  resolveTaskIdentityFromStartedPayload
+} from "./task-identity"
 
 export interface TaskLifecycleButlerBusDeps {
   notifyButler: (notice: TaskLifecycleNotice) => void
@@ -25,36 +30,13 @@ function parseTimestampMs(value: string): number {
   return Number.isFinite(parsed) ? parsed : Date.now()
 }
 
-function resolveStableTaskIdentity(payload: {
-  metadata: Record<string, unknown>
-}): string | null {
-  const butlerTaskId = payload.metadata.butlerTaskId
-  if (typeof butlerTaskId === "string" && butlerTaskId.trim().length > 0) {
-    return `butlerTask:${butlerTaskId.trim()}`
-  }
-
-  const taskKey = payload.metadata.taskKey
-  if (typeof taskKey === "string" && taskKey.trim().length > 0) {
-    return `taskKey:${taskKey.trim()}`
-  }
-
-  return null
-}
-
-function resolveTaskIdentity(payload: TaskCompletionPayload): string {
-  const stableIdentity = resolveStableTaskIdentity(payload)
-  if (stableIdentity) {
-    return stableIdentity
-  }
-  return `thread:${payload.threadId}`
-}
-
 function buildThrottleKey(payload: TaskCompletionPayload): string {
-  return `${payload.source}:${resolveTaskIdentity(payload)}`
+  return `${payload.source}:${resolveTaskIdentityFromCompletionPayload(payload)}`
 }
 
 function buildStartedNotice(payload: TaskStartedPayload): TaskLifecycleNotice {
-  const stableIdentity = resolveStableTaskIdentity(payload)
+  const stableIdentity = resolveStableTaskIdentityFromMetadata(payload.metadata)
+  const taskIdentity = resolveTaskIdentityFromStartedPayload(payload)
   const id = stableIdentity
     ? `${payload.source}:${stableIdentity}:started`
     : `${payload.threadId}:${payload.startedAt}:${payload.source}:started`
@@ -66,12 +48,14 @@ function buildStartedNotice(payload: TaskStartedPayload): TaskLifecycleNotice {
     mode: payload.mode,
     source: payload.source,
     at: payload.startedAt,
-    resultBrief: "任务已开始执行。"
+    resultBrief: "任务已开始执行。",
+    taskIdentity
   }
 }
 
 function buildCompletedNotice(payload: TaskCompletionPayload): TaskLifecycleNotice {
   const id = `${payload.threadId}:${payload.finishedAt}:${payload.source}:completed`
+  const taskIdentity = resolveTaskIdentityFromCompletionPayload(payload)
   const content = payload.error ? `任务失败: ${payload.error}` : payload.result || "任务已完成。"
   const resultBrief = compact(content, 260)
   const resultDetail = [
@@ -93,7 +77,8 @@ function buildCompletedNotice(payload: TaskCompletionPayload): TaskLifecycleNoti
     source: payload.source,
     at: payload.finishedAt,
     resultBrief,
-    resultDetail
+    resultDetail,
+    taskIdentity
   }
 }
 

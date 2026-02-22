@@ -42,9 +42,32 @@ function MainApp(): React.JSX.Element {
     setTaskCards((prev) => prev.filter((card) => card.id !== id))
   }, [])
 
+  const muteTaskIdentity = useCallback(async (taskIdentity: string) => {
+    const normalized = taskIdentity.trim()
+    if (!normalized) return
+    await window.api.notifications.muteTask(normalized)
+    setTaskCards((prev) =>
+      prev
+        .flatMap((card) => {
+          if (card.noticeType === "digest" && card.digest) {
+            const nextTasks = card.digest.tasks.filter((task) => task.taskIdentity !== normalized)
+            if (nextTasks.length === 0) {
+              return []
+            }
+            return [{ ...card, digest: { ...card.digest, tasks: nextTasks } }]
+          }
+          if (card.taskIdentity === normalized) {
+            return []
+          }
+          return [card]
+        })
+        .filter(Boolean)
+    )
+  }, [])
+
   const openTaskCardThread = useCallback(
     async (card: TaskNoticeCard) => {
-      if (card.noticeType === "event") {
+      if (card.noticeType === "event" || card.noticeType === "digest") {
         setAppMode("butler")
         setTaskCards((prev) => prev.filter((item) => item.id !== card.id))
         return
@@ -193,7 +216,8 @@ function MainApp(): React.JSX.Element {
   useEffect(() => {
     const cleanup = window.electron.ipcRenderer.on("app:task-card", (...args: unknown[]) => {
       const card = args[0] as TaskNoticeCard
-      if (!card?.id || !card.threadId) return
+      if (!card?.id) return
+      if (card.noticeType !== "digest" && !card.threadId) return
       if (useAppStore.getState().appMode === "butler") return
       setTaskCards((prev) => {
         const next = prev.filter((item) => item.id !== card.id)
@@ -227,6 +251,7 @@ function MainApp(): React.JSX.Element {
           cards={taskCards}
           onClose={removeTaskCard}
           onOpenThread={(card) => void openTaskCardThread(card)}
+          onMuteTask={(taskIdentity) => void muteTaskIdentity(taskIdentity)}
         />
       )}
       <div className="flex h-screen w-screen flex-col overflow-hidden bg-background text-foreground">

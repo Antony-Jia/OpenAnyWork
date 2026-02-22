@@ -486,6 +486,17 @@ const api = {
       return ipcRenderer.invoke("settings:update", input)
     }
   },
+  notifications: {
+    muteTask: (taskIdentity: string): Promise<void> => {
+      return ipcRenderer.invoke("notifications:muteTask", taskIdentity)
+    },
+    unmuteTask: (taskIdentity: string): Promise<void> => {
+      return ipcRenderer.invoke("notifications:unmuteTask", taskIdentity)
+    },
+    listMutedTasks: (): Promise<string[]> => {
+      return ipcRenderer.invoke("notifications:listMutedTasks")
+    }
+  },
   plugins: {
     list: (): Promise<PresetPluginItem[]> => {
       return ipcRenderer.invoke("plugins:list")

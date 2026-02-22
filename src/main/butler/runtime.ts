@@ -7,6 +7,8 @@ import { getCheckpointer } from "../agent/runtime"
 import { getOpenworkDir } from "../storage"
 import type { ProviderConfig, ProviderState, SimpleProviderId } from "../types"
 import {
+  buildButlerDigestSystemPrompt,
+  buildButlerDigestUserPrompt,
   buildButlerSystemPrompt,
   buildButlerPerceptionSystemPrompt,
   buildButlerPerceptionUserPrompt,
@@ -16,7 +18,7 @@ import {
 } from "./prompt"
 import { composeButlerUserPrompt } from "./prompt/composer"
 import { createButlerDispatchTools, type ButlerDispatchIntent } from "./tools"
-import type { ButlerPerceptionInput } from "../types"
+import type { ButlerDigestTaskCard, ButlerPerceptionInput } from "../types"
 
 export interface ButlerOrchestratorTurnInput {
   threadId: string
@@ -36,6 +38,19 @@ export interface ButlerPerceptionTurnInput {
 
 export interface ButlerPerceptionTurnResult {
   reminderText: string
+}
+
+export interface ButlerDigestTurnInput {
+  threadId: string
+  digest: {
+    windowStart: string
+    windowEnd: string
+    tasks: ButlerDigestTaskCard[]
+  }
+}
+
+export interface ButlerDigestTurnResult {
+  summaryText: string
 }
 
 const DAILY_PROFILE_MARKER = "[Daily Profile]"
@@ -219,5 +234,23 @@ export async function runButlerPerceptionTurn(
   const reminderText = extractTextContent(result.content)
   return {
     reminderText: reminderText || "检测到新的监听事件，请及时处理。"
+  }
+}
+
+export async function runButlerDigestTurn(
+  input: ButlerDigestTurnInput
+): Promise<ButlerDigestTurnResult> {
+  const model = getModelInstance()
+  const systemPrompt = buildButlerDigestSystemPrompt()
+  const userPrompt = buildButlerDigestUserPrompt({
+    windowStart: input.digest.windowStart,
+    windowEnd: input.digest.windowEnd,
+    tasks: input.digest.tasks
+  })
+
+  const result = await model.invoke([new SystemMessage(systemPrompt), new HumanMessage(userPrompt)])
+  const summaryText = extractTextContent(result.content)
+  return {
+    summaryText: summaryText || ""
   }
 }

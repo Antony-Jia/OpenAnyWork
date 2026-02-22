@@ -1,5 +1,5 @@
 import type { ButlerDispatchIntent } from "./tools"
-import type { ButlerPerceptionInput } from "../types"
+import type { ButlerDigestTaskCard, ButlerPerceptionInput } from "../types"
 import { composeButlerUserPrompt } from "./prompt/composer"
 
 export type ButlerDispatchPolicy = "standard" | "single_task_first"
@@ -44,6 +44,12 @@ export interface ButlerPromptContext {
 
 export interface ButlerPerceptionPromptContext {
   perception: ButlerPerceptionInput
+}
+
+export interface ButlerDigestPromptContext {
+  windowStart: string
+  windowEnd: string
+  tasks: ButlerDigestTaskCard[]
 }
 
 const CLARIFICATION_PREFIX = "CLARIFICATION_REQUIRED:"
@@ -197,6 +203,22 @@ export function buildButlerPerceptionSystemPrompt(): string {
 `.trim()
 }
 
+export function buildButlerDigestSystemPrompt(): string {
+  return `
+你是 OpenAnyWork 的 Butler 服务总结助手。
+
+目标：
+1) 对一个时间窗口内的任务状态更新进行中文总结。
+2) 仅输出 1 段自然语言总结，不要输出 JSON、列表符号前缀、代码块。
+3) 总结应包含：总体进展、关键任务、异常/阻塞（若有）与下一步建议。
+
+要求：
+- 字数控制在 80~220 字。
+- 表述准确，不编造。
+- 若没有失败任务，可简要说明当前风险低。
+`.trim()
+}
+
 export function buildButlerUserPrompt(context: ButlerPromptContext): string {
   return composeButlerUserPrompt(context, {
     clarificationPrefix: CLARIFICATION_PREFIX
@@ -220,6 +242,33 @@ export function buildButlerPerceptionUserPrompt(context: ButlerPerceptionPromptC
     "",
     "[Instruction]",
     "请直接输出提醒正文。"
+  ].join("\n")
+}
+
+export function buildButlerDigestUserPrompt(context: ButlerDigestPromptContext): string {
+  const tasks = context.tasks.map((task, index) =>
+    [
+      `${index + 1}. [${task.status}] ${task.title}`,
+      `mode=${task.mode} source=${task.source} thread=${task.threadId}`,
+      `updatedAt=${task.updatedAt}`,
+      `brief=${task.resultBrief || "none"}`,
+      task.resultDetail ? `detail=${task.resultDetail}` : ""
+    ]
+      .filter(Boolean)
+      .join("\n")
+  )
+
+  return [
+    "[Digest Window]",
+    `windowStart: ${context.windowStart}`,
+    `windowEnd: ${context.windowEnd}`,
+    `taskCount: ${context.tasks.length}`,
+    "",
+    "[Task Updates]",
+    tasks.length > 0 ? tasks.join("\n\n") : "none",
+    "",
+    "[Instruction]",
+    "请输出服务总结正文。"
   ].join("\n")
 }
 

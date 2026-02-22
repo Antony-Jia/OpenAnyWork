@@ -244,6 +244,11 @@ interface CustomAPI {
     get: () => Promise<AppSettings>
     update: (input: SettingsUpdateParams) => Promise<AppSettings>
   }
+  notifications: {
+    muteTask: (taskIdentity: string) => Promise<void>
+    unmuteTask: (taskIdentity: string) => Promise<void>
+    listMutedTasks: () => Promise<string[]>
+  }
   plugins: {
     list: () => Promise<PresetPluginItem[]>
     setEnabled: (input: PluginEnableUpdateParams) => Promise<PresetPluginItem>

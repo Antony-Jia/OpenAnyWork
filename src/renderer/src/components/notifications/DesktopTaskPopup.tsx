@@ -38,7 +38,7 @@ export function DesktopTaskPopup(): React.JSX.Element {
 
   const openThread = useCallback(() => {
     if (!notice) return
-    if (notice.noticeType === "event") {
+    if (notice.noticeType === "event" || notice.noticeType === "digest") {
       window.electron.ipcRenderer.send("app:open-butler")
       window.electron.ipcRenderer.send("task-popup:dismiss", { noticeId: notice.id })
       return
@@ -53,6 +53,16 @@ export function DesktopTaskPopup(): React.JSX.Element {
     (event?: React.MouseEvent) => {
       event?.stopPropagation()
       if (!notice) return
+      window.electron.ipcRenderer.send("task-popup:dismiss", { noticeId: notice.id })
+    },
+    [notice]
+  )
+
+  const muteTask = useCallback(
+    async (event?: React.MouseEvent) => {
+      event?.stopPropagation()
+      if (!notice?.taskIdentity) return
+      await window.api.notifications.muteTask(notice.taskIdentity)
       window.electron.ipcRenderer.send("task-popup:dismiss", { noticeId: notice.id })
     },
     [notice]
@@ -80,20 +90,39 @@ export function DesktopTaskPopup(): React.JSX.Element {
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
               <div className="text-[10px] uppercase tracking-[0.16em] text-blue-500">
-                {notice.noticeType === "event" ? "事件提醒" : "Task Completed"}
+                {notice.noticeType === "event"
+                  ? "事件提醒"
+                  : notice.noticeType === "digest"
+                    ? "管家服务汇总"
+                    : "Task Completed"}
               </div>
               <div className="truncate text-sm font-semibold">{notice.title}</div>
             </div>
-            <button
-              type="button"
-              className="text-[11px] text-muted-foreground hover:text-foreground"
-              onClick={dismiss}
-            >
-              关闭
-            </button>
+            <div className="flex items-center gap-2">
+              {notice.noticeType === "task" && notice.taskIdentity ? (
+                <button
+                  type="button"
+                  className="text-[11px] text-muted-foreground hover:text-foreground"
+                  onClick={(event) => {
+                    void muteTask(event)
+                  }}
+                >
+                  不再提示
+                </button>
+              ) : null}
+              <button
+                type="button"
+                className="text-[11px] text-muted-foreground hover:text-foreground"
+                onClick={dismiss}
+              >
+                关闭
+              </button>
+            </div>
           </div>
           <div className="mt-3 line-clamp-3 whitespace-pre-wrap text-xs text-muted-foreground">
-            {notice.resultBrief}
+            {notice.noticeType === "digest" && notice.digest
+              ? notice.digest.summaryText
+              : notice.resultBrief}
           </div>
           <div className="mt-3 flex items-center justify-between text-[10px] text-muted-foreground">
             <span className="uppercase tracking-[0.12em]">

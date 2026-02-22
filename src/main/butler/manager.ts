@@ -61,6 +61,7 @@ interface PendingTask {
 
 interface DispatchTaskCreationContext {
   originUserMessage: string
+  habitAddendum: string
   retryOfTaskId?: string
   retryAttempt?: number
 }
@@ -392,8 +393,7 @@ class ButlerManager {
 
     const content = [
       `管家服务汇总：${notice.title}`,
-      `时间窗: ${new Date(notice.digest.windowStart).toLocaleString()} - ${new Date(notice.digest.windowEnd).toLocaleString()}`,
-      `摘要: ${notice.resultBrief || "已生成本时段任务汇总。"}`,
+      notice.resultBrief || "已生成本时段任务汇总。",
       `${TASK_DIGEST_MARKER}${JSON.stringify(notice)}`
     ].join("\n")
 
@@ -533,6 +533,29 @@ class ButlerManager {
     return normalized || "none"
   }
 
+  private buildHabitAddendum(params: {
+    profileText?: string
+    memoryHints: Array<{ threadId: string; title?: string; summaryBrief: string }>
+  }): string {
+    const profileText = params.profileText?.trim() || ""
+    const memoryLines = params.memoryHints
+      .map((hint, index) => {
+        const title = hint.title?.trim() ? ` (${hint.title.trim()})` : ""
+        return `${index + 1}. ${hint.threadId}${title}: ${hint.summaryBrief}`
+      })
+      .filter((line) => line.trim().length > 0)
+    const sections: string[] = []
+
+    if (profileText) {
+      sections.push(`[Daily Profile]\n${profileText}`)
+    }
+    if (memoryLines.length > 0) {
+      sections.push(`[Related Memory Hints]\n${memoryLines.join("\n")}`)
+    }
+
+    return sections.length > 0 ? sections.join("\n\n") : "none"
+  }
+
   private buildPromptContextBase(params: {
     userMessage: string
     capabilityCatalog: string
@@ -597,7 +620,11 @@ class ButlerManager {
       currentUserMessageId: userMessage.id
     })
     const creation: DispatchTaskCreationContext = {
-      originUserMessage: this.normalizeOriginUserMessage(trimmed)
+      originUserMessage: this.normalizeOriginUserMessage(trimmed),
+      habitAddendum: this.buildHabitAddendum({
+        profileText: promptContextBase.profileText,
+        memoryHints: promptContextBase.memoryHints
+      })
     }
 
     const orchestrator = await runButlerOrchestratorTurn({
@@ -1130,7 +1157,10 @@ class ButlerManager {
 
       const task = createButlerTaskThread({
         mode: intent.mode,
-        prompt: renderTaskPrompt(intent, { originUserMessage: creation.originUserMessage }),
+        prompt: renderTaskPrompt(intent, {
+          originUserMessage: creation.originUserMessage,
+          habitAddendum: creation.habitAddendum
+        }),
         title: intent.title,
         rootPath: this.getRootPath(),
         requester: "user",
@@ -1471,6 +1501,10 @@ class ButlerManager {
 
       const creation: DispatchTaskCreationContext = {
         originUserMessage,
+        habitAddendum: this.buildHabitAddendum({
+          profileText: promptContextBase.profileText,
+          memoryHints: promptContextBase.memoryHints
+        }),
         retryOfTaskId: task.id,
         retryAttempt: rootAttempt + 1
       }

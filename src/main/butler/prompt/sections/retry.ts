@@ -27,7 +27,8 @@ export function buildRetrySection(): ButlerPromptSectionBuilder {
         "[Retry Hard Constraints]",
         "- 只能创建 1 个任务。",
         "- mode 必须与 failed_task_mode 完全一致。",
-        "- 新 initialPrompt 必须包含错误根因与修复动作，不得弱化用户原始约束。"
+        "- 用户任务主体必须保持为原始请求，不得改写、弱化、替换。",
+        "- 新 initialPrompt 只能追加错误根因与修复动作，不得重写任务主体。"
       ]
     }
   }

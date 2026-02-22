@@ -74,10 +74,7 @@ function formatPerceptionSnapshot(context: ButlerPerceptionPromptContext): strin
     )
   const rssLines = snapshot.recentRssItems
     .slice(0, 5)
-    .map(
-      (item, index) =>
-        `${index + 1}. ${item.title || "(无标题)"} | link=${item.link || "none"}`
-    )
+    .map((item, index) => `${index + 1}. ${item.title || "(无标题)"} | link=${item.link || "none"}`)
 
   return [
     "[Snapshot Summary]",
@@ -154,15 +151,17 @@ export function buildButlerSystemPrompt(): string {
 - 正例（应该这样做）：
   同一请求只创建 1 个 loop 任务，在 loopConfig.contentTemplate 中包含检索、去重记录、发送全流程。
 - 每个任务都应该有明确的意图和目标。
-- initialPrompt 必须完整保留用户关键约束（范围、时间、对象、格式、验收口径），不得弱化为更笼统描述。
-- initialPrompt 必须可执行，至少包含：任务目标、执行约束、输出或验收标准。
+- 用户任务主体必须以 [User Request] 原文为唯一事实来源，不得改写、弱化、替换。
+- initialPrompt 仅用于补充执行说明（addendum），不能重写用户任务主体。
+- initialPrompt 中可追加用户习惯偏好，但不得改变目标、范围、时间、对象、格式、验收口径。
+- initialPrompt 必须可执行，至少包含可落地的执行约束和验收补充。
 - 使用 dependsOn 通过 taskKey 构建依赖图。
 - 无依赖的任务可并行执行。
 - 有依赖的任务必须通过 dependsOn 保证串行。
 - 若输入中出现 [Retry Reassign Context]，你必须：
   - 只创建 1 个任务；
   - mode 必须与失败任务一致；
-  - 在 initialPrompt 中显式吸收错误信息并给出修复策略。
+  - 在不改写用户任务主体前提下，在 initialPrompt 中补充错误修复策略。
 - 如果关键信息缺失且无法生成有效的工具 JSON，则不要调用工具。
   以 "${CLARIFICATION_PREFIX}" 为前缀回复，仅询问关键问题。
 - 如果能生成有效 JSON，优先派发，避免不必要的追问。
@@ -179,7 +178,7 @@ Handoff：
 JSON 字段约定（所有工具通用）：
 - taskKey：本轮唯一标识。
 - title：面向用户的任务标题。
-- initialPrompt：传给 worker 线程的可执行 prompt。
+- initialPrompt：传给 worker 的补充执行说明（addendum），不是任务主体重写正文。
 - threadStrategy："new_thread" | "reuse_last_thread"。
 - dependsOn：taskKey[]（可选）。
 - handoff：{ method, note?, requiredArtifacts? }（可选）。

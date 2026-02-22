@@ -165,21 +165,22 @@ function normalizeCommon(input: z.infer<typeof commonFieldsSchema>): ButlerDispa
 function buildDescription(mode: Exclude<ThreadMode, "butler">): string {
   const example =
     mode === "default"
-      ? `{"taskKey":"news_1","title":"AI新闻汇总","initialPrompt":"[Task Objective]\\n汇总今天 AI 大模型新闻并形成结构化摘要。\\n\\n[Execution Requirements]\\n1) 覆盖主流来源并去重。\\n2) 记录时间、来源与核心结论。\\n3) 禁止编造事实。\\n\\n[Output & Acceptance]\\n- 输出 Markdown 表格，至少包含标题/来源/时间/要点。","threadStrategy":"new_thread","deliverableFormat":"table"}`
+      ? `{"taskKey":"news_1","title":"AI新闻汇总","initialPrompt":"补充说明：覆盖主流来源并去重；按“标题/来源/时间/要点”输出 Markdown 表格；禁止编造事实。","threadStrategy":"new_thread","deliverableFormat":"table"}`
       : mode === "ralph"
-        ? `{"taskKey":"impl_1","title":"实现任务","initialPrompt":"[Task Objective]\\n实现需求并修复相关缺陷。\\n\\n[Execution Requirements]\\n1) 修改代码并补齐关键测试。\\n2) 记录主要设计取舍。\\n3) 不破坏现有行为。\\n\\n[Output & Acceptance]\\n- 提供变更说明与验证结果。","threadStrategy":"new_thread","acceptanceCriteria":["类型检查通过","核心功能可用"],"maxIterations":5}`
+        ? `{"taskKey":"impl_1","title":"实现任务","initialPrompt":"补充说明：先定位失败根因并最小化改动；补齐关键测试并记录设计取舍；如冲突以用户原任务主体为准。","threadStrategy":"new_thread","acceptanceCriteria":["类型检查通过","核心功能可用"],"maxIterations":5}`
         : mode === "email"
-          ? `{"taskKey":"mail_1","title":"邮件处理","initialPrompt":"[Task Objective]\\n生成可直接发送的客户回复邮件。\\n\\n[Execution Requirements]\\n1) 回应用户问题并给出下一步。\\n2) 语气专业且简洁。\\n3) 若信息不足先列出待确认点。\\n\\n[Output & Acceptance]\\n- 产出完整邮件正文和主题建议。","threadStrategy":"reuse_last_thread","emailIntent":"reply_to_customer","recipientHints":["alice@example.com"],"tone":"professional"}`
+          ? `{"taskKey":"mail_1","title":"邮件处理","initialPrompt":"补充说明：优先回答用户核心问题并给出下一步；语气专业简洁；信息不足时先列待确认点。","threadStrategy":"reuse_last_thread","emailIntent":"reply_to_customer","recipientHints":["alice@example.com"],"tone":"professional"}`
           : mode === "loop"
-            ? `{"taskKey":"loop_1","title":"循环任务","initialPrompt":"[Task Objective]\\n建立稳定的周期监控任务。\\n\\n[Execution Requirements]\\n1) 每次触发都执行完整处理流程。\\n2) 失败要记录错误并继续下一轮。\\n\\n[Output & Acceptance]\\n- 触发后可产出可审计结果。","threadStrategy":"new_thread","loopConfig":{"enabled":true,"contentTemplate":"检索 AI 新闻，去重后写入 news_send.json，并发送给指定邮箱","trigger":{"type":"schedule","cron":"*/5 * * * *"},"queue":{"policy":"strict","mergeWindowSec":300}}}`
-            : `{"taskKey":"expert_1","title":"专家协作写作","initialPrompt":"[Task Objective]\\n通过多专家串行流程完成高质量稿件。\\n\\n[Execution Requirements]\\n1) 先起草，再审稿，再校对。\\n2) 各角色按顺序交接，不并行。\\n3) 保持结构化交接信息。\\n\\n[Output & Acceptance]\\n- 产出最终可发布稿件与审稿意见记录。","threadStrategy":"new_thread","expertConfig":{"experts":[{"role":"写稿人","prompt":"先产出完整初稿，强调结构与论据。"},{"role":"审稿人","prompt":"聚焦逻辑漏洞、事实风险与改进建议。"},{"role":"校对人","prompt":"修复语法措辞并统一术语风格。"}],"loop":{"enabled":true,"maxCycles":5}}}`
+            ? `{"taskKey":"loop_1","title":"循环任务","initialPrompt":"补充说明：每次触发都执行完整流程；失败需记录错误并继续下一轮；结果需可审计。","threadStrategy":"new_thread","loopConfig":{"enabled":true,"contentTemplate":"检索 AI 新闻，去重后写入 news_send.json，并发送给指定邮箱","trigger":{"type":"schedule","cron":"*/5 * * * *"},"queue":{"policy":"strict","mergeWindowSec":300}}}`
+            : `{"taskKey":"expert_1","title":"专家协作写作","initialPrompt":"补充说明：专家链路必须严格串行；每轮交接输出结构化 handoff；最终稿需附审稿修订记录。","threadStrategy":"new_thread","expertConfig":{"experts":[{"role":"写稿人","prompt":"先产出完整初稿，强调结构与论据。"},{"role":"审稿人","prompt":"聚焦逻辑漏洞、事实风险与改进建议。"},{"role":"校对人","prompt":"修复语法措辞并统一术语风格。"}],"loop":{"enabled":true,"maxCycles":5}}}`
 
   return [
     `Create a ${mode} mode task for Butler.`,
     "Use valid JSON only. taskKey must be unique within this turn.",
     "dependsOn references other taskKey values in the same turn.",
-    "initialPrompt must preserve user constraints and stay executable.",
-    "initialPrompt must include objective, execution requirements, and output/acceptance criteria.",
+    "Treat the original user request as locked task body; do not rewrite it in initialPrompt.",
+    "initialPrompt is execution addendum only: constraints, method, risk controls, or user habit notes.",
+    "initialPrompt must not change scope/time/object/format/acceptance from the locked task body.",
     `Example: ${example}`
   ].join(" ")
 }
@@ -293,10 +294,16 @@ export function createButlerDispatchTools(params: {
 
 export interface RenderTaskPromptContext {
   originUserMessage: string
+  habitAddendum: string
 }
 
 function normalizeOriginUserMessage(originUserMessage: string): string {
   const trimmed = originUserMessage.trim()
+  return trimmed || "none"
+}
+
+function normalizeHabitAddendum(habitAddendum: string): string {
+  const trimmed = habitAddendum.trim()
   return trimmed || "none"
 }
 
@@ -343,9 +350,11 @@ export function renderTaskPrompt(
   context: RenderTaskPromptContext
 ): string {
   const sections: string[] = [
-    `[Original User Request]\n${normalizeOriginUserMessage(context.originUserMessage)}`,
+    `[Locked Task Body]\n${normalizeOriginUserMessage(context.originUserMessage)}`,
     `[Task Objective]\n${intent.title}`,
     `[Execution Requirements]\n${intent.initialPrompt}`,
+    `[User Habit Addendum]\n${normalizeHabitAddendum(context.habitAddendum)}`,
+    "[Execution Guardrails]\n- [Locked Task Body] 是用户任务主体原文，必须逐字遵循。\n- [Execution Requirements] 与 [User Habit Addendum] 仅为补充说明。\n- 若补充说明与主体冲突，以 [Locked Task Body] 为准。",
     `[Output & Acceptance]\n${buildOutputAcceptance(intent)}`
   ]
 

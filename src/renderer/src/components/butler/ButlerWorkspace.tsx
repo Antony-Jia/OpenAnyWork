@@ -15,6 +15,7 @@ import type {
 
 const TASK_NOTICE_MARKER = "[TASK_NOTICE_JSON]"
 const TASK_DIGEST_MARKER = "[TASK_DIGEST_JSON]"
+type DigestDetailTab = "overview" | "tasks"
 
 function toStatusVariant(
   status: ButlerTask["status"]
@@ -214,6 +215,8 @@ export function ButlerWorkspace(): React.JSX.Element {
   const [clearingTasks, setClearingTasks] = useState(false)
   const [rightTab, setRightTab] = useState<"tasks" | "monitor">("tasks")
   const [mutedTaskIdentities, setMutedTaskIdentities] = useState<Set<string>>(new Set())
+  const [expandedDigestDetails, setExpandedDigestDetails] = useState<Record<string, boolean>>({})
+  const [digestDetailTabs, setDigestDetailTabs] = useState<Record<string, DigestDetailTab>>({})
   const [digestPreset, setDigestPreset] = useState<"0" | "1" | "5" | "60" | "custom">("1")
   const [digestCustomValue, setDigestCustomValue] = useState("1")
   const [savingDigestInterval, setSavingDigestInterval] = useState(false)
@@ -317,10 +320,26 @@ export function ButlerWorkspace(): React.JSX.Element {
     setMutedTaskIdentities((prev) => new Set([...prev, normalized]))
   }, [])
 
+  const toggleDigestDetails = useCallback((noticeId: string): void => {
+    setExpandedDigestDetails((prev) => ({
+      ...prev,
+      [noticeId]: !prev[noticeId]
+    }))
+  }, [])
+
+  const setDigestDetailTab = useCallback((noticeId: string, tab: DigestDetailTab): void => {
+    setDigestDetailTabs((prev) => ({
+      ...prev,
+      [noticeId]: tab
+    }))
+  }, [])
+
   const handleSaveDigestInterval = useCallback(async (): Promise<void> => {
     if (savingDigestInterval) return
     const value =
-      digestPreset === "custom" ? Number.parseInt(digestCustomValue, 10) : Number.parseInt(digestPreset, 10)
+      digestPreset === "custom"
+        ? Number.parseInt(digestCustomValue, 10)
+        : Number.parseInt(digestPreset, 10)
     const normalized = Number.isFinite(value) ? value : 1
     const finalValue = digestPreset === "0" ? 0 : Math.max(1, normalized)
 
@@ -477,6 +496,10 @@ export function ButlerWorkspace(): React.JSX.Element {
             const digestTasks = (digestNotice?.digest.tasks || []).filter(
               (task) => !mutedTaskIdentities.has(task.taskIdentity)
             )
+            const digestNoticeId = digestNotice?.id || round.id
+            const digestDetailExpanded =
+              !!digestNotice && expandedDigestDetails[digestNoticeId] === true
+            const digestDetailTab = digestDetailTabs[digestNoticeId] || "overview"
             const taskSnapshotIdentity = taskSnapshot?.taskIdentity?.trim() || ""
             return (
               <div key={round.id} className="space-y-4">
@@ -502,51 +525,95 @@ export function ButlerWorkspace(): React.JSX.Element {
                       </div>
                     )}
                     <div className="max-w-[85%] rounded-2xl rounded-tl-sm border border-border/40 bg-card/60 backdrop-blur-sm p-4 shadow-sm">
-                      <div className="mb-2 text-[10px] uppercase tracking-[0.15em] text-accent/70 font-bold">
-                        {isSystemNotice ? "系统通知" : "管家"}
+                      <div className="mb-2 flex items-center justify-between gap-2">
+                        <div className="text-[10px] uppercase tracking-[0.15em] text-accent/70 font-bold">
+                          {isSystemNotice ? "系统通知" : "管家"}
+                        </div>
+                        {isSystemNotice && digestNotice ? (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              toggleDigestDetails(digestNoticeId)
+                            }}
+                            className="text-[10px] text-accent hover:text-accent/80"
+                          >
+                            {digestDetailExpanded ? "收起明细" : "展开明细"}
+                          </button>
+                        ) : null}
                       </div>
                       <div className="text-sm whitespace-pre-wrap">
                         {assistantText || "处理中..."}
                       </div>
+                      {isSystemNotice && digestNotice && digestDetailExpanded ? (
+                        <div className="mt-3 rounded-xl border border-border/40 bg-background/40 p-3">
+                          <div className="mb-3 flex items-center justify-between gap-2">
+                            <div className="flex items-center gap-1 rounded-lg border border-border/50 bg-card/40 p-1">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setDigestDetailTab(digestNoticeId, "overview")
+                                }}
+                                className={
+                                  digestDetailTab === "overview"
+                                    ? "rounded-md bg-accent/15 px-2 py-1 text-[11px] text-accent"
+                                    : "rounded-md px-2 py-1 text-[11px] text-muted-foreground hover:text-foreground"
+                                }
+                              >
+                                概览
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setDigestDetailTab(digestNoticeId, "tasks")
+                                }}
+                                className={
+                                  digestDetailTab === "tasks"
+                                    ? "rounded-md bg-accent/15 px-2 py-1 text-[11px] text-accent"
+                                    : "rounded-md px-2 py-1 text-[11px] text-muted-foreground hover:text-foreground"
+                                }
+                              >
+                                任务
+                              </button>
+                            </div>
+                            <Badge variant="info">{digestTasks.length} tasks</Badge>
+                          </div>
+
+                          {digestDetailTab === "overview" ? (
+                            <div className="space-y-2 text-xs text-muted-foreground">
+                              <div className="text-sm font-medium text-foreground">
+                                {digestNotice.title}
+                              </div>
+                              <div>
+                                时间窗: {new Date(digestNotice.digest.windowStart).toLocaleString()}{" "}
+                                - {new Date(digestNotice.digest.windowEnd).toLocaleString()}
+                              </div>
+                              <div className="whitespace-pre-wrap">
+                                {digestNotice.digest.summaryText}
+                              </div>
+                              <div>
+                                更新时间: {new Date(digestNotice.completedAt).toLocaleString()}
+                              </div>
+                            </div>
+                          ) : digestTasks.length > 0 ? (
+                            <DigestTaskCards
+                              tasks={digestTasks}
+                              onOpenThread={(threadId) => {
+                                void openTaskThread(threadId)
+                              }}
+                              onMuteTask={(taskIdentity) => {
+                                void muteTaskIdentity(taskIdentity)
+                              }}
+                            />
+                          ) : (
+                            <div className="text-xs text-muted-foreground">
+                              当前汇总任务均已静默。
+                            </div>
+                          )}
+                        </div>
+                      ) : null}
                     </div>
                   </div>
                 )}
-
-                {isSystemNotice && digestNotice ? (
-                  <div className="flex justify-start">
-                    <details className="w-[85%] rounded-xl border border-border/40 bg-card/50 backdrop-blur-sm p-4 glow-border">
-                      <summary className="cursor-pointer">
-                        <div className="flex items-start justify-between gap-2">
-                          <div className="min-w-0">
-                            <div className="truncate text-sm font-medium" title={digestNotice.title}>
-                              {digestNotice.title}
-                            </div>
-                            <div className="mt-1 max-h-16 overflow-hidden whitespace-pre-wrap text-xs text-muted-foreground">
-                              {digestNotice.digest.summaryText}
-                            </div>
-                            <div className="mt-1 text-[10px] text-muted-foreground">
-                              {new Date(digestNotice.completedAt).toLocaleString()}
-                            </div>
-                          </div>
-                          <Badge variant="info">{digestTasks.length} tasks</Badge>
-                        </div>
-                      </summary>
-                      {digestTasks.length > 0 ? (
-                        <DigestTaskCards
-                          tasks={digestTasks}
-                          onOpenThread={(threadId) => {
-                            void openTaskThread(threadId)
-                          }}
-                          onMuteTask={(taskIdentity) => {
-                            void muteTaskIdentity(taskIdentity)
-                          }}
-                        />
-                      ) : (
-                        <div className="mt-3 text-xs text-muted-foreground">当前汇总任务均已静默。</div>
-                      )}
-                    </details>
-                  </div>
-                ) : null}
 
                 {isSystemNotice && !digestNotice && noticeCard && (
                   <div className="flex justify-start">

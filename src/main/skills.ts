@@ -45,6 +45,68 @@ function normalizeSkillPath(path: string): string {
   return resolve(path).replace(/\\/g, "/")
 }
 
+function upsertFrontmatterLine(frontmatter: string, key: string, value: string): string {
+  const fieldPattern = new RegExp(`^${key}:\\s*.*$`, "m")
+  if (fieldPattern.test(frontmatter)) {
+    return frontmatter.replace(fieldPattern, `${key}: ${value}`)
+  }
+  return frontmatter ? `${frontmatter}\n${key}: ${value}` : `${key}: ${value}`
+}
+
+function readSkillDescriptionFromContent(content: string): string {
+  const match = content.match(/^---\s*\r?\n([\s\S]*?)\r?\n---\s*(?:\r?\n|$)/)
+  if (!match) return ""
+  const frontmatter = match[1]
+  const descMatch = frontmatter.match(/^description:\s*(.*)$/m)
+  if (!descMatch) return ""
+  const raw = descMatch[1].trim()
+  if ((raw.startsWith('"') && raw.endsWith('"')) || (raw.startsWith("'") && raw.endsWith("'"))) {
+    try {
+      if (raw.startsWith('"')) {
+        return JSON.parse(raw)
+      }
+      return raw.slice(1, -1)
+    } catch {
+      return raw.slice(1, -1)
+    }
+  }
+  return raw
+}
+
+function ensureSkillMarkdownContent(params: {
+  content: string
+  skillName: string
+  fallbackDescription: string
+}): string {
+  const source = params.content.trim()
+  const bodyFallback = `# ${params.skillName}\n\nDescribe what this skill does and how to use it.`
+  const frontmatterMatch = source.match(/^---\s*\r?\n([\s\S]*?)\r?\n---\s*\r?\n?([\s\S]*)$/)
+  const parsedDescription = readSkillDescriptionFromContent(source).trim()
+  const description = (parsedDescription || params.fallbackDescription || "").trim()
+  const serializedDescription = JSON.stringify(
+    description || `Reusable skill for ${params.skillName}.`
+  )
+
+  if (!frontmatterMatch) {
+    return [
+      "---",
+      `name: ${params.skillName}`,
+      `description: ${serializedDescription}`,
+      "---",
+      "",
+      source || bodyFallback,
+      ""
+    ].join("\n")
+  }
+
+  let frontmatter = frontmatterMatch[1].trim()
+  frontmatter = upsertFrontmatterLine(frontmatter, "name", params.skillName)
+  frontmatter = upsertFrontmatterLine(frontmatter, "description", serializedDescription)
+  const body = frontmatterMatch[2].trim() || bodyFallback
+
+  return ["---", frontmatter, "---", "", body, ""].join("\n")
+}
+
 export function getSkillsRoot(): string {
   return ensureManagedSkillsDir()
 }
@@ -220,9 +282,13 @@ export function createSkill(params: {
 
   mkdirSync(skillDir, { recursive: true })
 
-  const content =
-    params.content?.trim() ||
-    `---\nname: ${name}\ndescription: ${description}\n---\n\n# ${name}\n\nDescribe what this skill does and how to use it.\n`
+  const content = ensureSkillMarkdownContent({
+    content:
+      params.content?.trim() ||
+      `# ${name}\n\nDescribe what this skill does and how to use it.\n`,
+    skillName: name,
+    fallbackDescription: description
+  })
 
   const skillPath = join(skillDir, "SKILL.md")
   writeFileSync(skillPath, content)
@@ -307,23 +373,7 @@ export function installSkillFromPath(inputPath: string): SkillItem {
 function readSkillDescription(skillPath: string): string {
   try {
     const content = readFileSync(skillPath, "utf-8")
-    const match = content.match(/^---\s*\n([\s\S]*?)\n---\s*\n/)
-    if (!match) return ""
-    const frontmatter = match[1]
-    const descMatch = frontmatter.match(/^description:\s*(.*)$/m)
-    if (!descMatch) return ""
-    const raw = descMatch[1].trim()
-    if ((raw.startsWith('"') && raw.endsWith('"')) || (raw.startsWith("'") && raw.endsWith("'"))) {
-      try {
-        if (raw.startsWith('"')) {
-          return JSON.parse(raw)
-        }
-        return raw.slice(1, -1)
-      } catch {
-        return raw.slice(1, -1)
-      }
-    }
-    return raw
+    return readSkillDescriptionFromContent(content)
   } catch {
     return ""
   }
@@ -365,7 +415,12 @@ export function saveSkillContent(name: string, content: string): SkillItem {
   if (!existsSync(record.skillPath)) {
     throw new Error("Skill not found.")
   }
-  writeFileSync(record.skillPath, content)
+  const normalizedContent = ensureSkillMarkdownContent({
+    content,
+    skillName: record.name,
+    fallbackDescription: record.description || `Reusable skill for ${record.name}.`
+  })
+  writeFileSync(record.skillPath, normalizedContent)
   const description = readSkillDescription(record.skillPath)
   const result = {
     name: record.name,

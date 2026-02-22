@@ -437,6 +437,7 @@ export interface ButlerSettings {
   recentRounds: number
   monitorScanIntervalSec: number
   monitorPullIntervalSec: number
+  avatarDataUrl?: string
 }
 
 export interface SettingsUpdateParams {

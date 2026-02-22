@@ -89,6 +89,7 @@ export function SettingsMenu(_props: SettingsMenuProps): React.JSX.Element {
   const [butlerRecentRounds, setButlerRecentRounds] = useState("5")
   const [butlerMonitorScanIntervalSec, setButlerMonitorScanIntervalSec] = useState("30")
   const [butlerMonitorPullIntervalSec, setButlerMonitorPullIntervalSec] = useState("60")
+  const [butlerAvatarDataUrl, setButlerAvatarDataUrl] = useState("")
 
   // Speech settings
   const [sttUrl, setSttUrl] = useState("")
@@ -148,6 +149,7 @@ export function SettingsMenu(_props: SettingsMenuProps): React.JSX.Element {
           setButlerRecentRounds(String(settings.butler?.recentRounds ?? 5))
           setButlerMonitorScanIntervalSec(String(settings.butler?.monitorScanIntervalSec ?? 30))
           setButlerMonitorPullIntervalSec(String(settings.butler?.monitorPullIntervalSec ?? 60))
+          setButlerAvatarDataUrl(settings.butler?.avatarDataUrl || "")
           setSttUrl(settings.speech?.stt?.url || "")
           setSttHeaders(serializeKeyValue(settings.speech?.stt?.headers))
           setSttLanguage(settings.speech?.stt?.language || "")
@@ -170,6 +172,23 @@ export function SettingsMenu(_props: SettingsMenuProps): React.JSX.Element {
     return () => {
       if (typeof cleanup === "function") cleanup()
     }
+  }, [])
+
+  const handlePickButlerAvatar = useCallback(async () => {
+    try {
+      const picked = await window.api.attachments.pick({ kind: "image" })
+      if (!picked || picked.length === 0) return
+      const first = picked[0]
+      if (first?.kind === "image" && first.dataUrl) {
+        setButlerAvatarDataUrl(first.dataUrl)
+      }
+    } catch (e) {
+      console.error("Failed to pick butler avatar:", e)
+    }
+  }, [])
+
+  const handleClearButlerAvatar = useCallback(() => {
+    setButlerAvatarDataUrl("")
   }, [])
 
   const handleSaveSettings = useCallback(async () => {
@@ -244,7 +263,8 @@ export function SettingsMenu(_props: SettingsMenuProps): React.JSX.Element {
             monitorPullIntervalSec:
               Number.isFinite(butlerMonitorPullIntervalValue) && butlerMonitorPullIntervalValue > 0
                 ? butlerMonitorPullIntervalValue
-                : 60
+                : 60,
+            avatarDataUrl: butlerAvatarDataUrl
           },
           email: {
             enabled: emailEnabled,
@@ -284,6 +304,7 @@ export function SettingsMenu(_props: SettingsMenuProps): React.JSX.Element {
           }
         }
       })
+      window.dispatchEvent(new CustomEvent("openwork:settings-updated"))
       setSettingsSaved(true)
       setTimeout(() => setSettingsSaved(false), 2000)
     } catch (e) {
@@ -306,6 +327,7 @@ export function SettingsMenu(_props: SettingsMenuProps): React.JSX.Element {
     butlerRecentRounds,
     butlerMonitorScanIntervalSec,
     butlerMonitorPullIntervalSec,
+    butlerAvatarDataUrl,
     emailEnabled,
     emailFrom,
     emailTo,
@@ -438,6 +460,45 @@ export function SettingsMenu(_props: SettingsMenuProps): React.JSX.Element {
                 </div>
 
                 <div className="px-5 py-3.5 border-b border-border flex items-center justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="text-[13px] text-muted-foreground">
+                      {t("settings.butler.avatar")}
+                    </div>
+                    <div className="text-[11px] text-muted-foreground">
+                      {t("settings.butler.avatar_hint")}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {butlerAvatarDataUrl ? (
+                      <img
+                        src={butlerAvatarDataUrl}
+                        alt={t("settings.butler.avatar")}
+                        className="size-8 rounded-md border border-border object-cover"
+                      />
+                    ) : (
+                      <div className="flex size-8 items-center justify-center rounded-md border border-border bg-muted/40 text-[11px] font-semibold text-muted-foreground">
+                        B
+                      </div>
+                    )}
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      onClick={() => void handlePickButlerAvatar()}
+                    >
+                      {t("settings.butler.avatar_upload")}
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={handleClearButlerAvatar}
+                      disabled={!butlerAvatarDataUrl}
+                    >
+                      {t("settings.butler.avatar_clear")}
+                    </Button>
+                  </div>
+                </div>
+
+                <div className="px-5 py-3.5 border-b border-border flex items-center justify-between gap-3">
                   <div className="text-[13px] text-muted-foreground">
                     {t("settings.butler.max_concurrent")}
                   </div>
@@ -491,7 +552,9 @@ export function SettingsMenu(_props: SettingsMenuProps): React.JSX.Element {
 
                 {/* Language Selection */}
                 <div className="px-5 py-3.5 border-b border-border flex items-center justify-between">
-                  <span className="text-[13px] text-muted-foreground">{t("settings.language")}</span>
+                  <span className="text-[13px] text-muted-foreground">
+                    {t("settings.language")}
+                  </span>
                   <div className="flex gap-2">
                     <Button
                       variant={language === "en" ? "secondary" : "ghost"}

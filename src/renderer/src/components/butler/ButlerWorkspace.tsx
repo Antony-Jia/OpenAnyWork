@@ -4,7 +4,7 @@ import { Badge } from "@/components/ui/badge"
 import { useAppStore } from "@/lib/store"
 import { ButlerTaskBoard } from "./ButlerTaskBoard"
 import { ButlerMonitorBoard } from "./ButlerMonitorBoard"
-import type { ButlerState, ButlerTask, TaskCompletionNotice } from "@/types"
+import type { AppSettings, ButlerState, ButlerTask, TaskCompletionNotice } from "@/types"
 
 const TASK_NOTICE_MARKER = "[TASK_NOTICE_JSON]"
 
@@ -160,11 +160,21 @@ export function ButlerWorkspace(): React.JSX.Element {
   const setAppMode = useAppStore((state) => state.setAppMode)
   const [state, setState] = useState<ButlerState | null>(null)
   const [tasks, setTasks] = useState<ButlerTask[]>([])
+  const [butlerAvatarDataUrl, setButlerAvatarDataUrl] = useState("")
   const [input, setInput] = useState("")
   const [sending, setSending] = useState(false)
   const [clearingHistory, setClearingHistory] = useState(false)
   const [clearingTasks, setClearingTasks] = useState(false)
   const [rightTab, setRightTab] = useState<"tasks" | "monitor">("tasks")
+
+  const loadAvatar = useCallback(async (): Promise<void> => {
+    try {
+      const settings = (await window.api.settings.get()) as AppSettings
+      setButlerAvatarDataUrl(settings.butler?.avatarDataUrl || "")
+    } catch (error) {
+      console.error("[Butler] failed to load avatar:", error)
+    }
+  }, [])
 
   const load = useCallback(async () => {
     const [nextState, nextTasks] = await Promise.all([
@@ -178,6 +188,17 @@ export function ButlerWorkspace(): React.JSX.Element {
   useEffect(() => {
     void load()
   }, [load])
+
+  useEffect(() => {
+    void loadAvatar()
+    const handleSettingsUpdated = (): void => {
+      void loadAvatar()
+    }
+    window.addEventListener("openwork:settings-updated", handleSettingsUpdated)
+    return () => {
+      window.removeEventListener("openwork:settings-updated", handleSettingsUpdated)
+    }
+  }, [loadAvatar])
 
   useEffect(() => {
     const cleanups: Array<() => void> = []
@@ -321,7 +342,18 @@ export function ButlerWorkspace(): React.JSX.Element {
                 )}
 
                 {(isSystemNotice || hasAssistantContent) && (
-                  <div className="flex justify-start">
+                  <div className="flex items-start justify-start gap-3">
+                    {butlerAvatarDataUrl ? (
+                      <img
+                        src={butlerAvatarDataUrl}
+                        alt="Butler avatar"
+                        className="mt-1 size-8 shrink-0 rounded-md border border-border object-cover"
+                      />
+                    ) : (
+                      <div className="mt-1 flex size-8 shrink-0 items-center justify-center rounded-md border border-border bg-muted/40 text-[11px] font-semibold text-muted-foreground">
+                        B
+                      </div>
+                    )}
                     <div className="max-w-[85%] rounded-2xl rounded-tl-sm border border-border/40 bg-card/60 backdrop-blur-sm p-4 shadow-sm">
                       <div className="mb-2 text-[10px] uppercase tracking-[0.15em] text-accent/70 font-bold">
                         {isSystemNotice ? "系统通知" : "管家"}

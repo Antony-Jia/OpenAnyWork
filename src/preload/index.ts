@@ -46,7 +46,12 @@ import type {
   MailWatchRuleCreateInput,
   MailWatchRuleUpdateInput,
   MailWatchMessage,
+  RssWatchSubscription,
+  RssWatchSubscriptionCreateInput,
+  RssWatchSubscriptionUpdateInput,
+  RssWatchItem,
   ButlerMonitorBusEvent,
+  ButlerMonitorPullResult,
   ButlerMonitorSnapshot,
   ThreadDeleteOptions,
   PromptTemplate,
@@ -302,6 +307,29 @@ const api = {
     },
     listRecentMails: (limit?: number): Promise<MailWatchMessage[]> => {
       return ipcRenderer.invoke("butler-monitor:mail:listMessages", limit)
+    },
+    listRssSubscriptions: (): Promise<RssWatchSubscription[]> => {
+      return ipcRenderer.invoke("butler-monitor:rss:listSubscriptions")
+    },
+    createRssSubscription: (
+      input: RssWatchSubscriptionCreateInput
+    ): Promise<RssWatchSubscription> => {
+      return ipcRenderer.invoke("butler-monitor:rss:createSubscription", input)
+    },
+    updateRssSubscription: (
+      id: string,
+      updates: RssWatchSubscriptionUpdateInput
+    ): Promise<RssWatchSubscription> => {
+      return ipcRenderer.invoke("butler-monitor:rss:updateSubscription", { id, updates })
+    },
+    deleteRssSubscription: (id: string): Promise<void> => {
+      return ipcRenderer.invoke("butler-monitor:rss:deleteSubscription", id)
+    },
+    listRecentRssItems: (limit?: number): Promise<RssWatchItem[]> => {
+      return ipcRenderer.invoke("butler-monitor:rss:listItems", limit)
+    },
+    pullNow: (): Promise<ButlerMonitorPullResult> => {
+      return ipcRenderer.invoke("butler-monitor:pullNow")
     },
     pullMailNow: (): Promise<MailWatchMessage[]> => {
       return ipcRenderer.invoke("butler-monitor:mail:pullNow")

@@ -5,7 +5,9 @@ import type {
   CountdownWatchItemCreateInput,
   CountdownWatchItemUpdateInput,
   MailWatchRuleCreateInput,
-  MailWatchRuleUpdateInput
+  MailWatchRuleUpdateInput,
+  RssWatchSubscriptionCreateInput,
+  RssWatchSubscriptionUpdateInput
 } from "../types"
 import { ButlerMonitorManager } from "../butler/monitoring/manager"
 
@@ -85,6 +87,36 @@ export function registerButlerMonitorHandlers(
 
   ipcMain.handle("butler-monitor:mail:listMessages", async (_event, limit?: number) => {
     return butlerMonitorManager.listRecentMails(limit)
+  })
+
+  ipcMain.handle("butler-monitor:rss:listSubscriptions", async () => {
+    return butlerMonitorManager.listRssSubscriptions()
+  })
+
+  ipcMain.handle(
+    "butler-monitor:rss:createSubscription",
+    async (_event, input: RssWatchSubscriptionCreateInput) => {
+      return butlerMonitorManager.createRssSubscription(input)
+    }
+  )
+
+  ipcMain.handle(
+    "butler-monitor:rss:updateSubscription",
+    async (_event, payload: { id: string; updates: RssWatchSubscriptionUpdateInput }) => {
+      return butlerMonitorManager.updateRssSubscription(payload.id, payload.updates)
+    }
+  )
+
+  ipcMain.handle("butler-monitor:rss:deleteSubscription", async (_event, id: string) => {
+    butlerMonitorManager.deleteRssSubscription(id)
+  })
+
+  ipcMain.handle("butler-monitor:rss:listItems", async (_event, limit?: number) => {
+    return butlerMonitorManager.listRecentRssItems(limit)
+  })
+
+  ipcMain.handle("butler-monitor:pullNow", async () => {
+    return butlerMonitorManager.pullNow()
   })
 
   ipcMain.handle("butler-monitor:mail:pullNow", async () => {

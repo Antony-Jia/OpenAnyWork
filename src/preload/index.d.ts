@@ -46,7 +46,12 @@ import type {
   MailWatchRuleCreateInput,
   MailWatchRuleUpdateInput,
   MailWatchMessage,
+  RssWatchSubscription,
+  RssWatchSubscriptionCreateInput,
+  RssWatchSubscriptionUpdateInput,
+  RssWatchItem,
   ButlerMonitorBusEvent,
+  ButlerMonitorPullResult,
   ButlerMonitorSnapshot,
   CapabilityScope,
   ThreadDeleteOptions,
@@ -153,6 +158,17 @@ interface CustomAPI {
     updateMailRule: (id: string, updates: MailWatchRuleUpdateInput) => Promise<MailWatchRule>
     deleteMailRule: (id: string) => Promise<void>
     listRecentMails: (limit?: number) => Promise<MailWatchMessage[]>
+    listRssSubscriptions: () => Promise<RssWatchSubscription[]>
+    createRssSubscription: (
+      input: RssWatchSubscriptionCreateInput
+    ) => Promise<RssWatchSubscription>
+    updateRssSubscription: (
+      id: string,
+      updates: RssWatchSubscriptionUpdateInput
+    ) => Promise<RssWatchSubscription>
+    deleteRssSubscription: (id: string) => Promise<void>
+    listRecentRssItems: (limit?: number) => Promise<RssWatchItem[]>
+    pullNow: () => Promise<ButlerMonitorPullResult>
     pullMailNow: () => Promise<MailWatchMessage[]>
     onEvent: (callback: (event: ButlerMonitorBusEvent) => void) => () => void
   }

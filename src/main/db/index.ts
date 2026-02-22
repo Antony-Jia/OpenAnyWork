@@ -245,6 +245,33 @@ export async function initializeDatabase(): Promise<SqlJsDatabase> {
     )
   `)
 
+  db.run(`
+    CREATE TABLE IF NOT EXISTS butler_rss_watch_subscriptions (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      feed_url TEXT NOT NULL,
+      enabled INTEGER NOT NULL DEFAULT 1,
+      last_seen_item_key TEXT,
+      last_seen_published_at TEXT,
+      last_pulled_at TEXT,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    )
+  `)
+
+  db.run(`
+    CREATE TABLE IF NOT EXISTS butler_rss_watch_items (
+      id TEXT PRIMARY KEY,
+      subscription_id TEXT NOT NULL,
+      item_key TEXT NOT NULL,
+      title TEXT NOT NULL,
+      link TEXT NOT NULL,
+      summary TEXT NOT NULL,
+      published_at TEXT NOT NULL,
+      created_at TEXT NOT NULL
+    )
+  `)
+
   db.run(`CREATE INDEX IF NOT EXISTS idx_threads_updated_at ON threads(updated_at)`)
   db.run(`CREATE INDEX IF NOT EXISTS idx_runs_thread_id ON runs(thread_id)`)
   db.run(`CREATE INDEX IF NOT EXISTS idx_runs_status ON runs(status)`)
@@ -268,6 +295,15 @@ export async function initializeDatabase(): Promise<SqlJsDatabase> {
   )
   db.run(
     `CREATE UNIQUE INDEX IF NOT EXISTS idx_butler_mail_watch_messages_rule_uid ON butler_mail_watch_messages(rule_id, uid)`
+  )
+  db.run(
+    `CREATE INDEX IF NOT EXISTS idx_butler_rss_watch_subscriptions_enabled ON butler_rss_watch_subscriptions(enabled)`
+  )
+  db.run(
+    `CREATE INDEX IF NOT EXISTS idx_butler_rss_watch_items_subscription_created ON butler_rss_watch_items(subscription_id, created_at DESC)`
+  )
+  db.run(
+    `CREATE UNIQUE INDEX IF NOT EXISTS idx_butler_rss_watch_items_subscription_key ON butler_rss_watch_items(subscription_id, item_key)`
   )
 
   if (!tableHasColumn(db, "subagents", "model_provider")) {

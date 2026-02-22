@@ -497,6 +497,9 @@ class ButlerManager {
     if (input.kind === "mail_new") {
       return `收到一封新的邮件，请及时查看：${input.title}。`
     }
+    if (input.kind === "rss_new") {
+      return `收到一条新的 RSS 更新，请及时查看：${input.title}。`
+    }
     return `检测到新的监听事件：${input.title}。`
   }
 
@@ -511,7 +514,9 @@ class ButlerManager {
       `日历事件: ${snapshot.calendarEvents.length}`,
       `倒计时: ${snapshot.countdownTimers.length}`,
       `邮件规则: ${snapshot.mailRules.length}`,
-      `最近邮件: ${snapshot.recentMails.length}`
+      `最近邮件: ${snapshot.recentMails.length}`,
+      `RSS订阅: ${snapshot.rssSubscriptions.length}`,
+      `最近RSS: ${snapshot.recentRssItems.length}`
     ].join("\n")
   }
 

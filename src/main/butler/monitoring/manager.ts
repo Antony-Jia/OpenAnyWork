@@ -1,10 +1,12 @@
 import { v4 as uuid } from "uuid"
 import { ImapFlow } from "imapflow"
 import { simpleParser } from "mailparser"
+import Parser from "rss-parser"
 import { getSettings } from "../../settings"
 import type {
   ButlerMonitorSnapshot,
   ButlerMonitorBusEvent,
+  ButlerMonitorPullResult,
   ButlerPerceptionInput,
   CalendarWatchEvent,
   CalendarWatchEventCreateInput,
@@ -16,6 +18,10 @@ import type {
   MailWatchRule,
   MailWatchRuleCreateInput,
   MailWatchRuleUpdateInput,
+  RssWatchItem,
+  RssWatchSubscription,
+  RssWatchSubscriptionCreateInput,
+  RssWatchSubscriptionUpdateInput,
   TaskCompletionNotice
 } from "../../types"
 import type { ButlerPerceptionGateway } from "../perception"
@@ -23,17 +29,23 @@ import {
   createCalendarWatchEvent,
   createCountdownWatchItem,
   createMailWatchRule,
+  createRssWatchSubscription,
   deleteCalendarWatchEvent,
   deleteCountdownWatchItem,
   deleteMailWatchRule,
+  deleteRssWatchSubscription,
   insertMailWatchMessages,
+  insertRssWatchItems,
   listCalendarWatchEvents,
   listCountdownWatchItems,
   listMailWatchRules,
   listRecentMailWatchMessages,
+  listRecentRssWatchItems,
+  listRssWatchSubscriptions,
   updateCalendarWatchEvent,
   updateCountdownWatchItem,
-  updateMailWatchRule
+  updateMailWatchRule,
+  updateRssWatchSubscription
 } from "./store"
 import { ButlerMonitorBus } from "./bus"
 
@@ -51,8 +63,17 @@ interface MailConnectionSettings {
   pass: string
 }
 
+interface NormalizedRssItem {
+  itemKey: string
+  title: string
+  link: string
+  summary: string
+  publishedAt: string
+}
+
 const CALENDAR_DUE_SOON_MS = 2 * 60 * 60 * 1000
 const MAX_MAIL_FETCH_PER_RULE = 30
+const MAX_RSS_FETCH_PER_SUBSCRIPTION = 30
 
 function nowIso(): string {
   return new Date().toISOString()
@@ -99,12 +120,80 @@ function normalizeMonitorPullIntervalMs(): number {
   return Math.max(1, Math.round(sec)) * 1000
 }
 
+function normalizeRssValue(value: unknown): string | undefined {
+  if (typeof value !== "string") return undefined
+  const normalized = value.trim()
+  return normalized || undefined
+}
+
+function toIsoFromUnknownDate(value: unknown): string | undefined {
+  const dateText = normalizeRssValue(value)
+  if (!dateText) return undefined
+  const parsed = new Date(dateText)
+  if (Number.isNaN(parsed.getTime())) return undefined
+  return parsed.toISOString()
+}
+
+function toRssItemKey(item: Parser.Item): string | undefined {
+  const guid = normalizeRssValue((item as { guid?: unknown }).guid)
+  if (guid) return guid
+
+  const id = normalizeRssValue((item as { id?: unknown }).id)
+  if (id) return id
+
+  const link = normalizeRssValue(item.link)
+  if (link) return link
+
+  const title = normalizeRssValue(item.title)
+  const publishedToken =
+    normalizeRssValue(item.isoDate) ??
+    normalizeRssValue((item as { pubDate?: unknown }).pubDate) ??
+    normalizeRssValue((item as { date?: unknown }).date)
+
+  if (title && publishedToken) {
+    return `${title}::${publishedToken}`
+  }
+  return undefined
+}
+
+function normalizeRssItem(item: Parser.Item): NormalizedRssItem | null {
+  const itemKey = toRssItemKey(item)
+  if (!itemKey) return null
+
+  const publishedAt =
+    toIsoFromUnknownDate(item.isoDate) ??
+    toIsoFromUnknownDate((item as { pubDate?: unknown }).pubDate) ??
+    toIsoFromUnknownDate((item as { date?: unknown }).date) ??
+    nowIso()
+
+  return {
+    itemKey,
+    title: normalizeRssValue(item.title) || "(无标题)",
+    link: normalizeRssValue(item.link) || "",
+    summary:
+      normalizeRssValue(item.contentSnippet) ||
+      normalizeRssValue((item as { summary?: unknown }).summary) ||
+      normalizeRssValue((item as { content?: unknown }).content) ||
+      "",
+    publishedAt
+  }
+}
+
+function sortRssItemsNewestFirst(items: NormalizedRssItem[]): NormalizedRssItem[] {
+  return items.sort((a, b) => {
+    const diff = parseIsoTime(b.publishedAt) - parseIsoTime(a.publishedAt)
+    if (Number.isFinite(diff) && diff !== 0) return diff
+    return a.itemKey.localeCompare(b.itemKey)
+  })
+}
+
 export class ButlerMonitorManager {
   private started = false
   private timeScanTimer: NodeJS.Timeout | null = null
-  private mailPollTimer: NodeJS.Timeout | null = null
+  private pullTimer: NodeJS.Timeout | null = null
   private timeScanRunning = false
-  private mailPollingRunning = false
+  private pullRunning = false
+  private readonly rssParser = new Parser()
 
   constructor(private readonly deps: ButlerMonitorManagerDeps) {}
 
@@ -112,9 +201,9 @@ export class ButlerMonitorManager {
     if (this.started) return
     this.started = true
     this.scheduleTimeScan()
-    this.scheduleMailPolling()
+    this.schedulePulling()
     void this.scanTimeTriggers()
-    void this.pullMailNow("startup")
+    void this.pullNow("startup")
     this.emitSnapshotChanged()
   }
 
@@ -124,16 +213,16 @@ export class ButlerMonitorManager {
       clearInterval(this.timeScanTimer)
       this.timeScanTimer = null
     }
-    if (this.mailPollTimer) {
-      clearInterval(this.mailPollTimer)
-      this.mailPollTimer = null
+    if (this.pullTimer) {
+      clearInterval(this.pullTimer)
+      this.pullTimer = null
     }
   }
 
   refreshIntervals(): void {
     if (!this.started) return
     this.scheduleTimeScan()
-    this.scheduleMailPolling()
+    this.schedulePulling()
   }
 
   getSnapshot(): ButlerMonitorSnapshot {
@@ -141,7 +230,9 @@ export class ButlerMonitorManager {
       calendarEvents: this.listCalendarEvents(),
       countdownTimers: this.listCountdownTimers(),
       mailRules: this.listMailRules(),
-      recentMails: this.listRecentMails(20)
+      recentMails: this.listRecentMails(20),
+      rssSubscriptions: this.listRssSubscriptions(),
+      recentRssItems: this.listRecentRssItems(20)
     }
   }
 
@@ -197,14 +288,14 @@ export class ButlerMonitorManager {
 
   createMailRule(input: MailWatchRuleCreateInput): MailWatchRule {
     const rule = createMailWatchRule(input)
-    void this.pullMailNow("rule_update")
+    void this.pullNow("rule_update")
     this.emitSnapshotChanged()
     return rule
   }
 
   updateMailRule(id: string, updates: MailWatchRuleUpdateInput): MailWatchRule {
     const rule = updateMailWatchRule(id, updates)
-    void this.pullMailNow("rule_update")
+    void this.pullNow("rule_update")
     this.emitSnapshotChanged()
     return rule
   }
@@ -218,63 +309,85 @@ export class ButlerMonitorManager {
     return listRecentMailWatchMessages(limit)
   }
 
+  listRssSubscriptions(): RssWatchSubscription[] {
+    return listRssWatchSubscriptions()
+  }
+
+  createRssSubscription(input: RssWatchSubscriptionCreateInput): RssWatchSubscription {
+    const subscription = createRssWatchSubscription(input)
+    void this.pullNow("rule_update")
+    this.emitSnapshotChanged()
+    return subscription
+  }
+
+  updateRssSubscription(
+    id: string,
+    updates: RssWatchSubscriptionUpdateInput
+  ): RssWatchSubscription {
+    const subscription = updateRssWatchSubscription(id, updates)
+    void this.pullNow("rule_update")
+    this.emitSnapshotChanged()
+    return subscription
+  }
+
+  deleteRssSubscription(id: string): void {
+    deleteRssWatchSubscription(id)
+    this.emitSnapshotChanged()
+  }
+
+  listRecentRssItems(limit = 20): RssWatchItem[] {
+    return listRecentRssWatchItems(limit)
+  }
+
+  async pullNow(
+    source: "manual" | "interval" | "startup" | "rule_update" = "manual"
+  ): Promise<ButlerMonitorPullResult> {
+    const { mailInserted, rssInserted } = await this.pullNowInternal(source)
+    return {
+      mailCount: mailInserted.length,
+      rssCount: rssInserted.length
+    }
+  }
+
   async pullMailNow(
     source: "manual" | "interval" | "startup" | "rule_update" = "manual"
   ): Promise<MailWatchMessage[]> {
+    const { mailInserted } = await this.pullNowInternal(source)
+    return mailInserted
+  }
+
+  private async pullNowInternal(source: "manual" | "interval" | "startup" | "rule_update"): Promise<{
+    mailInserted: MailWatchMessage[]
+    rssInserted: RssWatchItem[]
+  }> {
     this.emitBusEvent({
       type: "pull_requested",
       source,
       at: nowIso()
     })
-    if (this.mailPollingRunning) {
-      return []
+
+    if (this.pullRunning) {
+      return { mailInserted: [], rssInserted: [] }
     }
-    this.mailPollingRunning = true
+    this.pullRunning = true
 
     try {
-      const settings = normalizeMailSettings()
-      if (!settings) {
-        return []
-      }
-      const rules = this.listMailRules().filter((rule) => rule.enabled)
-      if (rules.length === 0) {
-        return []
-      }
+      let mailInserted: MailWatchMessage[] = []
+      let rssInserted: RssWatchItem[] = []
 
-      const client = new ImapFlow({
-        host: settings.host,
-        port: settings.port,
-        secure: settings.secure,
-        auth: {
-          user: settings.user,
-          pass: settings.pass
-        },
-        socketTimeout: 30_000,
-        logger: false
-      })
-
-      const fetchedMessages: MailWatchMessage[] = []
       try {
-        await client.connect()
-        for (const rule of rules) {
-          const messages = await this.pullRuleMessages(client, rule)
-          fetchedMessages.push(...messages)
-        }
-      } finally {
-        try {
-          await client.logout()
-        } catch {
-          // noop
-        }
+        mailInserted = await this.pullMailInternal()
+      } catch (error) {
+        console.warn("[ButlerMonitor] pull mail failed:", error)
       }
 
-      if (fetchedMessages.length === 0) {
-        this.emitSnapshotChanged()
-        return []
+      try {
+        rssInserted = await this.pullRssInternal()
+      } catch (error) {
+        console.warn("[ButlerMonitor] pull rss failed:", error)
       }
 
-      const inserted = insertMailWatchMessages(fetchedMessages)
-      for (const message of inserted) {
+      for (const message of mailInserted) {
         await this.dispatchPerception({
           kind: "mail_new",
           title: `新邮件提醒：${message.subject || "(无主题)"}`,
@@ -289,13 +402,37 @@ export class ButlerMonitorManager {
         })
       }
 
+      const subscriptionMap = new Map(
+        this.listRssSubscriptions().map((subscription) => [subscription.id, subscription])
+      )
+      for (const item of rssInserted) {
+        const subscription = subscriptionMap.get(item.subscriptionId)
+        await this.dispatchPerception({
+          kind: "rss_new",
+          title: `RSS更新：${item.title || "(无标题)"}`,
+          detail: [
+            `订阅: ${subscription?.name || "未知订阅"}`,
+            `发布时间: ${new Date(item.publishedAt).toLocaleString()}`,
+            item.link ? `链接: ${item.link}` : "",
+            `摘要: ${compact(item.summary, 280) || "无摘要"}`
+          ]
+            .filter(Boolean)
+            .join("\n"),
+          payload: {
+            rssItem: item,
+            rssSubscription: subscription
+          }
+        })
+      }
+
       this.emitSnapshotChanged()
-      return inserted
+      return { mailInserted, rssInserted }
     } catch (error) {
-      console.warn("[ButlerMonitor] pullMailNow failed:", error)
-      return []
+      console.warn("[ButlerMonitor] pullNow failed:", error)
+      this.emitSnapshotChanged()
+      return { mailInserted: [], rssInserted: [] }
     } finally {
-      this.mailPollingRunning = false
+      this.pullRunning = false
     }
   }
 
@@ -309,13 +446,13 @@ export class ButlerMonitorManager {
     }, intervalMs)
   }
 
-  private scheduleMailPolling(): void {
-    if (this.mailPollTimer) {
-      clearInterval(this.mailPollTimer)
+  private schedulePulling(): void {
+    if (this.pullTimer) {
+      clearInterval(this.pullTimer)
     }
     const intervalMs = normalizeMonitorPullIntervalMs()
-    this.mailPollTimer = setInterval(() => {
-      void this.pullMailNow("interval")
+    this.pullTimer = setInterval(() => {
+      void this.pullNow("interval")
     }, intervalMs)
   }
 
@@ -399,6 +536,142 @@ export class ButlerMonitorManager {
         }
       })
     }
+  }
+
+  private async pullMailInternal(): Promise<MailWatchMessage[]> {
+    const settings = normalizeMailSettings()
+    if (!settings) {
+      return []
+    }
+    const rules = this.listMailRules().filter((rule) => rule.enabled)
+    if (rules.length === 0) {
+      return []
+    }
+
+    const client = new ImapFlow({
+      host: settings.host,
+      port: settings.port,
+      secure: settings.secure,
+      auth: {
+        user: settings.user,
+        pass: settings.pass
+      },
+      socketTimeout: 30_000,
+      logger: false
+    })
+
+    const fetchedMessages: MailWatchMessage[] = []
+    try {
+      await client.connect()
+      for (const rule of rules) {
+        const messages = await this.pullRuleMessages(client, rule)
+        fetchedMessages.push(...messages)
+      }
+    } finally {
+      try {
+        await client.logout()
+      } catch {
+        // noop
+      }
+    }
+
+    if (fetchedMessages.length === 0) {
+      return []
+    }
+
+    return insertMailWatchMessages(fetchedMessages)
+  }
+
+  private async pullRssInternal(): Promise<RssWatchItem[]> {
+    const subscriptions = this.listRssSubscriptions().filter((subscription) => subscription.enabled)
+    if (subscriptions.length === 0) {
+      return []
+    }
+
+    const fetchedItems: RssWatchItem[] = []
+    for (const subscription of subscriptions) {
+      try {
+        const items = await this.pullSubscriptionItems(subscription)
+        fetchedItems.push(...items)
+      } catch (error) {
+        console.warn(
+          `[ButlerMonitor] Failed to pull RSS subscription "${subscription.name}" (${subscription.feedUrl}):`,
+          error
+        )
+      }
+    }
+    return fetchedItems
+  }
+
+  private async pullSubscriptionItems(subscription: RssWatchSubscription): Promise<RssWatchItem[]> {
+    const feed = await this.rssParser.parseURL(subscription.feedUrl)
+    const rawItems = Array.isArray(feed.items) ? feed.items : []
+    const normalizedMap = new Map<string, NormalizedRssItem>()
+
+    for (const rawItem of rawItems) {
+      const normalized = normalizeRssItem(rawItem)
+      if (!normalized) continue
+
+      const existing = normalizedMap.get(normalized.itemKey)
+      if (!existing) {
+        normalizedMap.set(normalized.itemKey, normalized)
+        continue
+      }
+
+      if (parseIsoTime(normalized.publishedAt) > parseIsoTime(existing.publishedAt)) {
+        normalizedMap.set(normalized.itemKey, normalized)
+      }
+    }
+
+    const ordered = sortRssItemsNewestFirst([...normalizedMap.values()])
+    const pulledAt = nowIso()
+    if (ordered.length === 0) {
+      updateRssWatchSubscription(subscription.id, { lastPulledAt: pulledAt })
+      return []
+    }
+
+    const latest = ordered[0]
+    if (!subscription.lastSeenItemKey) {
+      updateRssWatchSubscription(subscription.id, {
+        lastSeenItemKey: latest.itemKey,
+        lastSeenPublishedAt: latest.publishedAt,
+        lastPulledAt: pulledAt
+      })
+      return []
+    }
+
+    let newCandidates: NormalizedRssItem[] = []
+    const cursorIndex = ordered.findIndex((item) => item.itemKey === subscription.lastSeenItemKey)
+    if (cursorIndex >= 0) {
+      newCandidates = ordered.slice(0, cursorIndex)
+    } else if (subscription.lastSeenPublishedAt) {
+      const cursorTime = parseIsoTime(subscription.lastSeenPublishedAt)
+      if (Number.isFinite(cursorTime)) {
+        newCandidates = ordered.filter((item) => parseIsoTime(item.publishedAt) > cursorTime)
+      }
+    }
+
+    const limitedCandidates = newCandidates.slice(0, MAX_RSS_FETCH_PER_SUBSCRIPTION)
+    const inserted = insertRssWatchItems(
+      limitedCandidates.map((item) => ({
+        id: uuid(),
+        subscriptionId: subscription.id,
+        itemKey: item.itemKey,
+        title: item.title,
+        link: item.link,
+        summary: compact(item.summary, 4_000),
+        publishedAt: item.publishedAt,
+        createdAt: pulledAt
+      }))
+    )
+
+    updateRssWatchSubscription(subscription.id, {
+      lastSeenItemKey: latest.itemKey,
+      lastSeenPublishedAt: latest.publishedAt,
+      lastPulledAt: pulledAt
+    })
+
+    return inserted
   }
 
   private async pullRuleMessages(

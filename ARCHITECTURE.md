@@ -255,7 +255,8 @@ Butler 桥接：
 
 - `butler/monitoring/manager.ts`
   - 定时扫描时间事件（calendar/countdown）。
-  - 定时拉取邮件（interval/manual/startup/rule_update）。
+  - 定时统一拉取（mail/rss，interval/manual/startup/rule_update）。
+  - RSS 订阅按 GUID/Link 游标增量拉取，首拉只建游标不回补。
   - 生成 perception notice 后立即上报总线。
   - 变更后立即发 `snapshot_changed`。
 
@@ -328,6 +329,8 @@ Butler 桥接：
   - `butler-monitor:calendar:*`
   - `butler-monitor:countdown:*`
   - `butler-monitor:mail:*`
+  - `butler-monitor:rss:*`
+  - `butler-monitor:pullNow`
 - 被动推送事件通道：
   - main -> renderer: `butler-monitor:event`
 
@@ -341,7 +344,7 @@ Butler 桥接：
 | 生命周期到 Butler 桥接 | Main internal | `TaskLifecycleButlerBus` | `TaskLifecycleNotice`：`phase`、`title`、`mode`、`source`、`resultBrief/resultDetail` |
 | 完成通知卡片 | Main -> Renderer | `app:task-card` | `TaskCompletionNotice`：`title`、`resultBrief`、`threadId`、`mode`、`noticeType/eventKind` |
 | Butler 监控被动推送 | Main -> Renderer | `butler-monitor:event` | `ButlerMonitorBusEvent`：`snapshot_changed`（全量快照）、`pull_requested`（拉取来源）、`perception_notice`（提醒卡片） |
-| Butler 监控主动拉取 | Renderer -> Main | `butler-monitor:getSnapshot` / `calendar:*` / `countdown:*` / `mail:*` | 看板同步数据（事件、计时器、邮件规则、最近邮件） |
+| Butler 监控主动拉取 | Renderer -> Main | `butler-monitor:getSnapshot` / `calendar:*` / `countdown:*` / `mail:*` / `rss:*` / `pullNow` | 看板同步数据（事件、计时器、邮件规则、最近邮件、RSS订阅、最近RSS） |
 | 配置更新触发重载 | Renderer -> Main | `settings:update` | `updates.butler.monitorScanIntervalSec`、`updates.butler.monitorPullIntervalSec`，并触发监控定时器重载 |
 | 双开关能力配置 | Renderer -> Main | `tools:setEnabledScope` / `skills:setEnabledScope` / `mcp:update` / `subagents:update` | `scope`（`classic/butler`）与对应启用状态；旧接口兼容同步双侧 |
 

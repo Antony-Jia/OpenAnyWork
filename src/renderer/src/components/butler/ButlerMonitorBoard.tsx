@@ -2,14 +2,17 @@ import { useCallback, useEffect, useMemo, useState } from "react"
 import { Button } from "@/components/ui/button"
 import type {
   ButlerMonitorBusEvent,
+  ButlerMonitorPullResult,
   ButlerMonitorSnapshot,
   CalendarWatchEvent,
   CountdownWatchItem,
   MailWatchMessage,
-  MailWatchRule
+  MailWatchRule,
+  RssWatchItem,
+  RssWatchSubscription
 } from "@/types"
 
-type MonitorTab = "calendar" | "countdown" | "mail"
+type MonitorTab = "calendar" | "countdown" | "mail" | "rss"
 const FALLBACK_PULL_INTERVAL_MS = 45_000
 
 function toInputDateTime(iso?: string): string {
@@ -35,6 +38,8 @@ export function ButlerMonitorBoard(): React.JSX.Element {
   const [countdownTimers, setCountdownTimers] = useState<CountdownWatchItem[]>([])
   const [mailRules, setMailRules] = useState<MailWatchRule[]>([])
   const [recentMails, setRecentMails] = useState<MailWatchMessage[]>([])
+  const [rssSubscriptions, setRssSubscriptions] = useState<RssWatchSubscription[]>([])
+  const [recentRssItems, setRecentRssItems] = useState<RssWatchItem[]>([])
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [pulling, setPulling] = useState(false)
@@ -47,18 +52,23 @@ export function ButlerMonitorBoard(): React.JSX.Element {
     }
     setError(null)
     try {
-      const [nextSnapshot, events, countdowns, rules, mails] = await Promise.all([
+      const [nextSnapshot, events, countdowns, rules, mails, subscriptions, rssItems] =
+        await Promise.all([
         window.api.butlerMonitor.getSnapshot(),
         window.api.butlerMonitor.listCalendarEvents(),
         window.api.butlerMonitor.listCountdownTimers(),
         window.api.butlerMonitor.listMailRules(),
-        window.api.butlerMonitor.listRecentMails(20)
+        window.api.butlerMonitor.listRecentMails(20),
+        window.api.butlerMonitor.listRssSubscriptions(),
+        window.api.butlerMonitor.listRecentRssItems(20)
       ])
       setSnapshot(nextSnapshot)
       setCalendarEvents(events)
       setCountdownTimers(countdowns)
       setMailRules(rules)
       setRecentMails(mails)
+      setRssSubscriptions(subscriptions)
+      setRecentRssItems(rssItems)
     } catch (loadError) {
       console.error("[ButlerMonitorBoard] load failed:", loadError)
       setError(loadError instanceof Error ? loadError.message : "加载监听任务失败。")
@@ -85,6 +95,8 @@ export function ButlerMonitorBoard(): React.JSX.Element {
         setCountdownTimers(event.snapshot.countdownTimers)
         setMailRules(event.snapshot.mailRules)
         setRecentMails(event.snapshot.recentMails)
+        setRssSubscriptions(event.snapshot.rssSubscriptions)
+        setRecentRssItems(event.snapshot.recentRssItems)
         setLoading(false)
         return
       }
@@ -111,7 +123,7 @@ export function ButlerMonitorBoard(): React.JSX.Element {
 
   const stats = useMemo(() => {
     if (!snapshot) return "loading..."
-    return `日历 ${snapshot.calendarEvents.length} / 倒计时 ${snapshot.countdownTimers.length} / 规则 ${snapshot.mailRules.length}`
+    return `日历 ${snapshot.calendarEvents.length} / 倒计时 ${snapshot.countdownTimers.length} / 规则 ${snapshot.mailRules.length} / RSS订阅 ${snapshot.rssSubscriptions.length}`
   }, [snapshot])
 
   const handleCreateCalendar = async (): Promise<void> => {
@@ -259,25 +271,66 @@ export function ButlerMonitorBoard(): React.JSX.Element {
     }
   }
 
-  const handlePullMailNow = async (): Promise<void> => {
+  const handleCreateRssSubscription = async (): Promise<void> => {
+    const name = window.prompt("RSS订阅名称")
+    if (name === null || !name.trim()) return
+    const feedUrl = window.prompt("RSS地址 (http/https)")
+    if (feedUrl === null || !feedUrl.trim()) return
+
+    try {
+      await window.api.butlerMonitor.createRssSubscription({
+        name: name.trim(),
+        feedUrl: feedUrl.trim(),
+        enabled: true
+      })
+      await load()
+    } catch (createError) {
+      console.error("[ButlerMonitorBoard] create rss subscription failed:", createError)
+      setError(createError instanceof Error ? createError.message : "创建 RSS 订阅失败。")
+    }
+  }
+
+  const handleEditRssSubscription = async (subscription: RssWatchSubscription): Promise<void> => {
+    const name = window.prompt("订阅名称", subscription.name)
+    if (name === null) return
+    const feedUrl = window.prompt("RSS地址", subscription.feedUrl)
+    if (feedUrl === null) return
+
+    try {
+      await window.api.butlerMonitor.updateRssSubscription(subscription.id, {
+        name: name.trim(),
+        feedUrl: feedUrl.trim()
+      })
+      await load()
+    } catch (updateError) {
+      console.error("[ButlerMonitorBoard] edit rss subscription failed:", updateError)
+      setError(updateError instanceof Error ? updateError.message : "更新 RSS 订阅失败。")
+    }
+  }
+
+  const handlePullNow = async (): Promise<void> => {
     if (pulling) return
     setPulling(true)
     setPullResult("")
     setError(null)
     try {
-      const inserted = await window.api.butlerMonitor.pullMailNow()
-      setPullResult(`本次拉取到 ${inserted.length} 封新邮件。`)
-      const [rules, mails, nextSnapshot] = await Promise.all([
+      const result: ButlerMonitorPullResult = await window.api.butlerMonitor.pullNow()
+      setPullResult(`本次拉取：邮件 ${result.mailCount} 封，RSS ${result.rssCount} 条。`)
+      const [rules, mails, subscriptions, rssItems, nextSnapshot] = await Promise.all([
         window.api.butlerMonitor.listMailRules(),
         window.api.butlerMonitor.listRecentMails(20),
+        window.api.butlerMonitor.listRssSubscriptions(),
+        window.api.butlerMonitor.listRecentRssItems(20),
         window.api.butlerMonitor.getSnapshot()
       ])
       setMailRules(rules)
       setRecentMails(mails)
+      setRssSubscriptions(subscriptions)
+      setRecentRssItems(rssItems)
       setSnapshot(nextSnapshot)
     } catch (pullError) {
-      console.error("[ButlerMonitorBoard] pull mail failed:", pullError)
-      setError(pullError instanceof Error ? pullError.message : "邮件拉取失败。")
+      console.error("[ButlerMonitorBoard] pull now failed:", pullError)
+      setError(pullError instanceof Error ? pullError.message : "拉取失败。")
     } finally {
       setPulling(false)
     }
@@ -306,7 +359,8 @@ export function ButlerMonitorBoard(): React.JSX.Element {
           [
             { id: "calendar", label: "日历状态" },
             { id: "countdown", label: "计时提醒" },
-            { id: "mail", label: "邮件拉取" }
+            { id: "mail", label: "邮件规则" },
+            { id: "rss", label: "RSS订阅" }
           ] as Array<{ id: MonitorTab; label: string }>
         ).map((tab) => (
           <button
@@ -486,9 +540,9 @@ export function ButlerMonitorBoard(): React.JSX.Element {
                 size="sm"
                 className="h-7 px-3 text-xs rounded-lg"
                 disabled={pulling}
-                onClick={() => void handlePullMailNow()}
+                onClick={() => void handlePullNow()}
               >
-                {pulling ? "拉取中..." : "立即拉取"}
+                {pulling ? "拉取中..." : "立即拉取全部"}
               </Button>
             </div>
             <div>{pullResult && <div className="text-[11px] text-blue-300">{pullResult}</div>}</div>
@@ -579,6 +633,135 @@ export function ButlerMonitorBoard(): React.JSX.Element {
                   </summary>
                   <div className="mt-2 text-xs whitespace-pre-wrap text-muted-foreground">
                     {mail.text || "(空正文)"}
+                  </div>
+                </details>
+              ))}
+            </div>
+          </>
+        )}
+
+        {activeTab === "rss" && (
+          <>
+            <div className="flex items-center justify-end gap-3">
+              <Button
+                className="h-7 px-3 text-xs rounded-lg"
+                onClick={() => void handleCreateRssSubscription()}
+              >
+                创建RSS订阅
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-7 px-3 text-xs rounded-lg"
+                disabled={pulling}
+                onClick={() => void handlePullNow()}
+              >
+                {pulling ? "拉取中..." : "立即拉取全部"}
+              </Button>
+            </div>
+            <div>{pullResult && <div className="text-[11px] text-blue-300">{pullResult}</div>}</div>
+
+            <div className="space-y-3">
+              {rssSubscriptions.length === 0 && (
+                <div className="text-sm text-muted-foreground rounded-2xl border border-border/40 p-6 text-center glass-panel">
+                  暂无 RSS 订阅
+                </div>
+              )}
+              {rssSubscriptions.map((subscription) => (
+                <div
+                  key={subscription.id}
+                  className="rounded-xl border border-border/40 bg-card/50 backdrop-blur-sm p-4 space-y-2.5 card-hover"
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="text-sm font-medium truncate" title={subscription.name}>
+                      {subscription.name}
+                    </div>
+                    <label className="text-xs text-muted-foreground flex items-center gap-1 shrink-0">
+                      <input
+                        type="checkbox"
+                        checked={subscription.enabled}
+                        onChange={(event) => {
+                          void window.api.butlerMonitor
+                            .updateRssSubscription(subscription.id, {
+                              enabled: event.target.checked
+                            })
+                            .then(() => load())
+                        }}
+                      />
+                      启用
+                    </label>
+                  </div>
+                  <div className="text-[11px] text-muted-foreground break-all">
+                    地址: {subscription.feedUrl}
+                  </div>
+                  {subscription.lastSeenItemKey && (
+                    <div className="text-[11px] text-muted-foreground break-all">
+                      lastSeenItemKey: {subscription.lastSeenItemKey}
+                    </div>
+                  )}
+                  {subscription.lastPulledAt && (
+                    <div className="text-[11px] text-muted-foreground">
+                      最近拉取: {new Date(subscription.lastPulledAt).toLocaleString()}
+                    </div>
+                  )}
+                  <div className="flex items-center justify-end gap-2">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 px-3 text-xs rounded-lg"
+                      onClick={() => void handleEditRssSubscription(subscription)}
+                    >
+                      编辑
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 px-3 text-xs rounded-lg text-red-300 hover:text-red-200"
+                      onClick={() => {
+                        void window.api.butlerMonitor
+                          .deleteRssSubscription(subscription.id)
+                          .then(() => load())
+                      }}
+                    >
+                      删除
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div className="space-y-3">
+              <div className="text-xs text-accent/60 uppercase tracking-[0.15em] font-bold">
+                最近RSS
+              </div>
+              {recentRssItems.length === 0 && (
+                <div className="text-sm text-muted-foreground rounded-2xl border border-border/40 p-6 text-center glass-panel">
+                  暂无 RSS 记录
+                </div>
+              )}
+              {recentRssItems.map((item) => (
+                <details
+                  key={item.id}
+                  className="rounded-xl border border-border/40 bg-card/50 backdrop-blur-sm p-3.5"
+                >
+                  <summary className="cursor-pointer">
+                    <div className="text-xs font-medium truncate">{item.title || "(无标题)"}</div>
+                    <div className="text-[11px] text-muted-foreground truncate">
+                      {new Date(item.publishedAt).toLocaleString()}
+                    </div>
+                  </summary>
+                  {item.link && (
+                    <a
+                      className="mt-2 block text-xs text-blue-300 break-all hover:text-blue-200"
+                      href={item.link}
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      {item.link}
+                    </a>
+                  )}
+                  <div className="mt-2 text-xs whitespace-pre-wrap text-muted-foreground">
+                    {item.summary || "(无摘要)"}
                   </div>
                 </details>
               ))}

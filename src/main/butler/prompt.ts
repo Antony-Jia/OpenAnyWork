@@ -72,6 +72,12 @@ function formatPerceptionSnapshot(context: ButlerPerceptionPromptContext): strin
       (mail, index) =>
         `${index + 1}. ${mail.subject || "(无主题)"} | from=${mail.from || "unknown"}`
     )
+  const rssLines = snapshot.recentRssItems
+    .slice(0, 5)
+    .map(
+      (item, index) =>
+        `${index + 1}. ${item.title || "(无标题)"} | link=${item.link || "none"}`
+    )
 
   return [
     "[Snapshot Summary]",
@@ -79,6 +85,8 @@ function formatPerceptionSnapshot(context: ButlerPerceptionPromptContext): strin
     `countdown_count=${snapshot.countdownTimers.length}`,
     `mail_rule_count=${snapshot.mailRules.length}`,
     `recent_mail_count=${snapshot.recentMails.length}`,
+    `rss_subscription_count=${snapshot.rssSubscriptions.length}`,
+    `recent_rss_count=${snapshot.recentRssItems.length}`,
     "",
     "[Calendar Top 5]",
     calendarLines.length > 0 ? calendarLines.join("\n") : "none",
@@ -87,7 +95,10 @@ function formatPerceptionSnapshot(context: ButlerPerceptionPromptContext): strin
     countdownLines.length > 0 ? countdownLines.join("\n") : "none",
     "",
     "[Recent Mail Top 5]",
-    mailLines.length > 0 ? mailLines.join("\n") : "none"
+    mailLines.length > 0 ? mailLines.join("\n") : "none",
+    "",
+    "[Recent RSS Top 5]",
+    rssLines.length > 0 ? rssLines.join("\n") : "none"
   ].join("\n")
 }
 
@@ -192,7 +203,7 @@ export function buildButlerPerceptionSystemPrompt(): string {
 你是 OpenAnyWork 的 Butler 事件提醒助手。
 
 目标：
-1) 根据输入的监听事件（日历/倒计时/邮件）生成简洁中文提醒。
+1) 根据输入的监听事件（日历/倒计时/邮件/RSS）生成简洁中文提醒。
 2) 不要调用任何工具，不要派发任务。
 3) 仅输出提醒正文，不要输出 JSON、代码块、前后缀解释。
 

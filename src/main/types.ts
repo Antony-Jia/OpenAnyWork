@@ -505,7 +505,7 @@ export interface ButlerState {
   pendingDispatchChoice?: ButlerPendingDispatchChoice
 }
 
-export type ButlerPerceptionKind = "calendar_due_soon" | "countdown_due" | "mail_new"
+export type ButlerPerceptionKind = "calendar_due_soon" | "countdown_due" | "mail_new" | "rss_new"
 
 export interface CalendarWatchEvent {
   id: string
@@ -608,11 +608,56 @@ export interface MailWatchMessage {
   createdAt: string
 }
 
+export interface RssWatchSubscription {
+  id: string
+  name: string
+  feedUrl: string
+  enabled: boolean
+  lastSeenItemKey?: string
+  lastSeenPublishedAt?: string
+  lastPulledAt?: string
+  createdAt: string
+  updatedAt: string
+}
+
+export interface RssWatchSubscriptionCreateInput {
+  name: string
+  feedUrl: string
+  enabled?: boolean
+}
+
+export interface RssWatchSubscriptionUpdateInput {
+  name?: string
+  feedUrl?: string
+  enabled?: boolean
+  lastSeenItemKey?: string | null
+  lastSeenPublishedAt?: string | null
+  lastPulledAt?: string | null
+}
+
+export interface RssWatchItem {
+  id: string
+  subscriptionId: string
+  itemKey: string
+  title: string
+  link: string
+  summary: string
+  publishedAt: string
+  createdAt: string
+}
+
 export interface ButlerMonitorSnapshot {
   calendarEvents: CalendarWatchEvent[]
   countdownTimers: CountdownWatchItem[]
   mailRules: MailWatchRule[]
   recentMails: MailWatchMessage[]
+  rssSubscriptions: RssWatchSubscription[]
+  recentRssItems: RssWatchItem[]
+}
+
+export interface ButlerMonitorPullResult {
+  mailCount: number
+  rssCount: number
 }
 
 export interface ButlerPerceptionInput {

@@ -11,7 +11,11 @@ import type {
   MailWatchMessage,
   MailWatchRule,
   MailWatchRuleCreateInput,
-  MailWatchRuleUpdateInput
+  MailWatchRuleUpdateInput,
+  RssWatchItem,
+  RssWatchSubscription,
+  RssWatchSubscriptionCreateInput,
+  RssWatchSubscriptionUpdateInput
 } from "../../types"
 
 function nowIso(): string {
@@ -41,6 +45,22 @@ function normalizeRequiredText(input: string, fieldName: string): string {
     throw new Error(`${fieldName} is required.`)
   }
   return value
+}
+
+function normalizeFeedUrl(input: string): string {
+  const value = input.trim()
+  if (!value) {
+    throw new Error("feedUrl is required.")
+  }
+  try {
+    const parsed = new URL(value)
+    if (!["http:", "https:"].includes(parsed.protocol)) {
+      throw new Error("RSS feed URL must be http or https.")
+    }
+    return parsed.toString()
+  } catch {
+    throw new Error("Invalid feedUrl.")
+  }
 }
 
 function mapCalendarEventRow(row: Record<string, unknown>): CalendarWatchEvent {
@@ -115,6 +135,39 @@ function mapMailMessageRow(row: Record<string, unknown>): MailWatchMessage {
   }
 }
 
+function mapRssSubscriptionRow(row: Record<string, unknown>): RssWatchSubscription {
+  return {
+    id: String(row.id ?? ""),
+    name: String(row.name ?? ""),
+    feedUrl: String(row.feed_url ?? ""),
+    enabled: Boolean(row.enabled),
+    lastSeenItemKey: normalizeOptionalText(
+      (row.last_seen_item_key as string | null | undefined) ?? undefined
+    ),
+    lastSeenPublishedAt: normalizeOptionalText(
+      (row.last_seen_published_at as string | null | undefined) ?? undefined
+    ),
+    lastPulledAt: normalizeOptionalText(
+      (row.last_pulled_at as string | null | undefined) ?? undefined
+    ),
+    createdAt: String(row.created_at ?? ""),
+    updatedAt: String(row.updated_at ?? "")
+  }
+}
+
+function mapRssItemRow(row: Record<string, unknown>): RssWatchItem {
+  return {
+    id: String(row.id ?? ""),
+    subscriptionId: String(row.subscription_id ?? ""),
+    itemKey: String(row.item_key ?? ""),
+    title: String(row.title ?? ""),
+    link: String(row.link ?? ""),
+    summary: String(row.summary ?? ""),
+    publishedAt: String(row.published_at ?? ""),
+    createdAt: String(row.created_at ?? "")
+  }
+}
+
 function findCalendarEventById(id: string): CalendarWatchEvent | null {
   const database = getDb()
   const stmt = database.prepare(
@@ -161,6 +214,22 @@ function findMailRuleById(id: string): MailWatchRule | null {
   const row = stmt.getAsObject() as Record<string, unknown>
   stmt.free()
   return mapMailRuleRow(row)
+}
+
+function findRssSubscriptionById(id: string): RssWatchSubscription | null {
+  const database = getDb()
+  const stmt = database.prepare(
+    `SELECT id, name, feed_url, enabled, last_seen_item_key, last_seen_published_at, last_pulled_at, created_at, updated_at
+     FROM butler_rss_watch_subscriptions WHERE id = ? LIMIT 1`
+  )
+  stmt.bind([id])
+  if (!stmt.step()) {
+    stmt.free()
+    return null
+  }
+  const row = stmt.getAsObject() as Record<string, unknown>
+  stmt.free()
+  return mapRssSubscriptionRow(row)
 }
 
 export function listCalendarWatchEvents(): CalendarWatchEvent[] {
@@ -501,6 +570,125 @@ export function deleteMailWatchRule(id: string): void {
   markDbDirty()
 }
 
+export function listRssWatchSubscriptions(): RssWatchSubscription[] {
+  const database = getDb()
+  const stmt = database.prepare(
+    `SELECT id, name, feed_url, enabled, last_seen_item_key, last_seen_published_at, last_pulled_at, created_at, updated_at
+     FROM butler_rss_watch_subscriptions
+     ORDER BY created_at DESC`
+  )
+  const rows: RssWatchSubscription[] = []
+  while (stmt.step()) {
+    rows.push(mapRssSubscriptionRow(stmt.getAsObject() as Record<string, unknown>))
+  }
+  stmt.free()
+  return rows
+}
+
+export function createRssWatchSubscription(
+  input: RssWatchSubscriptionCreateInput
+): RssWatchSubscription {
+  const database = getDb()
+  const now = nowIso()
+  const id = uuid()
+  const subscription: RssWatchSubscription = {
+    id,
+    name: normalizeRequiredText(input.name, "name"),
+    feedUrl: normalizeFeedUrl(input.feedUrl),
+    enabled: input.enabled ?? true,
+    createdAt: now,
+    updatedAt: now
+  }
+
+  database.run(
+    `INSERT INTO butler_rss_watch_subscriptions (
+      id, name, feed_url, enabled, last_seen_item_key, last_seen_published_at, last_pulled_at, created_at, updated_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [
+      subscription.id,
+      subscription.name,
+      subscription.feedUrl,
+      subscription.enabled ? 1 : 0,
+      null,
+      null,
+      null,
+      subscription.createdAt,
+      subscription.updatedAt
+    ]
+  )
+  markDbDirty()
+  return subscription
+}
+
+export function updateRssWatchSubscription(
+  id: string,
+  updates: RssWatchSubscriptionUpdateInput
+): RssWatchSubscription {
+  const existing = findRssSubscriptionById(id)
+  if (!existing) {
+    throw new Error("RSS subscription not found.")
+  }
+
+  const nextFeedUrl =
+    updates.feedUrl === undefined ? existing.feedUrl : normalizeFeedUrl(updates.feedUrl)
+  const feedUrlChanged = nextFeedUrl !== existing.feedUrl
+
+  const next: RssWatchSubscription = {
+    ...existing,
+    name: updates.name === undefined ? existing.name : normalizeRequiredText(updates.name, "name"),
+    feedUrl: nextFeedUrl,
+    enabled: updates.enabled ?? existing.enabled,
+    lastSeenItemKey: feedUrlChanged
+      ? undefined
+      : updates.lastSeenItemKey === undefined
+        ? existing.lastSeenItemKey
+        : updates.lastSeenItemKey === null
+          ? undefined
+          : normalizeOptionalText(updates.lastSeenItemKey),
+    lastSeenPublishedAt: feedUrlChanged
+      ? undefined
+      : updates.lastSeenPublishedAt === undefined
+        ? existing.lastSeenPublishedAt
+        : updates.lastSeenPublishedAt === null
+          ? undefined
+          : normalizeIsoTime(updates.lastSeenPublishedAt, "lastSeenPublishedAt"),
+    lastPulledAt: feedUrlChanged
+      ? undefined
+      : updates.lastPulledAt === undefined
+        ? existing.lastPulledAt
+        : updates.lastPulledAt === null
+          ? undefined
+          : normalizeIsoTime(updates.lastPulledAt, "lastPulledAt"),
+    updatedAt: nowIso()
+  }
+
+  const database = getDb()
+  database.run(
+    `UPDATE butler_rss_watch_subscriptions
+     SET name = ?, feed_url = ?, enabled = ?, last_seen_item_key = ?, last_seen_published_at = ?, last_pulled_at = ?, updated_at = ?
+     WHERE id = ?`,
+    [
+      next.name,
+      next.feedUrl,
+      next.enabled ? 1 : 0,
+      next.lastSeenItemKey ?? null,
+      next.lastSeenPublishedAt ?? null,
+      next.lastPulledAt ?? null,
+      next.updatedAt,
+      id
+    ]
+  )
+  markDbDirty()
+  return next
+}
+
+export function deleteRssWatchSubscription(id: string): void {
+  const database = getDb()
+  database.run("DELETE FROM butler_rss_watch_subscriptions WHERE id = ?", [id])
+  database.run("DELETE FROM butler_rss_watch_items WHERE subscription_id = ?", [id])
+  markDbDirty()
+}
+
 export function listRecentMailWatchMessages(limit = 20): MailWatchMessage[] {
   const normalizedLimit = Math.max(1, Math.min(200, Math.floor(limit)))
   const database = getDb()
@@ -552,6 +740,66 @@ export function insertMailWatchMessages(messages: MailWatchMessage[]): MailWatch
       ]
     )
     inserted.push(message)
+  }
+  checkStmt.free()
+
+  if (inserted.length > 0) {
+    markDbDirty()
+  }
+  return inserted
+}
+
+export function listRecentRssWatchItems(limit = 20): RssWatchItem[] {
+  const normalizedLimit = Math.max(1, Math.min(200, Math.floor(limit)))
+  const database = getDb()
+  const stmt = database.prepare(
+    `SELECT id, subscription_id, item_key, title, link, summary, published_at, created_at
+     FROM butler_rss_watch_items
+     ORDER BY created_at DESC
+     LIMIT ?`
+  )
+  stmt.bind([normalizedLimit])
+  const rows: RssWatchItem[] = []
+  while (stmt.step()) {
+    rows.push(mapRssItemRow(stmt.getAsObject() as Record<string, unknown>))
+  }
+  stmt.free()
+  return rows
+}
+
+export function insertRssWatchItems(items: RssWatchItem[]): RssWatchItem[] {
+  if (items.length === 0) return []
+
+  const database = getDb()
+  const inserted: RssWatchItem[] = []
+  const checkStmt = database.prepare(
+    "SELECT 1 FROM butler_rss_watch_items WHERE subscription_id = ? AND item_key = ? LIMIT 1"
+  )
+
+  for (const item of items) {
+    checkStmt.bind([item.subscriptionId, item.itemKey])
+    const exists = checkStmt.step()
+    checkStmt.reset()
+    if (exists) {
+      continue
+    }
+
+    database.run(
+      `INSERT INTO butler_rss_watch_items (
+        id, subscription_id, item_key, title, link, summary, published_at, created_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        item.id,
+        item.subscriptionId,
+        item.itemKey,
+        item.title,
+        item.link,
+        item.summary,
+        item.publishedAt,
+        item.createdAt
+      ]
+    )
+    inserted.push(item)
   }
   checkStmt.free()
 

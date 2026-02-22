@@ -44,6 +44,24 @@ export function ButlerMonitorBoard(): React.JSX.Element {
   const [loading, setLoading] = useState(true)
   const [pulling, setPulling] = useState(false)
   const [pullResult, setPullResult] = useState("")
+  const [calendarDraftOpen, setCalendarDraftOpen] = useState(false)
+  const [calendarDraftTitle, setCalendarDraftTitle] = useState("")
+  const [calendarDraftStartAt, setCalendarDraftStartAt] = useState("")
+  const [calendarDraftEndAt, setCalendarDraftEndAt] = useState("")
+  const [calendarDraftDescription, setCalendarDraftDescription] = useState("")
+  const [calendarDraftLocation, setCalendarDraftLocation] = useState("")
+  const [countdownDraftOpen, setCountdownDraftOpen] = useState(false)
+  const [countdownDraftTitle, setCountdownDraftTitle] = useState("")
+  const [countdownDraftDueAt, setCountdownDraftDueAt] = useState("")
+  const [countdownDraftDescription, setCountdownDraftDescription] = useState("")
+  const [mailDraftOpen, setMailDraftOpen] = useState(false)
+  const [mailDraftName, setMailDraftName] = useState("")
+  const [mailDraftFolder, setMailDraftFolder] = useState("INBOX")
+  const [mailDraftFromContains, setMailDraftFromContains] = useState("")
+  const [mailDraftSubjectContains, setMailDraftSubjectContains] = useState("")
+  const [rssDraftOpen, setRssDraftOpen] = useState(false)
+  const [rssDraftName, setRssDraftName] = useState("")
+  const [rssDraftFeedUrl, setRssDraftFeedUrl] = useState("")
 
   const load = useCallback(async (options?: { silent?: boolean }) => {
     const silent = options?.silent ?? false
@@ -126,26 +144,46 @@ export function ButlerMonitorBoard(): React.JSX.Element {
     return `日历 ${snapshot.calendarEvents.length} / 倒计时 ${snapshot.countdownTimers.length} / 规则 ${snapshot.mailRules.length} / RSS订阅 ${snapshot.rssSubscriptions.length}`
   }, [snapshot])
 
+  const openCalendarDraft = (): void => {
+    const now = new Date().toISOString()
+    setCalendarDraftOpen(true)
+    setCalendarDraftTitle("")
+    setCalendarDraftStartAt(toInputDateTime(now))
+    setCalendarDraftEndAt("")
+    setCalendarDraftDescription("")
+    setCalendarDraftLocation("")
+    setError(null)
+  }
+
   const handleCreateCalendar = async (): Promise<void> => {
-    const title = window.prompt("事件标题")
-    if (title === null || !title.trim()) return
-    const startInput = window.prompt("开始时间 (YYYY-MM-DDTHH:mm)")
-    if (startInput === null || !startInput.trim()) return
-    const endInput = window.prompt("结束时间 (可空)", "")
-    if (endInput === null) return
-    const description = window.prompt("说明 (可空)", "")
-    if (description === null) return
-    const location = window.prompt("地点 (可空)", "")
-    if (location === null) return
+    const title = calendarDraftTitle.trim()
+    const startInput = calendarDraftStartAt.trim()
+    const endInput = calendarDraftEndAt.trim()
+    const description = calendarDraftDescription.trim()
+    const location = calendarDraftLocation.trim()
+    if (!title) {
+      setError("请填写事件标题。")
+      return
+    }
+    if (!startInput) {
+      setError("请填写开始时间。")
+      return
+    }
 
     try {
       await window.api.butlerMonitor.createCalendarEvent({
-        title: title.trim(),
-        startAt: fromInputDateTime(startInput.trim()),
-        endAt: endInput.trim() ? fromInputDateTime(endInput.trim()) : undefined,
-        description: description.trim() || undefined,
-        location: location.trim() || undefined
+        title,
+        startAt: fromInputDateTime(startInput),
+        endAt: endInput ? fromInputDateTime(endInput) : undefined,
+        description: description || undefined,
+        location: location || undefined
       })
+      setCalendarDraftOpen(false)
+      setCalendarDraftTitle("")
+      setCalendarDraftStartAt("")
+      setCalendarDraftEndAt("")
+      setCalendarDraftDescription("")
+      setCalendarDraftLocation("")
       await load()
     } catch (createError) {
       console.error("[ButlerMonitorBoard] create calendar failed:", createError)
@@ -180,20 +218,38 @@ export function ButlerMonitorBoard(): React.JSX.Element {
     }
   }
 
+  const openCountdownDraft = (): void => {
+    const now = new Date().toISOString()
+    setCountdownDraftOpen(true)
+    setCountdownDraftTitle("")
+    setCountdownDraftDueAt(toInputDateTime(now))
+    setCountdownDraftDescription("")
+    setError(null)
+  }
+
   const handleCreateCountdown = async (): Promise<void> => {
-    const title = window.prompt("倒计时标题")
-    if (title === null || !title.trim()) return
-    const dueAtInput = window.prompt("到点时间 (YYYY-MM-DDTHH:mm)")
-    if (dueAtInput === null || !dueAtInput.trim()) return
-    const description = window.prompt("说明 (可空)", "")
-    if (description === null) return
+    const title = countdownDraftTitle.trim()
+    const dueAtInput = countdownDraftDueAt.trim()
+    const description = countdownDraftDescription.trim()
+    if (!title) {
+      setError("请填写倒计时标题。")
+      return
+    }
+    if (!dueAtInput) {
+      setError("请填写到点时间。")
+      return
+    }
 
     try {
       await window.api.butlerMonitor.createCountdownTimer({
-        title: title.trim(),
-        dueAt: fromInputDateTime(dueAtInput.trim()),
-        description: description.trim() || undefined
+        title,
+        dueAt: fromInputDateTime(dueAtInput),
+        description: description || undefined
       })
+      setCountdownDraftOpen(false)
+      setCountdownDraftTitle("")
+      setCountdownDraftDueAt("")
+      setCountdownDraftDescription("")
       await load()
     } catch (createError) {
       console.error("[ButlerMonitorBoard] create countdown failed:", createError)
@@ -222,24 +278,38 @@ export function ButlerMonitorBoard(): React.JSX.Element {
     }
   }
 
+  const openMailDraft = (): void => {
+    setMailDraftOpen(true)
+    setMailDraftName("")
+    setMailDraftFolder("INBOX")
+    setMailDraftFromContains("")
+    setMailDraftSubjectContains("")
+    setError(null)
+  }
+
   const handleCreateMailRule = async (): Promise<void> => {
-    const name = window.prompt("规则名称")
-    if (name === null || !name.trim()) return
-    const folder = window.prompt("邮箱文件夹 (默认 INBOX)", "INBOX")
-    if (folder === null) return
-    const fromContains = window.prompt("发件人包含 (可空)", "")
-    if (fromContains === null) return
-    const subjectContains = window.prompt("主题包含 (可空)", "")
-    if (subjectContains === null) return
+    const name = mailDraftName.trim()
+    const folder = mailDraftFolder.trim()
+    const fromContains = mailDraftFromContains.trim()
+    const subjectContains = mailDraftSubjectContains.trim()
+    if (!name) {
+      setError("请填写规则名称。")
+      return
+    }
 
     try {
       await window.api.butlerMonitor.createMailRule({
-        name: name.trim(),
-        folder: folder.trim() || "INBOX",
-        fromContains: fromContains.trim() || undefined,
-        subjectContains: subjectContains.trim() || undefined,
+        name,
+        folder: folder || "INBOX",
+        fromContains: fromContains || undefined,
+        subjectContains: subjectContains || undefined,
         enabled: true
       })
+      setMailDraftOpen(false)
+      setMailDraftName("")
+      setMailDraftFolder("INBOX")
+      setMailDraftFromContains("")
+      setMailDraftSubjectContains("")
       await load()
     } catch (createError) {
       console.error("[ButlerMonitorBoard] create mail rule failed:", createError)
@@ -271,18 +341,34 @@ export function ButlerMonitorBoard(): React.JSX.Element {
     }
   }
 
+  const openRssDraft = (): void => {
+    setRssDraftOpen(true)
+    setRssDraftName("")
+    setRssDraftFeedUrl("")
+    setError(null)
+  }
+
   const handleCreateRssSubscription = async (): Promise<void> => {
-    const name = window.prompt("RSS订阅名称")
-    if (name === null || !name.trim()) return
-    const feedUrl = window.prompt("RSS地址 (http/https)")
-    if (feedUrl === null || !feedUrl.trim()) return
+    const name = rssDraftName.trim()
+    const feedUrl = rssDraftFeedUrl.trim()
+    if (!name) {
+      setError("请填写 RSS 订阅名称。")
+      return
+    }
+    if (!feedUrl) {
+      setError("请填写 RSS 地址。")
+      return
+    }
 
     try {
       await window.api.butlerMonitor.createRssSubscription({
-        name: name.trim(),
-        feedUrl: feedUrl.trim(),
+        name,
+        feedUrl,
         enabled: true
       })
+      setRssDraftOpen(false)
+      setRssDraftName("")
+      setRssDraftFeedUrl("")
       await load()
     } catch (createError) {
       console.error("[ButlerMonitorBoard] create rss subscription failed:", createError)
@@ -388,10 +474,64 @@ export function ButlerMonitorBoard(): React.JSX.Element {
         {activeTab === "calendar" && (
           <>
             <div className="flex items-center justify-end">
-              <Button className="h-7 px-3 text-xs rounded-lg" onClick={() => void handleCreateCalendar()}>
+              <Button className="h-7 px-3 text-xs rounded-lg" onClick={openCalendarDraft}>
                 创建日历事件
               </Button>
             </div>
+            {calendarDraftOpen && (
+              <div className="rounded-xl border border-border/40 bg-card/50 backdrop-blur-sm p-4 space-y-3 card-hover">
+                <div className="text-xs text-muted-foreground">新建日历事件</div>
+                <input
+                  className="w-full h-8 rounded-lg border border-border/40 bg-background/50 px-2 text-xs"
+                  value={calendarDraftTitle}
+                  onChange={(event) => setCalendarDraftTitle(event.target.value)}
+                  placeholder="事件标题"
+                />
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                  <input
+                    type="datetime-local"
+                    className="w-full h-8 rounded-lg border border-border/40 bg-background/50 px-2 text-xs"
+                    value={calendarDraftStartAt}
+                    onChange={(event) => setCalendarDraftStartAt(event.target.value)}
+                  />
+                  <input
+                    type="datetime-local"
+                    className="w-full h-8 rounded-lg border border-border/40 bg-background/50 px-2 text-xs"
+                    value={calendarDraftEndAt}
+                    onChange={(event) => setCalendarDraftEndAt(event.target.value)}
+                  />
+                </div>
+                <input
+                  className="w-full h-8 rounded-lg border border-border/40 bg-background/50 px-2 text-xs"
+                  value={calendarDraftDescription}
+                  onChange={(event) => setCalendarDraftDescription(event.target.value)}
+                  placeholder="说明（可空）"
+                />
+                <input
+                  className="w-full h-8 rounded-lg border border-border/40 bg-background/50 px-2 text-xs"
+                  value={calendarDraftLocation}
+                  onChange={(event) => setCalendarDraftLocation(event.target.value)}
+                  placeholder="地点（可空）"
+                />
+                <div className="flex items-center justify-end gap-2">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 px-3 text-xs rounded-lg"
+                    onClick={() => setCalendarDraftOpen(false)}
+                  >
+                    取消
+                  </Button>
+                  <Button
+                    size="sm"
+                    className="h-7 px-3 text-xs rounded-lg"
+                    onClick={() => void handleCreateCalendar()}
+                  >
+                    保存事件
+                  </Button>
+                </div>
+              </div>
+            )}
 
             {calendarEvents.length === 0 && (
               <div className="text-sm text-muted-foreground rounded-2xl border border-border/40 p-6 text-center glass-panel">
@@ -458,10 +598,50 @@ export function ButlerMonitorBoard(): React.JSX.Element {
         {activeTab === "countdown" && (
           <>
             <div className="flex items-center justify-end">
-              <Button className="h-7 px-3 text-xs rounded-lg" onClick={() => void handleCreateCountdown()}>
+              <Button className="h-7 px-3 text-xs rounded-lg" onClick={openCountdownDraft}>
                 创建倒计时
               </Button>
             </div>
+            {countdownDraftOpen && (
+              <div className="rounded-xl border border-border/40 bg-card/50 backdrop-blur-sm p-4 space-y-3 card-hover">
+                <div className="text-xs text-muted-foreground">新建倒计时</div>
+                <input
+                  className="w-full h-8 rounded-lg border border-border/40 bg-background/50 px-2 text-xs"
+                  value={countdownDraftTitle}
+                  onChange={(event) => setCountdownDraftTitle(event.target.value)}
+                  placeholder="倒计时标题"
+                />
+                <input
+                  type="datetime-local"
+                  className="w-full h-8 rounded-lg border border-border/40 bg-background/50 px-2 text-xs"
+                  value={countdownDraftDueAt}
+                  onChange={(event) => setCountdownDraftDueAt(event.target.value)}
+                />
+                <input
+                  className="w-full h-8 rounded-lg border border-border/40 bg-background/50 px-2 text-xs"
+                  value={countdownDraftDescription}
+                  onChange={(event) => setCountdownDraftDescription(event.target.value)}
+                  placeholder="说明（可空）"
+                />
+                <div className="flex items-center justify-end gap-2">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 px-3 text-xs rounded-lg"
+                    onClick={() => setCountdownDraftOpen(false)}
+                  >
+                    取消
+                  </Button>
+                  <Button
+                    size="sm"
+                    className="h-7 px-3 text-xs rounded-lg"
+                    onClick={() => void handleCreateCountdown()}
+                  >
+                    保存倒计时
+                  </Button>
+                </div>
+              </div>
+            )}
 
             {countdownTimers.length === 0 && (
               <div className="text-sm text-muted-foreground rounded-2xl border border-border/40 p-6 text-center glass-panel">
@@ -532,7 +712,7 @@ export function ButlerMonitorBoard(): React.JSX.Element {
         {activeTab === "mail" && (
           <>
             <div className="flex items-center justify-end gap-3">
-              <Button className="h-7 px-3 text-xs rounded-lg" onClick={() => void handleCreateMailRule()}>
+              <Button className="h-7 px-3 text-xs rounded-lg" onClick={openMailDraft}>
                 创建邮件规则
               </Button>
               <Button
@@ -548,6 +728,52 @@ export function ButlerMonitorBoard(): React.JSX.Element {
             <div>{pullResult && <div className="text-[11px] text-blue-300">{pullResult}</div>}</div>
 
             <div className="space-y-3">
+              {mailDraftOpen && (
+                <div className="rounded-xl border border-border/40 bg-card/50 backdrop-blur-sm p-4 space-y-3 card-hover">
+                  <div className="text-xs text-muted-foreground">新建邮件规则</div>
+                  <input
+                    className="w-full h-8 rounded-lg border border-border/40 bg-background/50 px-2 text-xs"
+                    value={mailDraftName}
+                    onChange={(event) => setMailDraftName(event.target.value)}
+                    placeholder="规则名称"
+                  />
+                  <input
+                    className="w-full h-8 rounded-lg border border-border/40 bg-background/50 px-2 text-xs"
+                    value={mailDraftFolder}
+                    onChange={(event) => setMailDraftFolder(event.target.value)}
+                    placeholder="邮箱文件夹（默认 INBOX）"
+                  />
+                  <input
+                    className="w-full h-8 rounded-lg border border-border/40 bg-background/50 px-2 text-xs"
+                    value={mailDraftFromContains}
+                    onChange={(event) => setMailDraftFromContains(event.target.value)}
+                    placeholder="发件人包含（可空）"
+                  />
+                  <input
+                    className="w-full h-8 rounded-lg border border-border/40 bg-background/50 px-2 text-xs"
+                    value={mailDraftSubjectContains}
+                    onChange={(event) => setMailDraftSubjectContains(event.target.value)}
+                    placeholder="主题包含（可空）"
+                  />
+                  <div className="flex items-center justify-end gap-2">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 px-3 text-xs rounded-lg"
+                      onClick={() => setMailDraftOpen(false)}
+                    >
+                      取消
+                    </Button>
+                    <Button
+                      size="sm"
+                      className="h-7 px-3 text-xs rounded-lg"
+                      onClick={() => void handleCreateMailRule()}
+                    >
+                      保存规则
+                    </Button>
+                  </div>
+                </div>
+              )}
               {mailRules.length === 0 && (
                 <div className="text-sm text-muted-foreground rounded-2xl border border-border/40 p-6 text-center glass-panel">
                   暂无邮件规则
@@ -645,7 +871,7 @@ export function ButlerMonitorBoard(): React.JSX.Element {
             <div className="flex items-center justify-end gap-3">
               <Button
                 className="h-7 px-3 text-xs rounded-lg"
-                onClick={() => void handleCreateRssSubscription()}
+                onClick={openRssDraft}
               >
                 创建RSS订阅
               </Button>
@@ -662,6 +888,40 @@ export function ButlerMonitorBoard(): React.JSX.Element {
             <div>{pullResult && <div className="text-[11px] text-blue-300">{pullResult}</div>}</div>
 
             <div className="space-y-3">
+              {rssDraftOpen && (
+                <div className="rounded-xl border border-border/40 bg-card/50 backdrop-blur-sm p-4 space-y-3 card-hover">
+                  <div className="text-xs text-muted-foreground">新建 RSS 订阅</div>
+                  <input
+                    className="w-full h-8 rounded-lg border border-border/40 bg-background/50 px-2 text-xs"
+                    value={rssDraftName}
+                    onChange={(event) => setRssDraftName(event.target.value)}
+                    placeholder="订阅名称"
+                  />
+                  <input
+                    className="w-full h-8 rounded-lg border border-border/40 bg-background/50 px-2 text-xs"
+                    value={rssDraftFeedUrl}
+                    onChange={(event) => setRssDraftFeedUrl(event.target.value)}
+                    placeholder="RSS 地址（http/https）"
+                  />
+                  <div className="flex items-center justify-end gap-2">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 px-3 text-xs rounded-lg"
+                      onClick={() => setRssDraftOpen(false)}
+                    >
+                      取消
+                    </Button>
+                    <Button
+                      size="sm"
+                      className="h-7 px-3 text-xs rounded-lg"
+                      onClick={() => void handleCreateRssSubscription()}
+                    >
+                      保存订阅
+                    </Button>
+                  </div>
+                </div>
+              )}
               {rssSubscriptions.length === 0 && (
                 <div className="text-sm text-muted-foreground rounded-2xl border border-border/40 p-6 text-center glass-panel">
                   暂无 RSS 订阅

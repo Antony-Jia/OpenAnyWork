@@ -1,13 +1,13 @@
 import React from "react"
 import { SettingsMenu } from "./SettingsMenu"
-import { PromptManager } from "./PromptManager"
-import { MemoryManager } from "./MemoryManager"
 import { SubagentManager } from "./SubagentManager"
-import { SkillsManager } from "./SkillsManager"
 import { ToolsManager } from "./ToolsManager"
-import { ContainerManager } from "./ContainerManager"
+import { SkillsManager } from "./SkillsManager"
 import { McpManager } from "./McpManager"
+import { PromptManager } from "./PromptManager"
 import { PluginManager } from "./PluginManager"
+import { ContainerManager } from "./ContainerManager"
+import { MemoryManager } from "./MemoryManager"
 import { WindowControls } from "./WindowControls"
 import { useLanguage } from "@/lib/i18n"
 import { useAppStore } from "@/lib/store"
@@ -48,14 +48,14 @@ export function TitleBar({ threadId }: TitleBarProps): React.JSX.Element {
         <div className="h-6 w-[1px] gradient-divider-vertical mx-2.5" />
 
         <SettingsMenu threadId={threadId} />
-        <PromptManager />
-        <MemoryManager />
         <SubagentManager />
-        <SkillsManager />
         <ToolsManager />
+        <SkillsManager />
         <McpManager />
+        <PromptManager />
         <PluginManager />
         <ContainerManager threadId={threadId} />
+        <MemoryManager />
       </div>
 
       {/* Right: Window Controls */}

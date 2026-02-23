@@ -15,6 +15,7 @@ import { runExpertPipeline } from "../expert/runner"
 import { normalizeStoredExpertConfig } from "../expert/config"
 import { ensureRalphPlan, runRalphWorkflow } from "../ralph/workflow"
 import { emitTaskCompleted, emitTaskStarted } from "../tasks/lifecycle"
+import { prepareIncomingMessage } from "../vision/message-preprocess"
 import type {
   AgentInvokeParams,
   AgentResumeParams,
@@ -129,6 +130,12 @@ export function registerAgentHandlers(ipcMain: IpcMain): void {
       const mode = (metadata.mode as ThreadMode) || "default"
       const settings = getSettings()
       const normalizedWorkspace = workspacePath || ""
+      const { processedMessage, processedText } = await prepareIncomingMessage({
+        threadId,
+        workspacePath: normalizedWorkspace,
+        mode,
+        message
+      })
       const emitAgentStarted = (): void => {
         emitTaskStarted({
           threadId,
@@ -156,7 +163,7 @@ export function registerAgentHandlers(ipcMain: IpcMain): void {
           })
         }
 
-        const trimmedMessage = messageText.trim()
+        const trimmedMessage = processedText.trim()
         if (trimmedMessage) {
           emitRalphLog({
             role: "user",
@@ -217,7 +224,7 @@ export function registerAgentHandlers(ipcMain: IpcMain): void {
         }
 
         if (ralph.phase === "awaiting_confirm" && !isConfirm) {
-          const planningMessage = trimmed || messageText
+          const planningMessage = trimmed || processedText
           const output = await ensureRalphPlan({
             threadId,
             workspacePath: normalizedWorkspace,
@@ -314,7 +321,7 @@ export function registerAgentHandlers(ipcMain: IpcMain): void {
         }
 
         if (ralph.phase === "init" || ralph.phase === "done") {
-          const planningMessage = trimmed || messageText
+          const planningMessage = trimmed || processedText
           const output = await ensureRalphPlan({
             threadId,
             workspacePath: normalizedWorkspace,
@@ -360,7 +367,7 @@ export function registerAgentHandlers(ipcMain: IpcMain): void {
           dockerConfig,
           dockerContainerId,
           disableApprovals: disableApprovalsForThread,
-          message,
+          message: processedMessage,
           window,
           channel,
           abortController,
@@ -395,7 +402,7 @@ export function registerAgentHandlers(ipcMain: IpcMain): void {
         const output = await runExpertPipeline({
           threadId,
           expertConfig,
-          message,
+          message: processedMessage,
           workspacePath: normalizedWorkspace,
           modelId,
           dockerConfig,
@@ -425,7 +432,7 @@ export function registerAgentHandlers(ipcMain: IpcMain): void {
         dockerConfig,
         dockerContainerId,
         disableApprovals: disableApprovalsForThread,
-        message,
+        message: processedMessage,
         window,
         channel,
         abortController,

@@ -491,15 +491,19 @@ export function SubagentManager(): React.JSX.Element {
                     <div className="space-y-2 max-h-[180px] overflow-y-auto pr-1">
                       {tools.map((tool) => {
                         const isSelected = form.tools.includes(tool.name)
+                        const canSelect = tool.available !== false
                         return (
                           <div
                             key={tool.name}
-                            onClick={() => toggleTool(tool.name)}
+                            onClick={() => (canSelect ? toggleTool(tool.name) : null)}
                             className={cn(
-                              "rounded-sm border p-2 cursor-pointer transition-colors",
+                              "rounded-sm border p-2 transition-colors",
+                              canSelect ? "cursor-pointer" : "cursor-not-allowed opacity-60",
                               isSelected
                                 ? "border-primary bg-primary/10"
-                                : "border-border hover:border-primary/50 hover:bg-muted/50"
+                                : canSelect
+                                  ? "border-border hover:border-primary/50 hover:bg-muted/50"
+                                  : "border-border"
                             )}
                           >
                             <div className="flex items-center justify-between gap-2">
@@ -509,6 +513,7 @@ export function SubagentManager(): React.JSX.Element {
                                   checked={isSelected}
                                   onChange={() => toggleTool(tool.name)}
                                   onClick={(e) => e.stopPropagation()}
+                                  disabled={!canSelect}
                                   className="shrink-0"
                                 />
                                 <span className="text-xs font-medium text-foreground truncate">
@@ -524,6 +529,13 @@ export function SubagentManager(): React.JSX.Element {
                             {tool.description && (
                               <div className="text-[10px] text-muted-foreground mt-1 pl-5 line-clamp-2">
                                 {tool.description}
+                              </div>
+                            )}
+                            {!canSelect && tool.disabledReason && (
+                              <div className="text-[10px] text-muted-foreground mt-1 pl-5">
+                                {tool.name === "analyze_image"
+                                  ? t("tools.analyze_image_unavailable")
+                                  : tool.disabledReason}
                               </div>
                             )}
                           </div>

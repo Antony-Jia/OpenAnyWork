@@ -6,6 +6,7 @@ import { internetSearchDefinition, internetSearchTool } from "./internet-search"
 import { addCalendarEventDefinition, addCalendarEventTool } from "./add-calendar-event"
 import { addCountdownTimerDefinition, addCountdownTimerTool } from "./add-countdown-timer"
 import { sendEmailDefinition, sendEmailTool } from "./send-email"
+import { analyzeImageDefinition, analyzeImageTool } from "./analyze-image"
 import {
   parseWorkspaceDocumentDefinition,
   parseWorkspaceDocumentTool
@@ -21,6 +22,7 @@ export const toolRegistry: Array<{
   { definition: addCalendarEventDefinition, instance: addCalendarEventTool },
   { definition: addCountdownTimerDefinition, instance: addCountdownTimerTool },
   { definition: sendEmailDefinition, instance: sendEmailTool },
+  { definition: analyzeImageDefinition, instance: analyzeImageTool },
   { definition: parseWorkspaceDocumentDefinition, instance: parseWorkspaceDocumentTool }
 ]
 

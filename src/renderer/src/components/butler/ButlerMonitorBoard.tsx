@@ -45,12 +45,14 @@ export function ButlerMonitorBoard(): React.JSX.Element {
   const [pulling, setPulling] = useState(false)
   const [pullResult, setPullResult] = useState("")
   const [calendarDraftOpen, setCalendarDraftOpen] = useState(false)
+  const [calendarEditingId, setCalendarEditingId] = useState<string | null>(null)
   const [calendarDraftTitle, setCalendarDraftTitle] = useState("")
   const [calendarDraftStartAt, setCalendarDraftStartAt] = useState("")
   const [calendarDraftEndAt, setCalendarDraftEndAt] = useState("")
   const [calendarDraftDescription, setCalendarDraftDescription] = useState("")
   const [calendarDraftLocation, setCalendarDraftLocation] = useState("")
   const [countdownDraftOpen, setCountdownDraftOpen] = useState(false)
+  const [countdownEditingId, setCountdownEditingId] = useState<string | null>(null)
   const [countdownDraftTitle, setCountdownDraftTitle] = useState("")
   const [countdownDraftDueAt, setCountdownDraftDueAt] = useState("")
   const [countdownDraftDescription, setCountdownDraftDescription] = useState("")
@@ -60,6 +62,7 @@ export function ButlerMonitorBoard(): React.JSX.Element {
   const [mailDraftFromContains, setMailDraftFromContains] = useState("")
   const [mailDraftSubjectContains, setMailDraftSubjectContains] = useState("")
   const [rssDraftOpen, setRssDraftOpen] = useState(false)
+  const [rssEditingId, setRssEditingId] = useState<string | null>(null)
   const [rssDraftName, setRssDraftName] = useState("")
   const [rssDraftFeedUrl, setRssDraftFeedUrl] = useState("")
 
@@ -72,14 +75,14 @@ export function ButlerMonitorBoard(): React.JSX.Element {
     try {
       const [nextSnapshot, events, countdowns, rules, mails, subscriptions, rssItems] =
         await Promise.all([
-        window.api.butlerMonitor.getSnapshot(),
-        window.api.butlerMonitor.listCalendarEvents(),
-        window.api.butlerMonitor.listCountdownTimers(),
-        window.api.butlerMonitor.listMailRules(),
-        window.api.butlerMonitor.listRecentMails(20),
-        window.api.butlerMonitor.listRssSubscriptions(),
-        window.api.butlerMonitor.listRecentRssItems(20)
-      ])
+          window.api.butlerMonitor.getSnapshot(),
+          window.api.butlerMonitor.listCalendarEvents(),
+          window.api.butlerMonitor.listCountdownTimers(),
+          window.api.butlerMonitor.listMailRules(),
+          window.api.butlerMonitor.listRecentMails(20),
+          window.api.butlerMonitor.listRssSubscriptions(),
+          window.api.butlerMonitor.listRecentRssItems(20)
+        ])
       setSnapshot(nextSnapshot)
       setCalendarEvents(events)
       setCountdownTimers(countdowns)
@@ -147,12 +150,23 @@ export function ButlerMonitorBoard(): React.JSX.Element {
   const openCalendarDraft = (): void => {
     const now = new Date().toISOString()
     setCalendarDraftOpen(true)
+    setCalendarEditingId(null)
     setCalendarDraftTitle("")
     setCalendarDraftStartAt(toInputDateTime(now))
     setCalendarDraftEndAt("")
     setCalendarDraftDescription("")
     setCalendarDraftLocation("")
     setError(null)
+  }
+
+  const closeCalendarDraft = (): void => {
+    setCalendarDraftOpen(false)
+    setCalendarEditingId(null)
+    setCalendarDraftTitle("")
+    setCalendarDraftStartAt("")
+    setCalendarDraftEndAt("")
+    setCalendarDraftDescription("")
+    setCalendarDraftLocation("")
   }
 
   const handleCreateCalendar = async (): Promise<void> => {
@@ -171,60 +185,64 @@ export function ButlerMonitorBoard(): React.JSX.Element {
     }
 
     try {
-      await window.api.butlerMonitor.createCalendarEvent({
-        title,
-        startAt: fromInputDateTime(startInput),
-        endAt: endInput ? fromInputDateTime(endInput) : undefined,
-        description: description || undefined,
-        location: location || undefined
-      })
-      setCalendarDraftOpen(false)
-      setCalendarDraftTitle("")
-      setCalendarDraftStartAt("")
-      setCalendarDraftEndAt("")
-      setCalendarDraftDescription("")
-      setCalendarDraftLocation("")
+      if (calendarEditingId) {
+        await window.api.butlerMonitor.updateCalendarEvent(calendarEditingId, {
+          title,
+          startAt: fromInputDateTime(startInput),
+          endAt: endInput ? fromInputDateTime(endInput) : undefined,
+          description: description || undefined,
+          location: location || undefined
+        })
+      } else {
+        await window.api.butlerMonitor.createCalendarEvent({
+          title,
+          startAt: fromInputDateTime(startInput),
+          endAt: endInput ? fromInputDateTime(endInput) : undefined,
+          description: description || undefined,
+          location: location || undefined
+        })
+      }
+      closeCalendarDraft()
       await load()
     } catch (createError) {
       console.error("[ButlerMonitorBoard] create calendar failed:", createError)
-      setError(createError instanceof Error ? createError.message : "创建日历事件失败。")
+      setError(
+        createError instanceof Error
+          ? createError.message
+          : calendarEditingId
+            ? "更新日历事件失败。"
+            : "创建日历事件失败。"
+      )
     }
   }
 
-  const handleEditCalendar = async (event: CalendarWatchEvent): Promise<void> => {
-    const title = window.prompt("标题", event.title)
-    if (title === null) return
-    const startInput = window.prompt("开始时间 (YYYY-MM-DDTHH:mm)", toInputDateTime(event.startAt))
-    if (startInput === null) return
-    const endInput = window.prompt("结束时间 (可空)", toInputDateTime(event.endAt))
-    if (endInput === null) return
-    const description = window.prompt("说明 (可空)", event.description || "")
-    if (description === null) return
-    const location = window.prompt("地点 (可空)", event.location || "")
-    if (location === null) return
-
-    try {
-      await window.api.butlerMonitor.updateCalendarEvent(event.id, {
-        title: title.trim(),
-        startAt: fromInputDateTime(startInput),
-        endAt: endInput.trim() ? fromInputDateTime(endInput.trim()) : "",
-        description: description.trim(),
-        location: location.trim()
-      })
-      await load()
-    } catch (updateError) {
-      console.error("[ButlerMonitorBoard] edit calendar failed:", updateError)
-      setError(updateError instanceof Error ? updateError.message : "更新日历事件失败。")
-    }
+  const handleEditCalendar = (event: CalendarWatchEvent): void => {
+    setCalendarDraftOpen(true)
+    setCalendarEditingId(event.id)
+    setCalendarDraftTitle(event.title)
+    setCalendarDraftStartAt(toInputDateTime(event.startAt))
+    setCalendarDraftEndAt(toInputDateTime(event.endAt))
+    setCalendarDraftDescription(event.description || "")
+    setCalendarDraftLocation(event.location || "")
+    setError(null)
   }
 
   const openCountdownDraft = (): void => {
     const now = new Date().toISOString()
     setCountdownDraftOpen(true)
+    setCountdownEditingId(null)
     setCountdownDraftTitle("")
     setCountdownDraftDueAt(toInputDateTime(now))
     setCountdownDraftDescription("")
     setError(null)
+  }
+
+  const closeCountdownDraft = (): void => {
+    setCountdownDraftOpen(false)
+    setCountdownEditingId(null)
+    setCountdownDraftTitle("")
+    setCountdownDraftDueAt("")
+    setCountdownDraftDescription("")
   }
 
   const handleCreateCountdown = async (): Promise<void> => {
@@ -241,41 +259,40 @@ export function ButlerMonitorBoard(): React.JSX.Element {
     }
 
     try {
-      await window.api.butlerMonitor.createCountdownTimer({
-        title,
-        dueAt: fromInputDateTime(dueAtInput),
-        description: description || undefined
-      })
-      setCountdownDraftOpen(false)
-      setCountdownDraftTitle("")
-      setCountdownDraftDueAt("")
-      setCountdownDraftDescription("")
+      if (countdownEditingId) {
+        await window.api.butlerMonitor.updateCountdownTimer(countdownEditingId, {
+          title,
+          dueAt: fromInputDateTime(dueAtInput),
+          description: description || undefined
+        })
+      } else {
+        await window.api.butlerMonitor.createCountdownTimer({
+          title,
+          dueAt: fromInputDateTime(dueAtInput),
+          description: description || undefined
+        })
+      }
+      closeCountdownDraft()
       await load()
     } catch (createError) {
       console.error("[ButlerMonitorBoard] create countdown failed:", createError)
-      setError(createError instanceof Error ? createError.message : "创建倒计时失败。")
+      setError(
+        createError instanceof Error
+          ? createError.message
+          : countdownEditingId
+            ? "更新倒计时失败。"
+            : "创建倒计时失败。"
+      )
     }
   }
 
-  const handleEditCountdown = async (timer: CountdownWatchItem): Promise<void> => {
-    const title = window.prompt("标题", timer.title)
-    if (title === null) return
-    const dueAtInput = window.prompt("到点时间 (YYYY-MM-DDTHH:mm)", toInputDateTime(timer.dueAt))
-    if (dueAtInput === null) return
-    const description = window.prompt("说明 (可空)", timer.description || "")
-    if (description === null) return
-
-    try {
-      await window.api.butlerMonitor.updateCountdownTimer(timer.id, {
-        title: title.trim(),
-        dueAt: fromInputDateTime(dueAtInput),
-        description: description.trim()
-      })
-      await load()
-    } catch (updateError) {
-      console.error("[ButlerMonitorBoard] edit countdown failed:", updateError)
-      setError(updateError instanceof Error ? updateError.message : "更新倒计时失败。")
-    }
+  const handleEditCountdown = (timer: CountdownWatchItem): void => {
+    setCountdownDraftOpen(true)
+    setCountdownEditingId(timer.id)
+    setCountdownDraftTitle(timer.title)
+    setCountdownDraftDueAt(toInputDateTime(timer.dueAt))
+    setCountdownDraftDescription(timer.description || "")
+    setError(null)
   }
 
   const openMailDraft = (): void => {
@@ -343,9 +360,17 @@ export function ButlerMonitorBoard(): React.JSX.Element {
 
   const openRssDraft = (): void => {
     setRssDraftOpen(true)
+    setRssEditingId(null)
     setRssDraftName("")
     setRssDraftFeedUrl("")
     setError(null)
+  }
+
+  const closeRssDraft = (): void => {
+    setRssDraftOpen(false)
+    setRssEditingId(null)
+    setRssDraftName("")
+    setRssDraftFeedUrl("")
   }
 
   const handleCreateRssSubscription = async (): Promise<void> => {
@@ -361,37 +386,38 @@ export function ButlerMonitorBoard(): React.JSX.Element {
     }
 
     try {
-      await window.api.butlerMonitor.createRssSubscription({
-        name,
-        feedUrl,
-        enabled: true
-      })
-      setRssDraftOpen(false)
-      setRssDraftName("")
-      setRssDraftFeedUrl("")
+      if (rssEditingId) {
+        await window.api.butlerMonitor.updateRssSubscription(rssEditingId, {
+          name,
+          feedUrl
+        })
+      } else {
+        await window.api.butlerMonitor.createRssSubscription({
+          name,
+          feedUrl,
+          enabled: true
+        })
+      }
+      closeRssDraft()
       await load()
     } catch (createError) {
       console.error("[ButlerMonitorBoard] create rss subscription failed:", createError)
-      setError(createError instanceof Error ? createError.message : "创建 RSS 订阅失败。")
+      setError(
+        createError instanceof Error
+          ? createError.message
+          : rssEditingId
+            ? "更新 RSS 订阅失败。"
+            : "创建 RSS 订阅失败。"
+      )
     }
   }
 
-  const handleEditRssSubscription = async (subscription: RssWatchSubscription): Promise<void> => {
-    const name = window.prompt("订阅名称", subscription.name)
-    if (name === null) return
-    const feedUrl = window.prompt("RSS地址", subscription.feedUrl)
-    if (feedUrl === null) return
-
-    try {
-      await window.api.butlerMonitor.updateRssSubscription(subscription.id, {
-        name: name.trim(),
-        feedUrl: feedUrl.trim()
-      })
-      await load()
-    } catch (updateError) {
-      console.error("[ButlerMonitorBoard] edit rss subscription failed:", updateError)
-      setError(updateError instanceof Error ? updateError.message : "更新 RSS 订阅失败。")
-    }
+  const handleEditRssSubscription = (subscription: RssWatchSubscription): void => {
+    setRssDraftOpen(true)
+    setRssEditingId(subscription.id)
+    setRssDraftName(subscription.name)
+    setRssDraftFeedUrl(subscription.feedUrl)
+    setError(null)
   }
 
   const handlePullNow = async (): Promise<void> => {
@@ -423,7 +449,9 @@ export function ButlerMonitorBoard(): React.JSX.Element {
   }
 
   if (loading) {
-    return <div className="h-full p-5 text-xs text-muted-foreground shimmer-bg">加载监听任务中...</div>
+    return (
+      <div className="h-full p-5 text-xs text-muted-foreground shimmer-bg">加载监听任务中...</div>
+    )
   }
 
   return (
@@ -480,7 +508,9 @@ export function ButlerMonitorBoard(): React.JSX.Element {
             </div>
             {calendarDraftOpen && (
               <div className="rounded-xl border border-border/40 bg-card/50 backdrop-blur-sm p-4 space-y-3 card-hover">
-                <div className="text-xs text-muted-foreground">新建日历事件</div>
+                <div className="text-xs text-muted-foreground">
+                  {calendarEditingId ? "编辑日历事件" : "新建日历事件"}
+                </div>
                 <input
                   className="w-full h-8 rounded-lg border border-border/40 bg-background/50 px-2 text-xs"
                   value={calendarDraftTitle}
@@ -518,7 +548,7 @@ export function ButlerMonitorBoard(): React.JSX.Element {
                     variant="ghost"
                     size="sm"
                     className="h-7 px-3 text-xs rounded-lg"
-                    onClick={() => setCalendarDraftOpen(false)}
+                    onClick={closeCalendarDraft}
                   >
                     取消
                   </Button>
@@ -527,7 +557,7 @@ export function ButlerMonitorBoard(): React.JSX.Element {
                     className="h-7 px-3 text-xs rounded-lg"
                     onClick={() => void handleCreateCalendar()}
                   >
-                    保存事件
+                    {calendarEditingId ? "保存修改" : "保存事件"}
                   </Button>
                 </div>
               </div>
@@ -539,7 +569,10 @@ export function ButlerMonitorBoard(): React.JSX.Element {
               </div>
             )}
             {calendarEvents.map((event) => (
-              <div key={event.id} className="rounded-xl border border-border/40 bg-card/50 backdrop-blur-sm p-4 space-y-2.5 card-hover">
+              <div
+                key={event.id}
+                className="rounded-xl border border-border/40 bg-card/50 backdrop-blur-sm p-4 space-y-2.5 card-hover"
+              >
                 <div className="flex items-start justify-between gap-2">
                   <div className="text-sm font-medium truncate" title={event.title}>
                     {event.title}
@@ -575,7 +608,7 @@ export function ButlerMonitorBoard(): React.JSX.Element {
                     variant="ghost"
                     size="sm"
                     className="h-7 px-3 text-xs rounded-lg"
-                    onClick={() => void handleEditCalendar(event)}
+                    onClick={() => handleEditCalendar(event)}
                   >
                     编辑
                   </Button>
@@ -604,7 +637,9 @@ export function ButlerMonitorBoard(): React.JSX.Element {
             </div>
             {countdownDraftOpen && (
               <div className="rounded-xl border border-border/40 bg-card/50 backdrop-blur-sm p-4 space-y-3 card-hover">
-                <div className="text-xs text-muted-foreground">新建倒计时</div>
+                <div className="text-xs text-muted-foreground">
+                  {countdownEditingId ? "编辑倒计时" : "新建倒计时"}
+                </div>
                 <input
                   className="w-full h-8 rounded-lg border border-border/40 bg-background/50 px-2 text-xs"
                   value={countdownDraftTitle}
@@ -628,7 +663,7 @@ export function ButlerMonitorBoard(): React.JSX.Element {
                     variant="ghost"
                     size="sm"
                     className="h-7 px-3 text-xs rounded-lg"
-                    onClick={() => setCountdownDraftOpen(false)}
+                    onClick={closeCountdownDraft}
                   >
                     取消
                   </Button>
@@ -637,7 +672,7 @@ export function ButlerMonitorBoard(): React.JSX.Element {
                     className="h-7 px-3 text-xs rounded-lg"
                     onClick={() => void handleCreateCountdown()}
                   >
-                    保存倒计时
+                    {countdownEditingId ? "保存修改" : "保存倒计时"}
                   </Button>
                 </div>
               </div>
@@ -649,7 +684,10 @@ export function ButlerMonitorBoard(): React.JSX.Element {
               </div>
             )}
             {countdownTimers.map((timer) => (
-              <div key={timer.id} className="rounded-xl border border-border/40 bg-card/50 backdrop-blur-sm p-4 space-y-2.5 card-hover">
+              <div
+                key={timer.id}
+                className="rounded-xl border border-border/40 bg-card/50 backdrop-blur-sm p-4 space-y-2.5 card-hover"
+              >
                 <div className="flex items-start justify-between gap-2">
                   <div className="text-sm font-medium truncate" title={timer.title}>
                     {timer.title}
@@ -669,7 +707,7 @@ export function ButlerMonitorBoard(): React.JSX.Element {
                     variant="ghost"
                     size="sm"
                     className="h-7 px-3 text-xs rounded-lg"
-                    onClick={() => void handleEditCountdown(timer)}
+                    onClick={() => handleEditCountdown(timer)}
                   >
                     编辑
                   </Button>
@@ -780,7 +818,10 @@ export function ButlerMonitorBoard(): React.JSX.Element {
                 </div>
               )}
               {mailRules.map((rule) => (
-                <div key={rule.id} className="rounded-xl border border-border/40 bg-card/50 backdrop-blur-sm p-4 space-y-2.5 card-hover">
+                <div
+                  key={rule.id}
+                  className="rounded-xl border border-border/40 bg-card/50 backdrop-blur-sm p-4 space-y-2.5 card-hover"
+                >
                   <div className="flex items-start justify-between gap-2">
                     <div className="text-sm font-medium truncate" title={rule.name}>
                       {rule.name}
@@ -850,7 +891,10 @@ export function ButlerMonitorBoard(): React.JSX.Element {
                 </div>
               )}
               {recentMails.map((mail) => (
-                <details key={mail.id} className="rounded-xl border border-border/40 bg-card/50 backdrop-blur-sm p-3.5">
+                <details
+                  key={mail.id}
+                  className="rounded-xl border border-border/40 bg-card/50 backdrop-blur-sm p-3.5"
+                >
                   <summary className="cursor-pointer">
                     <div className="text-xs font-medium truncate">{mail.subject || "(无主题)"}</div>
                     <div className="text-[11px] text-muted-foreground truncate">
@@ -869,10 +913,7 @@ export function ButlerMonitorBoard(): React.JSX.Element {
         {activeTab === "rss" && (
           <>
             <div className="flex items-center justify-end gap-3">
-              <Button
-                className="h-7 px-3 text-xs rounded-lg"
-                onClick={openRssDraft}
-              >
+              <Button className="h-7 px-3 text-xs rounded-lg" onClick={openRssDraft}>
                 创建RSS订阅
               </Button>
               <Button
@@ -890,7 +931,9 @@ export function ButlerMonitorBoard(): React.JSX.Element {
             <div className="space-y-3">
               {rssDraftOpen && (
                 <div className="rounded-xl border border-border/40 bg-card/50 backdrop-blur-sm p-4 space-y-3 card-hover">
-                  <div className="text-xs text-muted-foreground">新建 RSS 订阅</div>
+                  <div className="text-xs text-muted-foreground">
+                    {rssEditingId ? "编辑 RSS 订阅" : "新建 RSS 订阅"}
+                  </div>
                   <input
                     className="w-full h-8 rounded-lg border border-border/40 bg-background/50 px-2 text-xs"
                     value={rssDraftName}
@@ -908,7 +951,7 @@ export function ButlerMonitorBoard(): React.JSX.Element {
                       variant="ghost"
                       size="sm"
                       className="h-7 px-3 text-xs rounded-lg"
-                      onClick={() => setRssDraftOpen(false)}
+                      onClick={closeRssDraft}
                     >
                       取消
                     </Button>
@@ -917,7 +960,7 @@ export function ButlerMonitorBoard(): React.JSX.Element {
                       className="h-7 px-3 text-xs rounded-lg"
                       onClick={() => void handleCreateRssSubscription()}
                     >
-                      保存订阅
+                      {rssEditingId ? "保存修改" : "保存订阅"}
                     </Button>
                   </div>
                 </div>
@@ -969,7 +1012,7 @@ export function ButlerMonitorBoard(): React.JSX.Element {
                       variant="ghost"
                       size="sm"
                       className="h-7 px-3 text-xs rounded-lg"
-                      onClick={() => void handleEditRssSubscription(subscription)}
+                      onClick={() => handleEditRssSubscription(subscription)}
                     >
                       编辑
                     </Button>

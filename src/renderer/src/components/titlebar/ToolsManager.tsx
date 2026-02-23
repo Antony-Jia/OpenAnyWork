@@ -146,7 +146,13 @@ export function ToolsManager(): React.JSX.Element {
               ) : (
                 <div className="space-y-3">
                   {tools.map((tool) => (
-                    <div key={tool.name} className="rounded-sm border border-border p-3 space-y-3">
+                    <div
+                      key={tool.name}
+                      className={cn(
+                        "rounded-sm border border-border p-3 space-y-3",
+                        !tool.available && "opacity-60"
+                      )}
+                    >
                       <div className="flex items-start justify-between gap-3">
                         <div className="space-y-1">
                           <div className="text-sm font-medium">{tool.label}</div>
@@ -166,7 +172,7 @@ export function ToolsManager(): React.JSX.Element {
                                 <button
                                   key={scope}
                                   type="button"
-                                  disabled={toggling[toggleKey]}
+                                  disabled={toggling[toggleKey] || !tool.available}
                                   onClick={() => handleToggle(tool, scope)}
                                   className={cn(
                                     "text-[10px] uppercase tracking-[0.12em] transition-colors",
@@ -217,6 +223,14 @@ export function ToolsManager(): React.JSX.Element {
                               )}
                             </button>
                           </div>
+                        </div>
+                      )}
+
+                      {!tool.available && tool.disabledReason && (
+                        <div className="text-xs text-muted-foreground">
+                          {tool.name === "analyze_image"
+                            ? t("tools.analyze_image_unavailable")
+                            : tool.disabledReason}
                         </div>
                       )}
 

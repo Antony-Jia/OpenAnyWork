@@ -48,7 +48,7 @@ interface StreamMessage {
 
 type StreamContentBlock =
   | { type: "text"; text: string }
-  | { type: "image_url"; image_url: { url: string } }
+  | { type: "image_url"; image_url: { url: string }; file_path?: string }
 
 function arrayBufferToBase64(buffer: ArrayBuffer): string {
   const bytes = new Uint8Array(buffer)
@@ -625,7 +625,8 @@ export function ChatContainer({ threadId }: ChatContainerProps): React.JSX.Eleme
         if (attachment.kind === "image") {
           messageBlocks.push({
             type: "image_url",
-            image_url: { url: attachment.dataUrl }
+            image_url: { url: attachment.dataUrl },
+            file_path: attachment.path
           })
         } else if (attachment.kind === "document") {
           messageBlocks.push({
@@ -665,7 +666,13 @@ export function ChatContainer({ threadId }: ChatContainerProps): React.JSX.Eleme
         if (block?.type === "text" && block.text) {
           blocks.push({ type: "text", text: block.text })
         } else if (block?.type === "image_url" && block.image_url?.url) {
-          blocks.push({ type: "image_url", image_url: { url: block.image_url.url } })
+          blocks.push({
+            type: "image_url",
+            image_url: { url: block.image_url.url },
+            ...(typeof block.file_path === "string" && block.file_path.trim()
+              ? { file_path: block.file_path }
+              : {})
+          })
         }
       }
       streamContent = blocks

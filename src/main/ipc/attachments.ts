@@ -88,7 +88,8 @@ export function registerAttachmentHandlers(ipcMain: IpcMain): void {
           name: path.basename(filePath),
           mimeType,
           dataUrl,
-          size: stat.size
+          size: stat.size,
+          path: filePath
         })
       }
 

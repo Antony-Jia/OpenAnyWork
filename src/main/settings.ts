@@ -38,6 +38,10 @@ const defaultSettings: AppSettings = {
       voice: ""
     }
   },
+  vision: {
+    preprocessInterceptEnabled: true,
+    toolCallingEnabled: true
+  },
   defaultWorkspacePath: "",
   butler: {
     rootPath: join(getOpenworkDir(), "butler-workspaces"),
@@ -112,6 +116,10 @@ function readSettings(): AppSettings {
           ...(parsed?.speech?.tts ?? {})
         }
       },
+      vision: {
+        ...defaultSettings.vision,
+        ...(parsed?.vision ?? {})
+      },
       plugins: {
         ...defaultSettings.plugins,
         ...(parsed?.plugins ?? {}),
@@ -169,6 +177,10 @@ export function updateSettings(updates: Partial<AppSettings>): AppSettings {
         ...current.speech.tts,
         ...(updates.speech?.tts ?? {})
       }
+    },
+    vision: {
+      ...current.vision,
+      ...(updates.vision ?? {})
     },
     plugins: {
       ...current.plugins,

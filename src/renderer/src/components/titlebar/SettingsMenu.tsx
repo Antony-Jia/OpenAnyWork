@@ -61,6 +61,8 @@ export function SettingsMenu(_props: SettingsMenuProps): React.JSX.Element {
   const [multimodalUrl, setMultimodalUrl] = useState("https://api.openai.com/v1")
   const [multimodalKey, setMultimodalKey] = useState("")
   const [multimodalModel, setMultimodalModel] = useState("")
+  const [visionPreprocessInterceptEnabled, setVisionPreprocessInterceptEnabled] = useState(true)
+  const [visionToolCallingEnabled, setVisionToolCallingEnabled] = useState(true)
   const [hasConfig, setHasConfig] = useState(false)
   const [settingsSaved, setSettingsSaved] = useState(false)
 
@@ -156,6 +158,8 @@ export function SettingsMenu(_props: SettingsMenuProps): React.JSX.Element {
           setTtsUrl(settings.speech?.tts?.url || "")
           setTtsHeaders(serializeKeyValue(settings.speech?.tts?.headers))
           setTtsVoice(settings.speech?.tts?.voice || "")
+          setVisionPreprocessInterceptEnabled(settings.vision?.preprocessInterceptEnabled !== false)
+          setVisionToolCallingEnabled(settings.vision?.toolCallingEnabled !== false)
         }
       } catch (e) {
         console.error("Failed to load provider config:", e)
@@ -303,6 +307,10 @@ export function SettingsMenu(_props: SettingsMenuProps): React.JSX.Element {
               headers: parseKeyValue(ttsHeaders),
               voice: ttsVoice.trim()
             }
+          },
+          vision: {
+            preprocessInterceptEnabled: visionPreprocessInterceptEnabled,
+            toolCallingEnabled: visionToolCallingEnabled
           }
         }
       })
@@ -322,6 +330,8 @@ export function SettingsMenu(_props: SettingsMenuProps): React.JSX.Element {
     multimodalUrl,
     multimodalKey,
     multimodalModel,
+    visionPreprocessInterceptEnabled,
+    visionToolCallingEnabled,
     ralphIterations,
     defaultWorkspacePath,
     butlerRootPath,
@@ -829,6 +839,31 @@ export function SettingsMenu(_props: SettingsMenuProps): React.JSX.Element {
                       </div>
                     </CardContent>
                   </Card>
+                </div>
+
+                <div className="mt-4 rounded-md border border-border/60 bg-muted/20 p-3 space-y-3">
+                  <div className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">
+                    {t("settings.vision.title")}
+                  </div>
+                  <div className="text-xs text-muted-foreground">
+                    {t("settings.vision.description")}
+                  </div>
+                  <label className="flex items-center gap-2 text-xs text-muted-foreground">
+                    <input
+                      type="checkbox"
+                      checked={visionPreprocessInterceptEnabled}
+                      onChange={(e) => setVisionPreprocessInterceptEnabled(e.target.checked)}
+                    />
+                    {t("settings.vision.preprocess_intercept")}
+                  </label>
+                  <label className="flex items-center gap-2 text-xs text-muted-foreground">
+                    <input
+                      type="checkbox"
+                      checked={visionToolCallingEnabled}
+                      onChange={(e) => setVisionToolCallingEnabled(e.target.checked)}
+                    />
+                    {t("settings.vision.tool_calling")}
+                  </label>
                 </div>
               </div>
             )}

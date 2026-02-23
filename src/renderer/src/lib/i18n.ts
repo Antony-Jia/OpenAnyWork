@@ -79,6 +79,11 @@ const translations = {
     "settings.speech.stt_language_label": "Language",
     "settings.speech.tts_voice": "Voice (optional)",
     "settings.speech.tts_voice_label": "Voice",
+    "settings.vision.title": "VISION",
+    "settings.vision.description":
+      "Control image preprocessing interception and visual tool-calling behavior.",
+    "settings.vision.preprocess_intercept": "Enable Pre-processing Intercept",
+    "settings.vision.tool_calling": "Enable Visual Tool Calling",
     "app.title": "OpenAnyWork",
     "titlebar.subagents": "Subagents",
     "titlebar.skills": "Skills",
@@ -422,6 +427,7 @@ const translations = {
     "tools.disabled_hint": "Disabled tools are not injected into agents.",
     "tools.load_failed": "Failed to load tools",
     "tools.save_failed": "Failed to save tool key",
+    "tools.analyze_image_unavailable": "Requires Multimodal URL, API key, and model in Settings.",
 
     // MCP
     "mcp.title": "MCP",
@@ -583,6 +589,10 @@ const translations = {
     "settings.speech.stt_language_label": "语言",
     "settings.speech.tts_voice": "音色（可选）",
     "settings.speech.tts_voice_label": "音色",
+    "settings.vision.title": "视觉",
+    "settings.vision.description": "控制图片预处理拦截与视觉工具调用行为。",
+    "settings.vision.preprocess_intercept": "启用预处理拦截模式",
+    "settings.vision.tool_calling": "启用视觉工具调用模式",
     "app.title": "OpenAnyWork",
     "titlebar.subagents": "智能体",
     "titlebar.skills": "技能",
@@ -921,6 +931,7 @@ const translations = {
     "tools.disabled_hint": "禁用的工具不会注入到智能体。",
     "tools.load_failed": "工具加载失败",
     "tools.save_failed": "工具保存失败",
+    "tools.analyze_image_unavailable": "需先在设置中配置多模态 URL、API 密钥与模型。",
 
     // MCP
     "mcp.title": "MCP",

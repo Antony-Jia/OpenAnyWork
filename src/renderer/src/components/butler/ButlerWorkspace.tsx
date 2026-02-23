@@ -216,6 +216,7 @@ export function ButlerWorkspace(): React.JSX.Element {
   const [rightTab, setRightTab] = useState<"tasks" | "monitor">("tasks")
   const [mutedTaskIdentities, setMutedTaskIdentities] = useState<Set<string>>(new Set())
   const [expandedDigestDetails, setExpandedDigestDetails] = useState<Record<string, boolean>>({})
+  const [expandedEventDetails, setExpandedEventDetails] = useState<Record<string, boolean>>({})
   const [digestDetailTabs, setDigestDetailTabs] = useState<Record<string, DigestDetailTab>>({})
   const [digestPreset, setDigestPreset] = useState<"0" | "1" | "5" | "60" | "custom">("1")
   const [digestCustomValue, setDigestCustomValue] = useState("1")
@@ -322,6 +323,13 @@ export function ButlerWorkspace(): React.JSX.Element {
 
   const toggleDigestDetails = useCallback((noticeId: string): void => {
     setExpandedDigestDetails((prev) => ({
+      ...prev,
+      [noticeId]: !prev[noticeId]
+    }))
+  }, [])
+
+  const toggleEventDetails = useCallback((noticeId: string): void => {
+    setExpandedEventDetails((prev) => ({
       ...prev,
       [noticeId]: !prev[noticeId]
     }))
@@ -500,6 +508,9 @@ export function ButlerWorkspace(): React.JSX.Element {
             const digestDetailExpanded =
               !!digestNotice && expandedDigestDetails[digestNoticeId] === true
             const digestDetailTab = digestDetailTabs[digestNoticeId] || "overview"
+            const eventNoticeId = taskSnapshot?.id || round.id
+            const eventDetailExpanded =
+              !!noticeCard && !digestNotice && expandedEventDetails[eventNoticeId] === true
             const taskSnapshotIdentity = taskSnapshot?.taskIdentity?.trim() || ""
             return (
               <div key={round.id} className="space-y-4">
@@ -538,6 +549,16 @@ export function ButlerWorkspace(): React.JSX.Element {
                             className="text-[10px] text-accent hover:text-accent/80"
                           >
                             {digestDetailExpanded ? "收起明细" : "展开明细"}
+                          </button>
+                        ) : isSystemNotice && !digestNotice && noticeCard ? (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              toggleEventDetails(eventNoticeId)
+                            }}
+                            className="text-[10px] text-accent hover:text-accent/80"
+                          >
+                            {eventDetailExpanded ? "收起明细" : "展开明细"}
                           </button>
                         ) : null}
                       </div>
@@ -610,62 +631,51 @@ export function ButlerWorkspace(): React.JSX.Element {
                             </div>
                           )}
                         </div>
-                      ) : null}
-                    </div>
-                  </div>
-                )}
-
-                {isSystemNotice && !digestNotice && noticeCard && (
-                  <div className="flex justify-start">
-                    <details className="w-[85%] rounded-xl border border-border/40 bg-card/50 backdrop-blur-sm p-4 glow-border">
-                      <summary className="cursor-pointer">
-                        <div className="flex items-start justify-between gap-2">
-                          <div className="min-w-0">
-                            <div className="truncate text-sm font-medium" title={noticeCard.title}>
-                              {noticeCard.title}
+                      ) : isSystemNotice && !digestNotice && noticeCard && eventDetailExpanded ? (
+                        <div className="mt-3 rounded-xl border border-border/40 bg-background/40 p-3">
+                          <div className="mb-3 flex items-start justify-between gap-2">
+                            <div className="min-w-0">
+                              <div className="truncate text-sm font-medium" title={noticeCard.title}>
+                                {noticeCard.title}
+                              </div>
+                              <div className="mt-1 text-[10px] text-muted-foreground">
+                                {new Date(noticeCard.completedAt).toLocaleString()}
+                              </div>
                             </div>
-                            <div className="mt-1 max-h-12 overflow-hidden whitespace-pre-wrap text-xs text-muted-foreground">
-                              {noticeCard.resultBrief || "任务已结束。"}
-                            </div>
-                            <div className="mt-1 text-[10px] text-muted-foreground">
-                              {new Date(noticeCard.completedAt).toLocaleString()}
-                            </div>
+                            <Badge variant={toStatusVariant(noticeCard.status)}>
+                              {noticeCard.status}
+                            </Badge>
                           </div>
-                          <Badge variant={toStatusVariant(noticeCard.status)}>
-                            {noticeCard.status}
-                          </Badge>
-                        </div>
-                      </summary>
-                      <div className="mt-3 space-y-2">
-                        <div className="max-h-44 overflow-y-auto whitespace-pre-wrap rounded-lg border border-border/40 bg-background/50 backdrop-blur-sm p-3 text-xs">
-                          {resolveTaskDetail(noticeCard)}
-                        </div>
-                        <div className="flex justify-end">
-                          {taskSnapshotIdentity ? (
+                          <div className="max-h-44 overflow-y-auto whitespace-pre-wrap rounded-lg border border-border/40 bg-background/50 backdrop-blur-sm p-3 text-xs">
+                            {resolveTaskDetail(noticeCard)}
+                          </div>
+                          <div className="mt-3 flex justify-end">
+                            {taskSnapshotIdentity ? (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  void muteTaskIdentity(taskSnapshotIdentity)
+                                }}
+                                className="mr-3 text-xs text-muted-foreground hover:text-foreground"
+                              >
+                                不再提示
+                              </button>
+                            ) : null}
                             <button
                               type="button"
+                              disabled={!noticeCard.threadId}
                               onClick={() => {
-                                void muteTaskIdentity(taskSnapshotIdentity)
+                                if (!noticeCard.threadId) return
+                                void openTaskThread(noticeCard.threadId)
                               }}
-                              className="mr-3 text-xs text-muted-foreground hover:text-foreground"
+                              className="text-xs text-accent hover:text-accent/80 hover:neon-text disabled:text-muted-foreground disabled:cursor-not-allowed transition-all duration-200"
                             >
-                              不再提示
+                              查看线程
                             </button>
-                          ) : null}
-                          <button
-                            type="button"
-                            disabled={!noticeCard.threadId}
-                            onClick={() => {
-                              if (!noticeCard.threadId) return
-                              void openTaskThread(noticeCard.threadId)
-                            }}
-                            className="text-xs text-accent hover:text-accent/80 hover:neon-text disabled:text-muted-foreground disabled:cursor-not-allowed transition-all duration-200"
-                          >
-                            查看线程
-                          </button>
+                          </div>
                         </div>
-                      </div>
-                    </details>
+                      ) : null}
+                    </div>
                   </div>
                 )}
               </div>

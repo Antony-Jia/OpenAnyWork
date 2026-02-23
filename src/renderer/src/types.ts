@@ -336,6 +336,8 @@ export interface ToolInfo extends ToolDefinition {
   enabledClassic: boolean
   enabledButler: boolean
   enabled: boolean
+  available: boolean
+  disabledReason?: string
 }
 
 export interface ToolKeyUpdateParams {
@@ -398,6 +400,11 @@ export interface SpeechSettings {
   tts: SpeechTtsSettings
 }
 
+export interface VisionSettings {
+  preprocessInterceptEnabled: boolean
+  toolCallingEnabled: boolean
+}
+
 export interface ActionbookPluginSettings {
   enabled: boolean
 }
@@ -410,6 +417,7 @@ export interface AppSettings {
   ralphIterations: number
   email: EmailSettings
   speech: SpeechSettings
+  vision: VisionSettings
   defaultWorkspacePath?: string | null
   dockerConfig?: DockerConfig
   butler: ButlerSettings
@@ -883,6 +891,7 @@ export interface ContentBlock {
   type: "text" | "image" | "image_url" | "tool_use" | "tool_result"
   text?: string
   image_url?: { url: string }
+  file_path?: string
   tool_use_id?: string
   name?: string
   input?: unknown
@@ -890,7 +899,7 @@ export interface ContentBlock {
 }
 
 export type Attachment =
-  | { kind: "image"; name: string; mimeType: string; dataUrl: string; size: number }
+  | { kind: "image"; name: string; mimeType: string; dataUrl: string; size: number; path: string }
   | {
       kind: "document"
       name: string

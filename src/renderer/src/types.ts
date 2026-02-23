@@ -77,6 +77,53 @@ export interface ExpertConfigInput {
   loop?: Partial<ExpertLoopConfig>
 }
 
+export type ExpertHistoryKind = "bundle" | "single"
+
+export interface ExpertHistoryBundlePayload {
+  config: ExpertConfig
+}
+
+export interface ExpertHistoryBundleCreatePayload {
+  config: ExpertConfigInput | ExpertConfig
+}
+
+export interface ExpertHistorySinglePayload {
+  role: string
+  prompt: string
+}
+
+export interface ExpertHistoryBundleItem {
+  id: string
+  name: string
+  kind: "bundle"
+  payload: ExpertHistoryBundlePayload
+  createdAt: string
+  updatedAt: string
+}
+
+export interface ExpertHistorySingleItem {
+  id: string
+  name: string
+  kind: "single"
+  payload: ExpertHistorySinglePayload
+  createdAt: string
+  updatedAt: string
+}
+
+export type ExpertHistoryItem = ExpertHistoryBundleItem | ExpertHistorySingleItem
+
+export type ExpertHistoryCreateInput =
+  | {
+      name: string
+      kind: "bundle"
+      payload: ExpertHistoryBundleCreatePayload
+    }
+  | {
+      name: string
+      kind: "single"
+      payload: ExpertHistorySinglePayload
+    }
+
 export interface Thread {
   thread_id: string
   created_at: Date

@@ -190,6 +190,17 @@ export async function initializeDatabase(): Promise<SqlJsDatabase> {
   `)
 
   db.run(`
+    CREATE TABLE IF NOT EXISTS expert_history (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      kind TEXT NOT NULL,
+      payload TEXT NOT NULL,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL
+    )
+  `)
+
+  db.run(`
     CREATE TABLE IF NOT EXISTS butler_calendar_events (
       id TEXT PRIMARY KEY,
       title TEXT NOT NULL,
@@ -280,6 +291,9 @@ export async function initializeDatabase(): Promise<SqlJsDatabase> {
   )
   db.run(
     `CREATE UNIQUE INDEX IF NOT EXISTS idx_prompt_templates_name ON prompt_templates(name COLLATE NOCASE)`
+  )
+  db.run(
+    `CREATE INDEX IF NOT EXISTS idx_expert_history_updated_at ON expert_history(updated_at DESC)`
   )
   db.run(
     `CREATE INDEX IF NOT EXISTS idx_butler_calendar_events_start_at ON butler_calendar_events(start_at)`

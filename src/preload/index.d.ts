@@ -33,6 +33,8 @@ import type {
   LoopConfig,
   ExpertConfig,
   ExpertConfigInput,
+  ExpertHistoryCreateInput,
+  ExpertHistoryItem,
   ButlerState,
   ButlerTask,
   TaskCompletionNotice,
@@ -127,6 +129,9 @@ interface CustomAPI {
       threadId: string,
       config: ExpertConfigInput | ExpertConfig
     ) => Promise<ExpertConfig>
+    listHistory: () => Promise<ExpertHistoryItem[]>
+    createHistory: (input: ExpertHistoryCreateInput) => Promise<ExpertHistoryItem>
+    deleteHistory: (id: string) => Promise<void>
   }
   butler: {
     getState: () => Promise<ButlerState>

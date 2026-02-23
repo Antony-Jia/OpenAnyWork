@@ -6,7 +6,13 @@ import {
   mergeExpertConfig,
   normalizeStoredExpertConfig
 } from "../expert/config"
-import type { ExpertConfig, ExpertConfigInput } from "../types"
+import { createExpertHistory, deleteExpertHistory, listExpertHistory } from "../expert/history"
+import type {
+  ExpertConfig,
+  ExpertConfigInput,
+  ExpertHistoryCreateInput,
+  ExpertHistoryItem
+} from "../types"
 
 function parseMetadata(threadId: string): Record<string, unknown> {
   const row = getThread(threadId)
@@ -50,4 +56,19 @@ export function registerExpertHandlers(ipcMain: IpcMain): void {
       return merged.config
     }
   )
+
+  ipcMain.handle("expert:history:list", async (): Promise<ExpertHistoryItem[]> => {
+    return listExpertHistory()
+  })
+
+  ipcMain.handle(
+    "expert:history:create",
+    async (_event, input: ExpertHistoryCreateInput): Promise<ExpertHistoryItem> => {
+      return createExpertHistory(input)
+    }
+  )
+
+  ipcMain.handle("expert:history:delete", async (_event, id: string): Promise<void> => {
+    deleteExpertHistory(id)
+  })
 }

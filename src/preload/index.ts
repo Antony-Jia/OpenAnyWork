@@ -33,6 +33,8 @@ import type {
   LoopConfig,
   ExpertConfig,
   ExpertConfigInput,
+  ExpertHistoryCreateInput,
+  ExpertHistoryItem,
   ButlerState,
   ButlerTask,
   TaskCompletionNotice,
@@ -230,6 +232,15 @@ const api = {
       config: ExpertConfigInput | ExpertConfig
     ): Promise<ExpertConfig> => {
       return ipcRenderer.invoke("expert:updateConfig", { threadId, config })
+    },
+    listHistory: (): Promise<ExpertHistoryItem[]> => {
+      return ipcRenderer.invoke("expert:history:list")
+    },
+    createHistory: (input: ExpertHistoryCreateInput): Promise<ExpertHistoryItem> => {
+      return ipcRenderer.invoke("expert:history:create", input)
+    },
+    deleteHistory: (id: string): Promise<void> => {
+      return ipcRenderer.invoke("expert:history:delete", id)
     }
   },
   butler: {

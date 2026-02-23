@@ -41,126 +41,143 @@ npm run dev
 npm run build
 ```
 
-## 交互模式
+## 功能总览
 
-- `Classic`：传统线程视图（default / ralph / email / loop）。
-- `Butler`：管家编排视图（主对话 + 任务看板 + 监听看板）。
-- 顶部标题点击可在 `Classic` / `Butler` 间切换。
-- 全局快捷键 `Ctrl+Alt+Space` 可打开 Quick Input，并直接把请求发送给 Butler。
+- 双工作模式：`Classic`（线程工作流）与 `Butler`（编排工作流）。
+- 独立窗口能力：Quick Input（全局快捷键 `Ctrl+Alt+Space`）与任务桌面弹窗。
+- 支持线程类型：`default / ralph / email / loop / expert / butler`。
 
-## 管家 AI（Butler）
+## Classic 页面功能
 
-Butler 是语义编排器，不做关键词路由。每轮会在“直接回复 / 澄清问题 / 创建任务”间选择。
+### 线程侧栏
 
-### 支持的任务模式
+- 新建不同模式线程（default/ralph/email/loop/expert）。
+- 支持线程重命名、删除，并可选择“同时删除线程记忆摘要”。
+- 支持按来源筛选线程（全部 / 人工 / 管家）。
 
-- `default`：通用任务。
-- `ralph`：迭代型开发任务（验收条件 + 最大迭代次数）。
-- `email`：邮件任务（受邮件模式 system prompt 约束）。
-- `loop`：周期或事件触发任务。
+### 中央标签区
 
-### 核心行为
+- 固定 `Agent` 会话页 + 文件标签页并行浏览。
+- 文件查看支持代码、文本、图片、PDF、媒体、二进制文件。
 
-- 单轮可创建多任务，支持 `dependsOn` 依赖图和并发调度。
-- 自动检测“过度拆分”并给用户 `A/B` 方案确认（单任务优先 vs 原始拆分）。
-- 支持 handoff：
-  - `context`：上游结果拼入下游提示词。
-  - `filesystem`：写入 `.butler_handoff.json`。
-  - `both`：同时启用。
-- 任务生命周期（开始/完成）和系统事件（监听提醒）都会回流到 Butler 主会话。
-- Butler 任务默认走 `capabilityScope = "butler"`，与 Classic 能力开关隔离。
+### 聊天区
 
-### 监听能力（Butler Monitor）
+- Agent 流式对话与工具调用过程展示（含 tool call / result）。
+- HITL 审批、中断与取消（受线程能力配置约束）。
+- 支持语音输入（STT）与语音播报（TTS）。
+- 支持图片与文档附件（文档会解析提取文本后注入消息）。
 
-Butler 工作区右侧有“监听任务”看板，支持：
+### 右侧面板
 
-- 日历事件提醒（开始前 2 小时触发）
-- 倒计时到点提醒
-- 邮件规则拉取（IMAP）
-- RSS 订阅增量拉取（记录上次读取位置）
+- 任务 Todo 状态面板。
+- 工作区文件树（关联目录、自动刷新、文件打开）。
+- Subagent 运行状态列表。
+- Docker 挂载文件视图。
+- Ralph 进度视图（Ralph 模式）。
 
-触发后会走一个轻量提醒模型回合，生成 1~3 句中文提醒，并推送为事件通知。
-监听面板中的“立即拉取全部”会同时拉取邮件与 RSS。
+## Butler 页面功能
 
-## Loop 对话模式
+### 主会话编排
 
-Loop 是线程级自动执行器，创建入口在左侧 `New Thread -> New Loop Thread`。
+- Butler 每轮在“直接回复 / 澄清 / 创建任务”间做语义决策。
+- 支持单轮多任务创建、依赖关系（`dependsOn`）与并发调度。
+- 支持任务 handoff（`context / filesystem / both`）。
 
-### 触发器
+### 任务看板
 
-- `schedule`：cron 定时触发
-- `api`：按 cron 轮询 API，并根据 `equals / contains / truthy` 条件触发
-- `file`：监听目录中新文件（可按后缀过滤）
+- 展示任务状态（queued/running/completed/failed/cancelled）。
+- 支持从看板直接打开任务线程。
+- 支持清空 Butler 历史和任务记录。
 
-### 模板变量
+### 监听看板（Butler Monitor）
 
-`contentTemplate` 支持变量替换，例如：
+- 日历事件提醒。
+- 倒计时提醒。
+- 邮件规则拉取（IMAP）。
+- RSS 订阅增量拉取。
+- 支持手动立即拉取（`pullNow`）。
 
-- `{{time}}`
-- `{{trigger.type}}`
-- `{{api.json}}` / `{{api.pathValue}}` / `{{api.status}}`
-- `{{file.path}}` / `{{file.preview}}` / `{{file.size}}`
+### 汇总通知
 
-### 执行特性
+- 事件通知卡片与摘要卡片（digest）回流 Butler。
+- 支持任务静默（mute）与摘要周期配置。
 
-- 队列策略为 `strict`，带 `mergeWindowSec` 合并窗口，避免短时间重复触发。
-- 每次运行会注入 `[Loop Trigger @时间]` 标记并调用 agent stream。
-- Loop 线程运行时默认 `disableApprovals = true`。
-- 应用重启后，所有 Loop 会被重置为暂停状态（不自动恢复运行）。
+## 标题栏管理中心（页面入口）
+
+- `Settings`：语言/主题、Provider、Ralph、Email、Speech、Butler 配置等。
+- `Subagents`：子智能体配置（模型、工具、中间件、技能、作用域开关）。
+- `Tools`：工具密钥与启用状态（Classic/Butler 双作用域）。
+- `Skills`：扫描、创建、安装、编辑、启停（Classic/Butler 双作用域）。
+- `MCP`：Server 配置、启动/停止、工具发现、作用域开关。
+- `Prompts`：模板新建/搜索/查看/编辑/删除/复制。
+- `Plugins`：预置插件管理（当前内置 Actionbook）。
+- `Container`：Docker 配置与会话控制。
+- `Memory`：Conversation Memory 与 Butler Global Memory 管理。
+
+## IPC 核心能力（模块级）
+
+主进程 IPC 模块覆盖：
+
+- Agent
+- Threads
+- Workspace
+- Loop
+- Expert
+- Butler
+- Butler Monitor
+- Prompts
+- Memory
+- Models & Provider
+- Tools
+- Skills
+- Subagents
+- MCP
+- Docker
+- Settings
+- Speech
+- Notifications
+- Plugins
+
+主进程广播事件包括（非完整列表）：
+
+- `threads:changed`
+- `thread:history-updated`
+- `app:toast`
+- `app:task-card`
+- `butler:state-changed`
+- `butler:tasks-changed`
+- `butler-monitor:event`
+
+## 通知与独立窗口能力
+
+- 系统托盘驻留、主窗口隐藏与恢复。
+- 任务桌面弹窗（支持打开线程、关闭、静默任务）。
+- Quick Input 独立窗口（`Ctrl+Alt+Space` 呼出，直接发给 Butler）。
+
+## 能力边界与实现细节
+
+- 发送消息前需先为线程绑定 workspace。
+- Loop 在应用重启后默认重置为暂停，不自动恢复。
+- Prompt 模板是素材库，不会自动注入每轮消息。
+- Docker 管理入口当前按实现限制为 Windows 可用。
+- 右侧文件区的 `Sync to Disk` 按钮当前为占位行为，不代表已实现双向同步。
 
 ## 记忆系统（Memory）
 
 ### 自动记忆写入
 
-- 在任务完成事件后自动抽取会话摘要（模式、简述、详情、工具过程、偏好标签等）。
+- 任务完成后自动抽取会话摘要（模式、简述、详情、工具过程、偏好标签等）。
 - Butler 主会话（`butlerMain`）不写入对话记忆摘要。
 
 ### 日画像（Daily Profile）
 
-- 启动时会根据“昨天”的任务摘要聚合生成日画像与对比文本。
-- Butler 编排提示词会引用：
-  - `[Daily Profile]`
-  - `[Profile Delta]`
+- 启动时基于“昨天”的任务摘要聚合生成日画像与对比文本。
+- Butler 编排提示词引用 `[Daily Profile]` 与 `[Profile Delta]`。
 
 ### 管理入口
 
-- 标题栏 `Memory` 按钮可查看：
-  - Conversation Memory（按线程分组）
-  - Butler Global Memory（日画像）
+- 标题栏 `Memory` 查看 Conversation Memory（按线程分组）与 Butler Global Memory。
 - 支持一键清空全部记忆。
-- 删除线程时可选“同时删除该线程记忆摘要”。
-
-## Prompt 添加（提示词模板）
-
-标题栏 `Prompts` 支持提示词模板管理：
-
-- 新建 / 搜索 / 查看 / 编辑 / 删除
-- 一键复制模板内容
-
-当前行为边界：
-
-- 提示词模板是“管理与复用素材库”，不会自动注入每次发送消息。
-- 模板持久化在主数据库 `prompt_templates` 表中。
-
-## Butler Prompt 组合器（开发者）
-
-Butler 用户提示词由 section pipeline 组装，当前顺序：
-
-1. `overview`
-2. `memory`
-3. `router`
-4. `capabilities`
-
-扩展方式：新增 section 文件并注册到 `DEFAULT_SECTION_PIPELINE`，无需改 runtime 主流程。
-
-## 能力作用域（Classic / Butler）
-
-Tools / Skills / MCP / Subagents 都支持双开关：
-
-- `Classic`：普通线程可用
-- `Butler`：管家派发线程可用
-
-旧版全局开关仍兼容，但会同步写入两侧作用域。
 
 ## 本地数据目录
 

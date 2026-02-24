@@ -130,14 +130,14 @@ export function ToolsManager(): React.JSX.Element {
       </Button>
 
       <DialogContent className="w-[900px] h-[640px] max-w-[90vw] max-h-[85vh] p-0 overflow-hidden">
-        <div className="flex h-full flex-col">
+        <div className="flex h-full min-h-0 flex-col">
           <DialogHeader className="px-6 pt-6">
             <DialogTitle className="text-sm uppercase tracking-[0.2em] text-muted-foreground">
               {t("tools.title")}
             </DialogTitle>
           </DialogHeader>
 
-          <div className="flex-1 overflow-y-auto px-6 pb-6 pt-4">
+          <div className="flex-1 min-h-0 overflow-y-auto px-6 pb-6 pt-4">
             <div className="space-y-4">
               {tools.length === 0 ? (
                 <div className="rounded-sm border border-dashed border-border p-6 text-center text-sm text-muted-foreground">

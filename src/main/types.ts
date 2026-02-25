@@ -112,6 +112,11 @@ export interface ExpertHistorySingleItem {
 
 export type ExpertHistoryItem = ExpertHistoryBundleItem | ExpertHistorySingleItem
 
+export interface ExpertHistoryListDetailedResult {
+  items: ExpertHistoryItem[]
+  skipped: number
+}
+
 export type ExpertHistoryCreateInput =
   | {
       name: string
@@ -248,10 +253,16 @@ export interface ExpertLogEntry {
   threadId: string
   runId: string
   role: "user" | "expert" | "system"
+  kind?: "pipeline" | "trace"
+  traceRole?: "ai" | "tool_call" | "tool"
   cycle?: number
   expertId?: string
   expertRole?: string
   content: string
+  messageId?: string
+  toolCallId?: string
+  toolName?: string
+  toolArgs?: Record<string, unknown>
   summary?: string
   handoff?: string
   stop?: boolean

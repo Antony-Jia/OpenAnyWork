@@ -34,6 +34,7 @@ import type {
   ExpertConfig,
   ExpertConfigInput,
   ExpertHistoryCreateInput,
+  ExpertHistoryListDetailedResult,
   ExpertHistoryItem,
   ButlerState,
   ButlerTask,
@@ -235,6 +236,9 @@ const api = {
     },
     listHistory: (): Promise<ExpertHistoryItem[]> => {
       return ipcRenderer.invoke("expert:history:list")
+    },
+    listHistoryDetailed: (): Promise<ExpertHistoryListDetailedResult> => {
+      return ipcRenderer.invoke("expert:history:listDetailed")
     },
     createHistory: (input: ExpertHistoryCreateInput): Promise<ExpertHistoryItem> => {
       return ipcRenderer.invoke("expert:history:create", input)

@@ -34,6 +34,7 @@ import type {
   ExpertConfig,
   ExpertConfigInput,
   ExpertHistoryCreateInput,
+  ExpertHistoryListDetailedResult,
   ExpertHistoryItem,
   ButlerState,
   ButlerTask,
@@ -130,6 +131,7 @@ interface CustomAPI {
       config: ExpertConfigInput | ExpertConfig
     ) => Promise<ExpertConfig>
     listHistory: () => Promise<ExpertHistoryItem[]>
+    listHistoryDetailed: () => Promise<ExpertHistoryListDetailedResult>
     createHistory: (input: ExpertHistoryCreateInput) => Promise<ExpertHistoryItem>
     deleteHistory: (id: string) => Promise<void>
   }
@@ -164,9 +166,7 @@ interface CustomAPI {
     deleteMailRule: (id: string) => Promise<void>
     listRecentMails: (limit?: number) => Promise<MailWatchMessage[]>
     listRssSubscriptions: () => Promise<RssWatchSubscription[]>
-    createRssSubscription: (
-      input: RssWatchSubscriptionCreateInput
-    ) => Promise<RssWatchSubscription>
+    createRssSubscription: (input: RssWatchSubscriptionCreateInput) => Promise<RssWatchSubscription>
     updateRssSubscription: (
       id: string,
       updates: RssWatchSubscriptionUpdateInput

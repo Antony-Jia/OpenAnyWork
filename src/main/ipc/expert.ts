@@ -6,11 +6,17 @@ import {
   mergeExpertConfig,
   normalizeStoredExpertConfig
 } from "../expert/config"
-import { createExpertHistory, deleteExpertHistory, listExpertHistory } from "../expert/history"
+import {
+  createExpertHistory,
+  deleteExpertHistory,
+  listExpertHistory,
+  listExpertHistoryDetailed
+} from "../expert/history"
 import type {
   ExpertConfig,
   ExpertConfigInput,
   ExpertHistoryCreateInput,
+  ExpertHistoryListDetailedResult,
   ExpertHistoryItem
 } from "../types"
 
@@ -60,6 +66,13 @@ export function registerExpertHandlers(ipcMain: IpcMain): void {
   ipcMain.handle("expert:history:list", async (): Promise<ExpertHistoryItem[]> => {
     return listExpertHistory()
   })
+
+  ipcMain.handle(
+    "expert:history:listDetailed",
+    async (): Promise<ExpertHistoryListDetailedResult> => {
+      return listExpertHistoryDetailed()
+    }
+  )
 
   ipcMain.handle(
     "expert:history:create",

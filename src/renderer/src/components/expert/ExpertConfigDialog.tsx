@@ -11,7 +11,12 @@ import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { useLanguage } from "@/lib/i18n"
 import { useAppStore } from "@/lib/store"
-import type { ExpertConfig, ExpertConfigInput, ExpertHistoryItem } from "@/types"
+import type {
+  ExpertConfig,
+  ExpertConfigInput,
+  ExpertHistoryItem,
+  ExpertHistoryListDetailedResult
+} from "@/types"
 
 const DEFAULT_MAX_CYCLES = 5
 
@@ -33,6 +38,12 @@ function previewPrompt(input: string, maxLength = 120): string {
   if (!text) return ""
   if (text.length <= maxLength) return text
   return `${text.slice(0, maxLength - 1)}…`
+}
+
+function buildDefaultHistoryName(prefix: string): string {
+  const now = new Date()
+  const stamp = now.toLocaleString()
+  return `${prefix} ${stamp}`
 }
 
 function createEditableExpert(input?: Partial<EditableExpert>): EditableExpert {
@@ -83,12 +94,12 @@ export function ExpertConfigDialog({
       : [createEditableExpert({ role: "专家1" })]
   )
   const [historyItems, setHistoryItems] = useState<ExpertHistoryItem[]>([])
+  const [historySkippedCount, setHistorySkippedCount] = useState(0)
   const [historyLoading, setHistoryLoading] = useState(false)
   const [historyError, setHistoryError] = useState<string | null>(null)
   const [historyInfo, setHistoryInfo] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
 
-  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     if (!open) return
     setActiveTab("config")
@@ -108,12 +119,12 @@ export function ExpertConfigDialog({
         : [createEditableExpert({ role: "专家1" })]
     )
     setHistoryItems([])
+    setHistorySkippedCount(0)
     setHistoryLoading(false)
     setHistoryError(null)
     setHistoryInfo(null)
     setError(null)
   }, [open, initialConfig, initialTitle])
-  /* eslint-enable react-hooks/set-state-in-effect */
 
   const maxCyclesNumber = useMemo(() => {
     const parsed = Number.parseInt(maxCycles, 10)
@@ -132,15 +143,30 @@ export function ExpertConfigDialog({
     setHistoryLoading(true)
     setHistoryError(null)
     try {
-      const items = await window.api.expert.listHistory()
-      setHistoryItems(items)
+      const expertApi = window.api.expert as typeof window.api.expert & {
+        listHistoryDetailed?: () => Promise<ExpertHistoryListDetailedResult>
+      }
+      if (typeof expertApi.listHistoryDetailed === "function") {
+        const result = (await expertApi.listHistoryDetailed()) as ExpertHistoryListDetailedResult
+        setHistoryItems(result.items || [])
+        setHistorySkippedCount(Math.max(0, result.skipped || 0))
+      } else {
+        const items = await expertApi.listHistory()
+        setHistoryItems(items || [])
+        setHistorySkippedCount(0)
+      }
     } catch (err) {
+      setHistorySkippedCount(0)
       const message = err instanceof Error ? err.message : t("expert.history.load_failed")
       setHistoryError(message)
     } finally {
       setHistoryLoading(false)
     }
   }, [t])
+
+  const upsertHistoryItem = useCallback((item: ExpertHistoryItem): void => {
+    setHistoryItems((prev) => [item, ...prev.filter((existing) => existing.id !== item.id)])
+  }, [])
 
   useEffect(() => {
     if (!open || mode !== "create" || activeTab !== "history") return
@@ -185,22 +211,31 @@ export function ExpertConfigDialog({
     })
   }
 
-  const promptHistoryName = (): string | null => {
-    const result = window.prompt(t("expert.history.name_prompt"))
-    if (result === null) return null
-    const name = result.trim()
-    return name.length > 0 ? name : null
+  const promptHistoryName = (fallbackName: string): string => {
+    try {
+      if (typeof window.prompt !== "function") {
+        return fallbackName
+      }
+      const result = window.prompt(t("expert.history.name_prompt"), fallbackName)
+      const name = typeof result === "string" ? result.trim() : ""
+      return name.length > 0 ? name : fallbackName
+    } catch {
+      return fallbackName
+    }
   }
 
   const handleSaveBundleToHistory = async (): Promise<void> => {
-    if (!canSave) return
-    const name = promptHistoryName()
-    if (!name) return
+    if (!canSave) {
+      setError(t("expert.error.save_failed"))
+      return
+    }
+    const fallbackName = buildDefaultHistoryName(t("expert.history.type.bundle"))
+    const name = promptHistoryName(fallbackName)
 
     setError(null)
     setHistoryError(null)
     try {
-      await window.api.expert.createHistory({
+      const created = await window.api.expert.createHistory({
         name,
         kind: "bundle",
         payload: {
@@ -208,9 +243,8 @@ export function ExpertConfigDialog({
         }
       })
       setHistoryInfo(t("expert.history.save_success"))
-      if (activeTab === "history") {
-        await loadHistory()
-      }
+      upsertHistoryItem(created)
+      await loadHistory()
     } catch (err) {
       const message = err instanceof Error ? err.message : t("expert.error.save_failed")
       setError(message)
@@ -220,15 +254,17 @@ export function ExpertConfigDialog({
   const handleSaveSingleToHistory = async (expert: EditableExpert): Promise<void> => {
     const role = expert.role.trim()
     const prompt = expert.prompt.trim()
-    if (!role || !prompt) return
-
-    const name = promptHistoryName()
-    if (!name) return
+    if (!role || !prompt) {
+      setError(t("expert.error.save_failed"))
+      return
+    }
+    const fallbackName = buildDefaultHistoryName(role || t("expert.history.type.single"))
+    const name = promptHistoryName(fallbackName)
 
     setError(null)
     setHistoryError(null)
     try {
-      await window.api.expert.createHistory({
+      const created = await window.api.expert.createHistory({
         name,
         kind: "single",
         payload: {
@@ -237,9 +273,8 @@ export function ExpertConfigDialog({
         }
       })
       setHistoryInfo(t("expert.history.save_success"))
-      if (activeTab === "history") {
-        await loadHistory()
-      }
+      upsertHistoryItem(created)
+      await loadHistory()
     } catch (err) {
       const message = err instanceof Error ? err.message : t("expert.error.save_failed")
       setError(message)
@@ -404,6 +439,11 @@ export function ExpertConfigDialog({
               )}
 
               {historyInfo && <div className="text-xs text-status-success">{historyInfo}</div>}
+              {historySkippedCount > 0 && (
+                <div className="text-xs text-amber-600">
+                  {t("expert.history.skipped_hint")} ({historySkippedCount})
+                </div>
+              )}
               {historyError && <div className="text-xs text-destructive">{historyError}</div>}
             </div>
           ) : (
@@ -462,7 +502,10 @@ export function ExpertConfigDialog({
                 </div>
 
                 {experts.map((expert, index) => (
-                  <div key={expert.key} className="rounded-lg border border-border/60 p-3 space-y-3">
+                  <div
+                    key={expert.key}
+                    className="rounded-lg border border-border/60 p-3 space-y-3"
+                  >
                     <div className="flex items-center justify-between gap-2">
                       <div className="text-xs text-muted-foreground">
                         {t("expert.order_label")}: {index + 1}
@@ -513,7 +556,9 @@ export function ExpertConfigDialog({
                         className={textareaClass}
                         rows={4}
                         value={expert.prompt}
-                        onChange={(event) => updateExpert(expert.key, { prompt: event.target.value })}
+                        onChange={(event) =>
+                          updateExpert(expert.key, { prompt: event.target.value })
+                        }
                         placeholder={t("expert.prompt_placeholder")}
                       />
                     </div>
@@ -525,7 +570,9 @@ export function ExpertConfigDialog({
                           variant="outline"
                           size="sm"
                           onClick={() => void handleSaveSingleToHistory(expert)}
-                          disabled={expert.role.trim().length === 0 || expert.prompt.trim().length === 0}
+                          disabled={
+                            expert.role.trim().length === 0 || expert.prompt.trim().length === 0
+                          }
                         >
                           {t("expert.history.save_single")}
                         </Button>
@@ -546,7 +593,11 @@ export function ExpertConfigDialog({
             {t("common.cancel")}
           </Button>
           {!showHistoryTab && mode === "create" && (
-            <Button variant="outline" onClick={() => void handleSaveBundleToHistory()} disabled={!canSave}>
+            <Button
+              variant="outline"
+              onClick={() => void handleSaveBundleToHistory()}
+              disabled={!canSave}
+            >
               {t("expert.history.save_bundle")}
             </Button>
           )}

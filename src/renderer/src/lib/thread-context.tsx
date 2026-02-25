@@ -566,15 +566,21 @@ export function ThreadProvider({ children }: { children: ReactNode }) {
           break
         case "ralph_log":
           if (data.entry) {
+            const nextEntry = data.entry as RalphLogEntry
             updateThreadState(threadId, (prev) => ({
-              ralphLog: [...prev.ralphLog, data.entry as RalphLogEntry].slice(-500)
+              ralphLog: prev.ralphLog.some((entry) => entry.id === nextEntry.id)
+                ? prev.ralphLog
+                : [...prev.ralphLog, nextEntry].slice(-500)
             }))
           }
           break
         case "expert_log":
           if (data.entry) {
+            const nextEntry = data.entry as ExpertLogEntry
             updateThreadState(threadId, (prev) => ({
-              expertLog: [...prev.expertLog, data.entry as ExpertLogEntry].slice(-1000)
+              expertLog: prev.expertLog.some((entry) => entry.id === nextEntry.id)
+                ? prev.expertLog
+                : [...prev.expertLog, nextEntry].slice(-1000)
             }))
           }
           break
@@ -745,7 +751,9 @@ export function ThreadProvider({ children }: { children: ReactNode }) {
         },
         appendRalphLog: (entry: RalphLogEntry) => {
           updateThreadState(threadId, (state) => ({
-            ralphLog: [...state.ralphLog, entry].slice(-500)
+            ralphLog: state.ralphLog.some((item) => item.id === entry.id)
+              ? state.ralphLog
+              : [...state.ralphLog, entry].slice(-500)
           }))
         },
         setExpertLog: (entries: ExpertLogEntry[]) => {
@@ -753,7 +761,9 @@ export function ThreadProvider({ children }: { children: ReactNode }) {
         },
         appendExpertLog: (entry: ExpertLogEntry) => {
           updateThreadState(threadId, (state) => ({
-            expertLog: [...state.expertLog, entry].slice(-1000)
+            expertLog: state.expertLog.some((item) => item.id === entry.id)
+              ? state.expertLog
+              : [...state.expertLog, entry].slice(-1000)
           }))
         }
       }

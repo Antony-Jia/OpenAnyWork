@@ -3,6 +3,7 @@ import { getDb, markDbDirty } from "../db"
 import { normalizeExpertConfigInput } from "./config"
 import type {
   ExpertHistoryCreateInput,
+  ExpertHistoryListDetailedResult,
   ExpertHistoryItem,
   ExpertHistoryKind,
   ExpertHistorySinglePayload
@@ -54,12 +55,14 @@ function readRows<T>(query: string, params: Array<string | number> = []): T[] {
 
 function parseSinglePayload(payload: unknown): ExpertHistorySinglePayload {
   const source = payload && typeof payload === "object" ? payload : {}
-  const role = typeof (source as { role?: unknown }).role === "string"
-    ? (source as { role: string }).role.trim()
-    : ""
-  const prompt = typeof (source as { prompt?: unknown }).prompt === "string"
-    ? (source as { prompt: string }).prompt.trim()
-    : ""
+  const role =
+    typeof (source as { role?: unknown }).role === "string"
+      ? (source as { role: string }).role.trim()
+      : ""
+  const prompt =
+    typeof (source as { prompt?: unknown }).prompt === "string"
+      ? (source as { prompt: string }).prompt.trim()
+      : ""
 
   if (!role || !prompt) {
     throw new Error("Expert single history payload requires role and prompt.")
@@ -80,7 +83,10 @@ function toHistoryItem(row: ExpertHistoryRow): ExpertHistoryItem {
   const payloadJson = JSON.parse(row.payload) as unknown
   if (kind === "bundle") {
     const source = payloadJson && typeof payloadJson === "object" ? payloadJson : {}
-    const config = normalizeExpertConfigInput((source as { config?: unknown }).config)
+    const hasConfigField =
+      source && typeof source === "object" && Object.prototype.hasOwnProperty.call(source, "config")
+    const configInput = hasConfigField ? (source as { config?: unknown }).config : source
+    const config = normalizeExpertConfigInput(configInput)
     return {
       ...base,
       kind: "bundle",
@@ -99,7 +105,7 @@ function toHistoryItem(row: ExpertHistoryRow): ExpertHistoryItem {
   throw new Error(`Unsupported expert history kind: ${row.kind}`)
 }
 
-export function listExpertHistory(): ExpertHistoryItem[] {
+export function listExpertHistoryDetailed(): ExpertHistoryListDetailedResult {
   const rows = readRows<ExpertHistoryRow>(
     `SELECT id, name, kind, payload, created_at, updated_at
      FROM expert_history
@@ -107,15 +113,21 @@ export function listExpertHistory(): ExpertHistoryItem[] {
   )
 
   const items: ExpertHistoryItem[] = []
+  let skipped = 0
   for (const row of rows) {
     try {
       items.push(toHistoryItem(row))
     } catch (error) {
+      skipped += 1
       console.warn("[ExpertHistory] Skipping invalid record:", row.id, error)
     }
   }
 
-  return items
+  return { items, skipped }
+}
+
+export function listExpertHistory(): ExpertHistoryItem[] {
+  return listExpertHistoryDetailed().items
 }
 
 export function createExpertHistory(input: ExpertHistoryCreateInput): ExpertHistoryItem {

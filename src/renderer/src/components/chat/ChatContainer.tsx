@@ -88,6 +88,38 @@ function buildDocumentPromptText(attachment: Extract<Attachment, { kind: "docume
   ].join("\n")
 }
 
+function parseToolArgsFromLog(params: {
+  content: string
+  toolArgs?: Record<string, unknown>
+}): Record<string, unknown> {
+  if (params.toolArgs && typeof params.toolArgs === "object") {
+    return params.toolArgs
+  }
+  const content = params.content || ""
+  const openIdx = content.indexOf("(")
+  const closeIdx = content.lastIndexOf(")")
+  if (openIdx >= 0 && closeIdx > openIdx) {
+    const raw = content.slice(openIdx + 1, closeIdx)
+    try {
+      return JSON.parse(raw) as Record<string, unknown>
+    } catch {
+      return {}
+    }
+  }
+  return {}
+}
+
+function dedupeMessagesById(messages: Message[]): Message[] {
+  const seen = new Set<string>()
+  const deduped: Message[] = []
+  for (const message of messages) {
+    if (!message?.id || seen.has(message.id)) continue
+    seen.add(message.id)
+    deduped.push(message)
+  }
+  return deduped
+}
+
 interface ChatContainerProps {
   threadId: string
 }
@@ -340,24 +372,6 @@ export function ChatContainer({ threadId }: ChatContainerProps): React.JSX.Eleme
     if (threadMode !== "ralph") return []
     const messages: Message[] = []
 
-    const parseToolArgs = (entry: RalphLogEntry): Record<string, unknown> => {
-      if (entry.toolArgs && typeof entry.toolArgs === "object") {
-        return entry.toolArgs
-      }
-      const content = entry.content || ""
-      const openIdx = content.indexOf("(")
-      const closeIdx = content.lastIndexOf(")")
-      if (openIdx >= 0 && closeIdx > openIdx) {
-        const raw = content.slice(openIdx + 1, closeIdx)
-        try {
-          return JSON.parse(raw) as Record<string, unknown>
-        } catch {
-          return {}
-        }
-      }
-      return {}
-    }
-
     const logMessages = (ralphLog || []).flatMap((entry: RalphLogEntry) => {
       if (!entry) return []
       const createdAt = entry.ts ? new Date(entry.ts) : new Date()
@@ -397,7 +411,10 @@ export function ChatContainer({ threadId }: ChatContainerProps): React.JSX.Eleme
               {
                 id: toolCallId,
                 name: toolName,
-                args: parseToolArgs(entry)
+                args: parseToolArgsFromLog({
+                  content: entry.content,
+                  toolArgs: entry.toolArgs
+                })
               }
             ],
             created_at: createdAt
@@ -432,6 +449,55 @@ export function ChatContainer({ threadId }: ChatContainerProps): React.JSX.Eleme
       if (!entry) return []
       const createdAt = entry.ts ? new Date(entry.ts) : new Date()
 
+      if (entry.traceRole === "ai") {
+        if (!entry.content || !entry.content.trim()) return []
+        return [
+          {
+            id: entry.id,
+            role: "assistant",
+            content: entry.content,
+            created_at: createdAt
+          } as Message
+        ]
+      }
+
+      if (entry.traceRole === "tool_call") {
+        const toolCallId = entry.toolCallId || entry.id
+        const toolName = entry.toolName || "tool"
+        return [
+          {
+            id: `expert-tool-call-${toolCallId}`,
+            role: "assistant",
+            content: "",
+            tool_calls: [
+              {
+                id: toolCallId,
+                name: toolName,
+                args: parseToolArgsFromLog({
+                  content: entry.content,
+                  toolArgs: entry.toolArgs
+                })
+              }
+            ],
+            created_at: createdAt
+          } as Message
+        ]
+      }
+
+      if (entry.traceRole === "tool") {
+        if (!entry.toolCallId) return []
+        return [
+          {
+            id: entry.id,
+            role: "tool",
+            content: entry.content,
+            tool_call_id: entry.toolCallId,
+            name: entry.toolName,
+            created_at: createdAt
+          } as Message
+        ]
+      }
+
       if (entry.role === "user") {
         return [
           {
@@ -462,10 +528,10 @@ export function ChatContainer({ threadId }: ChatContainerProps): React.JSX.Eleme
 
   const displayMessages = useMemo(() => {
     if (threadMode === "ralph") {
-      return ralphMessages
+      return dedupeMessagesById(ralphMessages)
     }
     if (threadMode === "expert") {
-      return expertMessages
+      return dedupeMessagesById(expertMessages)
     }
 
     const threadMessageIds = new Set(threadMessages.map((m) => m.id))
@@ -493,7 +559,7 @@ export function ChatContainer({ threadId }: ChatContainerProps): React.JSX.Eleme
         }
       })
 
-    return [...threadMessages, ...streamingMsgs]
+    return dedupeMessagesById([...threadMessages, ...streamingMsgs])
   }, [expertMessages, ralphMessages, streamData.messages, threadMessages, threadMode])
 
   // Build tool results map from tool messages

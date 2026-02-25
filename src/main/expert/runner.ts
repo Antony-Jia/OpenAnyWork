@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto"
 import type { BrowserWindow } from "electron"
 import { appendExpertLogEntry } from "../expert-log"
-import { runAgentStream } from "../agent/run"
+import { runAgentStream, type AgentTraceEvent } from "../agent/run"
 import type {
   CapabilityScope,
   ContentBlock,
@@ -101,8 +101,7 @@ function parseExpertResult(rawOutput: string, params: { canStop: boolean }): Par
 
   const summary = summaryRaw || fallback
   const handoff = handoffRaw || summary
-  const degraded =
-    summaryRaw.length === 0 || handoffRaw.length === 0 || (parsed.stop === true && !stop)
+  const degraded = summaryRaw.length === 0 || handoffRaw.length === 0
 
   return {
     visibleContent: visibleContent || summary,
@@ -111,7 +110,7 @@ function parseExpertResult(rawOutput: string, params: { canStop: boolean }): Par
     stop,
     stopReason: stopReasonRaw || undefined,
     degraded,
-    degradedReason: degraded ? "partial_payload_or_invalid_stop" : undefined
+    degradedReason: degraded ? "missing_summary_or_handoff" : undefined
   }
 }
 
@@ -271,6 +270,27 @@ export async function runExpertPipeline(params: {
       const expert = expertConfig.experts[idx]
       const isLastExpert = idx === totalExperts - 1
       const canStop = expertConfig.loop.enabled && isLastExpert
+      const appendTrace = (trace: AgentTraceEvent): void => {
+        appendPipelineLog({
+          window,
+          channel,
+          threadId,
+          runId,
+          entry: {
+            role: "expert",
+            kind: "trace",
+            cycle,
+            expertId: expert.id,
+            expertRole: expert.role,
+            traceRole: trace.role,
+            content: trace.content || "",
+            messageId: trace.messageId,
+            toolCallId: trace.toolCallId,
+            toolName: trace.toolName,
+            toolArgs: trace.toolArgs
+          }
+        })
+      }
 
       const output = await runAgentStream({
         threadId: expert.agentThreadId,
@@ -297,7 +317,8 @@ export async function runExpertPipeline(params: {
         }),
         window,
         channel,
-        abortController
+        abortController,
+        onTraceEvent: appendTrace
       })
 
       if (abortController.signal.aborted) break cycleLoop

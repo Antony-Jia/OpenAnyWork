@@ -13,6 +13,15 @@ import type {
   ThreadMode
 } from "../types"
 
+export interface AgentTraceEvent {
+  role: "ai" | "tool_call" | "tool"
+  content: string
+  messageId?: string
+  toolCallId?: string
+  toolName?: string
+  toolArgs?: Record<string, unknown>
+}
+
 export async function runAgentStream({
   threadId,
   workspacePath,
@@ -28,7 +37,8 @@ export async function runAgentStream({
   window,
   channel,
   abortController,
-  ralphLog
+  ralphLog,
+  onTraceEvent
 }: {
   threadId: string
   workspacePath: string
@@ -44,6 +54,7 @@ export async function runAgentStream({
   window: BrowserWindow
   channel: string
   abortController: AbortController
+  onTraceEvent?: (entry: AgentTraceEvent) => void
   ralphLog?: {
     enabled: boolean
     iteration?: number
@@ -206,6 +217,11 @@ export async function runAgentStream({
             if (messageId) seenMessageIds.add(messageId)
             if (content) {
               lastValuesAiContent = content
+              onTraceEvent?.({
+                role: "ai",
+                content,
+                messageId
+              })
             }
             if (ralphLog?.enabled && (content || toolCalls.length > 0)) {
               appendLog({
@@ -233,11 +249,26 @@ export async function runAgentStream({
                   toolArgs: tc.args
                 })
               }
+              onTraceEvent?.({
+                role: "tool_call",
+                content: `${tc.name || "tool"}(${argsText})`,
+                messageId,
+                toolCallId: tc.id,
+                toolName: tc.name,
+                toolArgs: tc.args
+              })
             }
           } else if (role === "tool") {
             if (messageId) seenMessageIds.add(messageId)
+            const meta = getToolMessageMeta(msg)
+            onTraceEvent?.({
+              role: "tool",
+              content,
+              messageId,
+              toolCallId: meta.toolCallId,
+              toolName: meta.toolName
+            })
             if (ralphLog?.enabled) {
-              const meta = getToolMessageMeta(msg)
               appendLog({
                 role: "tool",
                 content,

@@ -257,6 +257,7 @@ const translations = {
     "expert.history.save_success": "Saved to history.",
     "expert.history.delete_confirm": "Delete this history expert?",
     "expert.history.load_failed": "Failed to load expert history.",
+    "expert.history.skipped_hint": "Ignored invalid history records",
 
     // Common
     "common.loading": "Loading...",
@@ -764,6 +765,7 @@ const translations = {
     "expert.history.save_success": "已保存到历史专家。",
     "expert.history.delete_confirm": "确认删除该历史专家？",
     "expert.history.load_failed": "加载历史专家失败。",
+    "expert.history.skipped_hint": "已忽略无效的历史记录",
 
     // Common
     "common.loading": "加载中...",

@@ -1,6 +1,7 @@
-import { HumanMessage, SystemMessage } from "@langchain/core/messages"
+import { HumanMessage, SystemMessage, ToolMessage } from "@langchain/core/messages"
 import { ChatOpenAI } from "@langchain/openai"
 import { createDeepAgent } from "deepagents"
+import { createMiddleware } from "langchain"
 import { LocalSandbox } from "../agent/local-sandbox"
 import { getProviderState } from "../provider-config"
 import { getCheckpointer } from "../agent/runtime"
@@ -19,6 +20,7 @@ import {
 import { composeButlerUserPrompt } from "./prompt/composer"
 import { createButlerDispatchTools, type ButlerDispatchIntent } from "./tools"
 import type { ButlerDigestTaskCard, ButlerPerceptionInput } from "../types"
+import { getEnabledToolInstances } from "../tools/service"
 
 export interface ButlerOrchestratorTurnInput {
   threadId: string
@@ -55,6 +57,38 @@ export interface ButlerDigestTurnResult {
 
 const DAILY_PROFILE_MARKER = "[Daily Profile]"
 const PROFILE_DELTA_MARKER = "[Profile Delta]"
+const BLOCKED_BUTLER_TOOL_NAMES = new Set([
+  "execute",
+  "ls",
+  "read_file",
+  "write_file",
+  "edit_file",
+  "glob",
+  "grep",
+  "download_files",
+  "upload_files",
+  "task",
+  "write_todos"
+])
+
+function createButlerSafetyMiddleware() {
+  return createMiddleware({
+    name: "butlerSafetyMiddleware",
+    wrapToolCall: async (request, handler) => {
+      const toolName = String(request.tool?.name || "unknown")
+      if (!BLOCKED_BUTLER_TOOL_NAMES.has(toolName)) {
+        return handler(request)
+      }
+
+      const toolCallId = request.toolCall?.id || "unknown"
+      return new ToolMessage({
+        content: `TOOL_ERROR: "${toolName}" is blocked in Butler mode. Butler cannot operate system commands or filesystem tools directly.`,
+        tool_call_id: toolCallId,
+        name: toolName
+      })
+    }
+  })
+}
 
 function requireProviderState(): ProviderState {
   const state = getProviderState()
@@ -110,13 +144,22 @@ async function createButlerRuntime(params: {
     maxOutputBytes: 50_000
   })
 
-  const tools = createButlerDispatchTools({ onIntent: params.onIntent })
+  const dispatchTools = createButlerDispatchTools({ onIntent: params.onIntent })
+  const capabilityTools = getEnabledToolInstances("butler")
+  const tools = [...dispatchTools]
+  for (const toolInstance of capabilityTools) {
+    if (!tools.includes(toolInstance)) {
+      tools.push(toolInstance)
+    }
+  }
+
   return createDeepAgent({
     model,
     checkpointer,
     backend,
     systemPrompt: buildButlerSystemPrompt(),
     tools,
+    middleware: [createButlerSafetyMiddleware()],
     subagents: [],
     skills: []
   } as Parameters<typeof createDeepAgent>[0])

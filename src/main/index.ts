@@ -56,6 +56,7 @@ import {
 import { butlerManager } from "./butler/manager"
 import { ButlerMonitorManager } from "./butler/monitoring/manager"
 import { ButlerMonitorBus } from "./butler/monitoring/bus"
+import { setActiveButlerMonitorManager } from "./butler/monitoring/runtime"
 import { TaskPopupController } from "./notifications/popup-controller"
 import { TaskCompletionBus } from "./notifications/task-completion-bus"
 import { TaskLifecycleButlerBus } from "./notifications/task-lifecycle-butler-bus"
@@ -344,6 +345,7 @@ app.whenReady().then(async () => {
       }
     }
   })
+  setActiveButlerMonitorManager(butlerMonitorManager)
   unsubscribeButlerMonitorBus = butlerMonitorBus.onEvent((event) => {
     for (const win of BrowserWindow.getAllWindows()) {
       win.webContents.send("butler-monitor:event", event)
@@ -557,6 +559,7 @@ app.on("before-quit", () => {
   stopEmailPolling()
   butlerMonitorManager?.stop()
   butlerMonitorManager = null
+  setActiveButlerMonitorManager(null)
   if (unsubscribeButlerMonitorBus) {
     unsubscribeButlerMonitorBus()
     unsubscribeButlerMonitorBus = null

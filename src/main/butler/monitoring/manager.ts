@@ -71,6 +71,13 @@ interface NormalizedRssItem {
   publishedAt: string
 }
 
+interface MailboxQueryInput {
+  mode?: "today" | "latest"
+  limit?: number
+  unreadOnly?: boolean
+  folder?: string
+}
+
 const CALENDAR_DUE_SOON_MS = 2 * 60 * 60 * 1000
 const MAX_MAIL_FETCH_PER_RULE = 30
 const MAX_RSS_FETCH_PER_SUBSCRIPTION = 30
@@ -89,6 +96,13 @@ function compact(text: string, max = 280): string {
 function parseIsoTime(value: string): number {
   const ts = new Date(value).getTime()
   return Number.isFinite(ts) ? ts : Number.NaN
+}
+
+function clampLimit(value: number | undefined, fallback: number, max: number): number {
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    return fallback
+  }
+  return Math.min(max, Math.max(1, Math.round(value)))
 }
 
 function normalizeMailSettings(): MailConnectionSettings | null {
@@ -356,6 +370,117 @@ export class ButlerMonitorManager {
     return mailInserted
   }
 
+  async pullRssNow(
+    source: "manual" | "interval" | "startup" | "rule_update" = "manual"
+  ): Promise<RssWatchItem[]> {
+    this.emitBusEvent({
+      type: "pull_requested",
+      source,
+      at: nowIso()
+    })
+
+    if (this.pullRunning) {
+      return []
+    }
+    this.pullRunning = true
+
+    try {
+      const rssInserted = await this.pullRssInternal()
+      await this.dispatchRssPerceptions(rssInserted)
+      this.emitSnapshotChanged()
+      return rssInserted
+    } catch (error) {
+      console.warn("[ButlerMonitor] pullRssNow failed:", error)
+      this.emitSnapshotChanged()
+      return []
+    } finally {
+      this.pullRunning = false
+    }
+  }
+
+  async queryMailboxNow(input: MailboxQueryInput): Promise<MailWatchMessage[]> {
+    const settings = normalizeMailSettings()
+    if (!settings) {
+      return []
+    }
+
+    const mode = input.mode === "today" ? "today" : "latest"
+    const limit = clampLimit(input.limit, 10, 100)
+    const unreadOnly = input.unreadOnly === true
+    const folder = input.folder?.trim() || "INBOX"
+    const createdAt = nowIso()
+    const client = new ImapFlow({
+      host: settings.host,
+      port: settings.port,
+      secure: settings.secure,
+      auth: {
+        user: settings.user,
+        pass: settings.pass
+      },
+      socketTimeout: 30_000,
+      logger: false
+    })
+
+    try {
+      await client.connect()
+      await client.mailboxOpen(folder, { readOnly: true })
+
+      const searchQuery: Record<string, unknown> = {}
+      if (mode === "today") {
+        const today = new Date()
+        today.setHours(0, 0, 0, 0)
+        searchQuery.since = today
+      }
+      if (unreadOnly) {
+        searchQuery.seen = false
+      }
+      if (!("since" in searchQuery) && !("seen" in searchQuery)) {
+        searchQuery.all = true
+      }
+
+      const rawUids = await client.search(searchQuery)
+      const uids = Array.isArray(rawUids) ? rawUids : []
+      if (uids.length === 0) {
+        return []
+      }
+
+      const candidateUids = uids.slice(-limit).sort((a, b) => a - b)
+      const rows: MailWatchMessage[] = []
+      for await (const message of client.fetch(candidateUids, {
+        uid: true,
+        source: true
+      })) {
+        if (!message.uid || !message.source) continue
+        const parsed = await simpleParser(message.source)
+        const subject = (parsed.subject ?? "").trim()
+        const from = (parsed.from?.text ?? "").trim()
+        const text = (parsed.text ?? "").trim()
+        const receivedAt = parsed.date ? parsed.date.toISOString() : createdAt
+        rows.push({
+          id: `query:${mode}:${message.uid}`,
+          ruleId: "manual-query",
+          uid: message.uid,
+          subject,
+          from,
+          text: compact(text, 4_000),
+          receivedAt,
+          createdAt
+        })
+      }
+
+      return rows.sort((a, b) => parseIsoTime(b.receivedAt) - parseIsoTime(a.receivedAt))
+    } catch (error) {
+      console.warn("[ButlerMonitor] queryMailboxNow failed:", error)
+      return []
+    } finally {
+      try {
+        await client.logout()
+      } catch {
+        // noop
+      }
+    }
+  }
+
   private async pullNowInternal(source: "manual" | "interval" | "startup" | "rule_update"): Promise<{
     mailInserted: MailWatchMessage[]
     rssInserted: RssWatchItem[]
@@ -387,43 +512,8 @@ export class ButlerMonitorManager {
         console.warn("[ButlerMonitor] pull rss failed:", error)
       }
 
-      for (const message of mailInserted) {
-        await this.dispatchPerception({
-          kind: "mail_new",
-          title: `新邮件提醒：${message.subject || "(无主题)"}`,
-          detail: [
-            `发件人: ${message.from || "未知"}`,
-            `主题: ${message.subject || "(无主题)"}`,
-            `内容摘要: ${compact(message.text, 280) || "无正文"}`
-          ].join("\n"),
-          payload: {
-            mail: message
-          }
-        })
-      }
-
-      const subscriptionMap = new Map(
-        this.listRssSubscriptions().map((subscription) => [subscription.id, subscription])
-      )
-      for (const item of rssInserted) {
-        const subscription = subscriptionMap.get(item.subscriptionId)
-        await this.dispatchPerception({
-          kind: "rss_new",
-          title: `RSS更新：${item.title || "(无标题)"}`,
-          detail: [
-            `订阅: ${subscription?.name || "未知订阅"}`,
-            `发布时间: ${new Date(item.publishedAt).toLocaleString()}`,
-            item.link ? `链接: ${item.link}` : "",
-            `摘要: ${compact(item.summary, 280) || "无摘要"}`
-          ]
-            .filter(Boolean)
-            .join("\n"),
-          payload: {
-            rssItem: item,
-            rssSubscription: subscription
-          }
-        })
-      }
+      await this.dispatchMailPerceptions(mailInserted)
+      await this.dispatchRssPerceptions(rssInserted)
 
       this.emitSnapshotChanged()
       return { mailInserted, rssInserted }
@@ -744,6 +834,48 @@ export class ButlerMonitorManager {
     }
 
     return results
+  }
+
+  private async dispatchMailPerceptions(mailInserted: MailWatchMessage[]): Promise<void> {
+    for (const message of mailInserted) {
+      await this.dispatchPerception({
+        kind: "mail_new",
+        title: `新邮件提醒：${message.subject || "(无主题)"}`,
+        detail: [
+          `发件人: ${message.from || "未知"}`,
+          `主题: ${message.subject || "(无主题)"}`,
+          `内容摘要: ${compact(message.text, 280) || "无正文"}`
+        ].join("\n"),
+        payload: {
+          mail: message
+        }
+      })
+    }
+  }
+
+  private async dispatchRssPerceptions(rssInserted: RssWatchItem[]): Promise<void> {
+    const subscriptionMap = new Map(
+      this.listRssSubscriptions().map((subscription) => [subscription.id, subscription])
+    )
+    for (const item of rssInserted) {
+      const subscription = subscriptionMap.get(item.subscriptionId)
+      await this.dispatchPerception({
+        kind: "rss_new",
+        title: `RSS更新：${item.title || "(无标题)"}`,
+        detail: [
+          `订阅: ${subscription?.name || "未知订阅"}`,
+          `发布时间: ${new Date(item.publishedAt).toLocaleString()}`,
+          item.link ? `链接: ${item.link}` : "",
+          `摘要: ${compact(item.summary, 280) || "无摘要"}`
+        ]
+          .filter(Boolean)
+          .join("\n"),
+        payload: {
+          rssItem: item,
+          rssSubscription: subscription
+        }
+      })
+    }
   }
 
   private async dispatchPerception(params: {

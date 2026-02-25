@@ -578,6 +578,10 @@ class ButlerManager {
   }): Omit<ButlerPromptContext, "dispatchPolicy"> {
     const { userMessage, capabilityCatalog, capabilitySummary, currentUserMessageId } = params
     const profile = getLatestDailyProfile()
+    const now = new Date()
+    const weekdayLabels = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]
+    const currentWeekday = weekdayLabels[now.getDay()] || "Unknown"
+    const currentTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone || "Unknown"
     const previousUserMessage = currentUserMessageId
       ? this.findPreviousUserMessage(currentUserMessageId)?.content
       : this.findLatestUserMessage()?.content
@@ -597,6 +601,10 @@ class ButlerManager {
       userMessage,
       capabilityCatalog,
       capabilitySummary,
+      currentTimeIso: now.toISOString(),
+      currentLocalTime: now.toLocaleString(),
+      currentWeekday,
+      currentTimezone,
       profileText: profile?.profileText,
       comparisonText: profile?.comparisonText,
       previousUserMessage,

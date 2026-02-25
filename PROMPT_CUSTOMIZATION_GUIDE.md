@@ -40,6 +40,7 @@ Butler 不走 `src/main/agent/prompts/*`，而是独立体系：
 
 Section 文件：
 - `src/main/butler/prompt/sections/overview.ts`
+- `src/main/butler/prompt/sections/temporal.ts`
 - `src/main/butler/prompt/sections/retry.ts`
 - `src/main/butler/prompt/sections/memory.ts`
 - `src/main/butler/prompt/sections/router.ts`
@@ -48,6 +49,7 @@ Section 文件：
 运行时绑定：
 - `src/main/butler/runtime.ts`
   - `createButlerRuntime(...)` 内 `systemPrompt: buildButlerSystemPrompt()`
+  - `createButlerRuntime(...)` 会注入 Butler 作用域已启用 tools，并挂载安全中间件阻断系统/文件类工具
   - `runButlerOrchestratorTurn(...)` 内 `composeButlerUserPrompt(...)`
   - `runButlerPerceptionTurn(...)` 内感知 system/user prompt
 
@@ -128,7 +130,8 @@ Section 文件：
 - `buildButlerSystemPrompt()`
 
 适合改：
-- 任务工具约束（create_default_task / create_ralph_task / create_email_task / create_loop_task）
+- 任务工具约束（create_default_task / create_ralph_task / create_email_task / create_loop_task / create_expert_task）
+- 日常工具路由策略（calendar_upsert / countdown_upsert / query_calendar_events / query_countdown_timers / pull_rss_updates / query_rss_items / query_mailbox）
 - 拆分策略、依赖策略、输出规范、模式字段要求
 
 ## 3.2 修改 Butler 编排 user prompt 的结构
@@ -149,6 +152,7 @@ Section 文件：
 
 对应文件与函数：
 - `overview`：`src/main/butler/prompt/sections/overview.ts` -> `buildOverviewSection`
+- `temporal`：`src/main/butler/prompt/sections/temporal.ts` -> `buildTemporalSection`
 - `retry`：`src/main/butler/prompt/sections/retry.ts` -> `buildRetrySection`
 - `memory`：`src/main/butler/prompt/sections/memory.ts` -> `buildMemorySection`
 - `router`：`src/main/butler/prompt/sections/router.ts` -> `buildRouterSection`
@@ -234,4 +238,3 @@ npm run typecheck:node
 - email 线程：确认 send_email 约束仍在
 - Butler 编排：观察是否按新规则派发
 - Butler 感知：观察提醒输出格式是否符合预期
-

@@ -80,8 +80,19 @@ npm run build
 ### 主会话编排
 
 - Butler 每轮在“直接回复 / 澄清 / 创建任务”间做语义决策。
+- Butler 支持“直接工具操作 / 创建任务”双路径：日常操作优先直接工具，不必启动任务。
 - 支持单轮多任务创建、依赖关系（`dependsOn`）与并发调度。
 - 支持任务 handoff（`context / filesystem / both`）。
+
+### Butler 日常工具函数
+
+- `calendar_upsert`：统一新增/修改日历事件（`action=create|update`）。
+- `countdown_upsert`：统一新增/修改倒计时（`action=create|update`）。
+- `query_calendar_events`：按时间窗口查询日历事件（支持语义时间转绝对时间后调用）。
+- `query_countdown_timers`：按状态与时间窗口查询倒计时。
+- `pull_rss_updates` + `query_rss_items`：主动拉取 RSS 并查询摘要/详细内容。
+- `query_mailbox`：主动读取今天邮件或最近 N 封邮件（默认最近 10 封）。
+- Butler 模式下硬限制禁止系统命令与文件系统工具调用（仅对话/业务工具/任务创建）。
 
 ### 任务看板
 

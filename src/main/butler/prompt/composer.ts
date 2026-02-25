@@ -4,6 +4,7 @@ import { buildMemorySection } from "./sections/memory"
 import { buildOverviewSection } from "./sections/overview"
 import { buildRetrySection } from "./sections/retry"
 import { buildRouterSection } from "./sections/router"
+import { buildTemporalSection } from "./sections/temporal"
 
 export interface ButlerPromptSectionContext {
   prompt: ButlerPromptContext
@@ -17,6 +18,7 @@ export interface ButlerPromptSectionBuilder {
 
 const DEFAULT_SECTION_PIPELINE: ButlerPromptSectionBuilder[] = [
   buildOverviewSection(),
+  buildTemporalSection(),
   buildRetrySection(),
   buildMemorySection(),
   buildRouterSection(),

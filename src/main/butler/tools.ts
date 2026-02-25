@@ -10,6 +10,7 @@ interface ButlerDispatchIntentBase {
   title: string
   initialPrompt: string
   threadStrategy: ButlerThreadStrategy
+  workspacePath?: string
   dependsOn: string[]
   handoff?: ButlerTaskHandoff
 }
@@ -58,6 +59,7 @@ const commonFieldsSchema = z.object({
   title: z.string().trim().min(1),
   initialPrompt: z.string().trim().min(1),
   threadStrategy: z.enum(["new_thread", "reuse_last_thread"]),
+  workspacePath: z.string().trim().min(1).optional(),
   dependsOn: z.array(z.string().trim().min(1)).optional().default([]),
   handoff: z
     .object({
@@ -151,6 +153,7 @@ function normalizeCommon(input: z.infer<typeof commonFieldsSchema>): ButlerDispa
     title: input.title.trim(),
     initialPrompt: input.initialPrompt.trim(),
     threadStrategy: input.threadStrategy,
+    workspacePath: input.workspacePath?.trim() || undefined,
     dependsOn: input.dependsOn ?? [],
     handoff: input.handoff
       ? {
@@ -165,18 +168,20 @@ function normalizeCommon(input: z.infer<typeof commonFieldsSchema>): ButlerDispa
 function buildDescription(mode: Exclude<ThreadMode, "butler">): string {
   const example =
     mode === "default"
-      ? `{"taskKey":"news_1","title":"AI新闻汇总","initialPrompt":"补充说明：覆盖主流来源并去重；按“标题/来源/时间/要点”输出 Markdown 表格；禁止编造事实。","threadStrategy":"new_thread","deliverableFormat":"table"}`
+      ? `{"taskKey":"news_1","title":"AI新闻汇总","initialPrompt":"补充说明：覆盖主流来源并去重；按“标题/来源/时间/要点”输出 Markdown 表格；禁止编造事实。","threadStrategy":"new_thread","workspacePath":"D:\\\\OpenAnyWork\\\\example","deliverableFormat":"table"}`
       : mode === "ralph"
-        ? `{"taskKey":"impl_1","title":"实现任务","initialPrompt":"补充说明：先定位失败根因并最小化改动；补齐关键测试并记录设计取舍；如冲突以用户原任务主体为准。","threadStrategy":"new_thread","acceptanceCriteria":["类型检查通过","核心功能可用"],"maxIterations":5}`
+        ? `{"taskKey":"impl_1","title":"实现任务","initialPrompt":"补充说明：先定位失败根因并最小化改动；补齐关键测试并记录设计取舍；如冲突以用户原任务主体为准。","threadStrategy":"new_thread","workspacePath":"project-a","acceptanceCriteria":["类型检查通过","核心功能可用"],"maxIterations":5}`
         : mode === "email"
-          ? `{"taskKey":"mail_1","title":"邮件处理","initialPrompt":"补充说明：优先回答用户核心问题并给出下一步；语气专业简洁；信息不足时先列待确认点。","threadStrategy":"reuse_last_thread","emailIntent":"reply_to_customer","recipientHints":["alice@example.com"],"tone":"professional"}`
+          ? `{"taskKey":"mail_1","title":"邮件处理","initialPrompt":"补充说明：优先回答用户核心问题并给出下一步；语气专业简洁；信息不足时先列待确认点。","threadStrategy":"reuse_last_thread","workspacePath":"D:\\\\OpenAnyWork\\\\mailbox","emailIntent":"reply_to_customer","recipientHints":["alice@example.com"],"tone":"professional"}`
           : mode === "loop"
-            ? `{"taskKey":"loop_1","title":"循环任务","initialPrompt":"补充说明：每次触发都执行完整流程；失败需记录错误并继续下一轮；结果需可审计。","threadStrategy":"new_thread","loopConfig":{"enabled":true,"contentTemplate":"检索 AI 新闻，去重后写入 news_send.json，并发送给指定邮箱","trigger":{"type":"schedule","cron":"*/5 * * * *"},"queue":{"policy":"strict","mergeWindowSec":300}}}`
-            : `{"taskKey":"expert_1","title":"专家协作写作","initialPrompt":"补充说明：专家链路必须严格串行；每轮交接输出结构化 handoff；最终稿需附审稿修订记录。","threadStrategy":"new_thread","expertConfig":{"experts":[{"role":"写稿人","prompt":"先产出完整初稿，强调结构与论据。"},{"role":"审稿人","prompt":"聚焦逻辑漏洞、事实风险与改进建议。"},{"role":"校对人","prompt":"修复语法措辞并统一术语风格。"}],"loop":{"enabled":true,"maxCycles":5}}}`
+            ? `{"taskKey":"loop_1","title":"循环任务","initialPrompt":"补充说明：每次触发都执行完整流程；失败需记录错误并继续下一轮；结果需可审计。","threadStrategy":"new_thread","workspacePath":"loop-jobs","loopConfig":{"enabled":true,"contentTemplate":"检索 AI 新闻，去重后写入 news_send.json，并发送给指定邮箱","trigger":{"type":"schedule","cron":"*/5 * * * *"},"queue":{"policy":"strict","mergeWindowSec":300}}}`
+            : `{"taskKey":"expert_1","title":"专家协作写作","initialPrompt":"补充说明：专家链路必须严格串行；每轮交接输出结构化 handoff；最终稿需附审稿修订记录。","threadStrategy":"new_thread","workspacePath":"D:\\\\OpenAnyWork\\\\docs","expertConfig":{"experts":[{"role":"写稿人","prompt":"先产出完整初稿，强调结构与论据。"},{"role":"审稿人","prompt":"聚焦逻辑漏洞、事实风险与改进建议。"},{"role":"校对人","prompt":"修复语法措辞并统一术语风格。"}],"loop":{"enabled":true,"maxCycles":5}}}`
 
   return [
     `Create a ${mode} mode task for Butler.`,
     "Use valid JSON only. taskKey must be unique within this turn.",
+    "If user explicitly specifies a workspace directory, set workspacePath accordingly.",
+    "workspacePath supports absolute path or path relative to butler.rootPath.",
     "dependsOn references other taskKey values in the same turn.",
     "Treat the original user request as locked task body; do not rewrite it in initialPrompt.",
     "initialPrompt is execution addendum only: constraints, method, risk controls, or user habit notes.",

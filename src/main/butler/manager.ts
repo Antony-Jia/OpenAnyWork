@@ -1,6 +1,6 @@
 import { BrowserWindow } from "electron"
-import { writeFileSync } from "fs"
-import { join } from "path"
+import { existsSync, mkdirSync, statSync, writeFileSync } from "fs"
+import { isAbsolute, join, resolve } from "path"
 import { v4 as uuid } from "uuid"
 import {
   createThread as dbCreateThread,
@@ -73,6 +73,7 @@ interface PendingDispatchOption {
   summary: string
   capabilitySummary: string
   creation: DispatchTaskCreationContext
+  missingWorkspacePaths?: string[]
 }
 
 interface OversplitPendingDispatchChoiceState {
@@ -100,9 +101,22 @@ interface RetryConfirmPendingDispatchChoiceState {
   optionCancel: PendingDispatchOption
 }
 
+interface WorkspaceMissingPendingDispatchChoiceState {
+  kind: "workspace_missing"
+  id: string
+  createdAt: string
+  hint: string
+  expectedResponse: "create_reenter"
+  promptText: string
+  missingPaths: string[]
+  optionCreate: PendingDispatchOption
+  optionReenter: PendingDispatchOption
+}
+
 type PendingDispatchChoiceState =
   | OversplitPendingDispatchChoiceState
   | RetryConfirmPendingDispatchChoiceState
+  | WorkspaceMissingPendingDispatchChoiceState
 
 const TASK_NOTICE_MARKER = "[TASK_NOTICE_JSON]"
 const TASK_DIGEST_MARKER = "[TASK_DIGEST_JSON]"
@@ -770,7 +784,7 @@ class ButlerManager {
         return this.getState()
       }
       selected = choice === "A" ? pending.optionA : pending.optionB
-    } else {
+    } else if (pending.kind === "retry_confirm") {
       const choice = this.parseConfirmCancelChoiceText(choiceText)
       if (!choice) {
         this.pushMessage({
@@ -788,6 +802,23 @@ class ButlerManager {
         return this.getState()
       }
       selected = choice === "confirm" ? pending.optionConfirm : pending.optionCancel
+    } else {
+      const choice = this.parseCreateReenterChoiceText(choiceText)
+      if (!choice) {
+        this.pushMessage({
+          id: uuid(),
+          role: "assistant",
+          content: [
+            "检测到工作目录不存在，请回复 创建 或 重输。",
+            "创建: 由管家创建缺失目录并继续派发",
+            "重输: 取消本轮派发，等待你重新输入路径"
+          ].join("\n"),
+          ts: nowIso()
+        })
+        this.broadcastState()
+        return this.getState()
+      }
+      selected = choice === "create" ? pending.optionCreate : pending.optionReenter
     }
 
     this.pendingDispatchChoice = null
@@ -814,6 +845,25 @@ class ButlerManager {
       this.broadcastState()
       this.promoteNextQueuedDispatchChoice()
       return this.getState()
+    }
+
+    if (selected.missingWorkspacePaths && selected.missingWorkspacePaths.length > 0) {
+      const creationResult = this.ensureWorkspaceDirectories(selected.missingWorkspacePaths)
+      if (!creationResult.ok) {
+        this.pushMessage({
+          id: uuid(),
+          role: "assistant",
+          content: [
+            "创建工作目录失败，请重新输入可用路径。",
+            `失败路径: ${creationResult.path}`,
+            `错误: ${creationResult.error}`
+          ].join("\n"),
+          ts: nowIso()
+        })
+        this.broadcastState()
+        this.promoteNextQueuedDispatchChoice()
+        return this.getState()
+      }
     }
 
     const state = this.dispatchIntentsAndReply({
@@ -848,6 +898,37 @@ class ButlerManager {
 
     const cancel = new Set(["取消", "拒绝", "no", "n", "不用", "停止"])
     if (cancel.has(normalized)) return "cancel"
+
+    return null
+  }
+
+  private parseCreateReenterChoiceText(raw: string): "create" | "reenter" | null {
+    const normalized = raw.trim().toLowerCase().replace(/\s+/g, "")
+    if (!normalized) return null
+
+    const create = new Set([
+      "创建",
+      "帮我创建",
+      "create",
+      "yes",
+      "y",
+      "确认",
+      "同意",
+      "可以创建"
+    ])
+    if (create.has(normalized)) return "create"
+
+    const reenter = new Set([
+      "重输",
+      "重新输入",
+      "reenter",
+      "no",
+      "n",
+      "取消",
+      "不用",
+      "我重输"
+    ])
+    if (reenter.has(normalized)) return "reenter"
 
     return null
   }
@@ -888,6 +969,26 @@ class ButlerManager {
       confirmOption.summary,
       "",
       "请回复 确认 或 取消。"
+    ].join("\n")
+  }
+
+  private buildWorkspaceMissingDispatchChoicePrompt(
+    missingPaths: string[],
+    optionCreate: PendingDispatchOption
+  ): string {
+    const pathLines = missingPaths.map((path, index) => `${index + 1}. ${path}`)
+    return [
+      "检测到任务工作目录不存在，需你确认下一步。",
+      "",
+      "[缺失目录]",
+      ...pathLines,
+      "",
+      "[待执行任务概览]",
+      optionCreate.summary,
+      "",
+      "请回复 创建 或 重输。",
+      "创建: 由管家创建目录并继续执行。",
+      "重输: 取消本轮并等待你输入新路径。"
     ].join("\n")
   }
 
@@ -956,6 +1057,99 @@ class ButlerManager {
     ].join("\n")
   }
 
+  private resolveIntentWorkspacePaths(
+    intents: ButlerDispatchIntent[]
+  ):
+    | { kind: "ready"; intents: ButlerDispatchIntent[] }
+    | { kind: "missing"; intents: ButlerDispatchIntent[]; missingPaths: string[] }
+    | { kind: "invalid"; error: string } {
+    const rootPath = this.getRootPath().trim()
+    const resolvedRootPath = rootPath ? resolve(rootPath) : ""
+    const normalizedIntents: ButlerDispatchIntent[] = []
+    const missingPaths = new Set<string>()
+
+    for (const intent of intents) {
+      const rawWorkspacePath = intent.workspacePath?.trim()
+      if (!rawWorkspacePath) {
+        normalizedIntents.push(intent)
+        continue
+      }
+
+      if (!isAbsolute(rawWorkspacePath) && !resolvedRootPath) {
+        return {
+          kind: "invalid",
+          error: `任务 ${intent.taskKey} 使用了相对路径 "${rawWorkspacePath}"，但 butler.rootPath 未配置。请改为绝对路径或先配置管家根目录。`
+        }
+      }
+
+      const resolvedWorkspacePath = isAbsolute(rawWorkspacePath)
+        ? resolve(rawWorkspacePath)
+        : resolve(resolvedRootPath, rawWorkspacePath)
+
+      if (existsSync(resolvedWorkspacePath)) {
+        try {
+          const stat = statSync(resolvedWorkspacePath)
+          if (!stat.isDirectory()) {
+            return {
+              kind: "invalid",
+              error: `任务 ${intent.taskKey} 的路径不是目录: ${resolvedWorkspacePath}`
+            }
+          }
+        } catch (error) {
+          return {
+            kind: "invalid",
+            error: `任务 ${intent.taskKey} 校验路径失败: ${resolvedWorkspacePath} (${error instanceof Error ? error.message : String(error)})`
+          }
+        }
+      } else {
+        missingPaths.add(resolvedWorkspacePath)
+      }
+
+      normalizedIntents.push({
+        ...intent,
+        workspacePath: resolvedWorkspacePath
+      })
+    }
+
+    if (missingPaths.size > 0) {
+      return {
+        kind: "missing",
+        intents: normalizedIntents,
+        missingPaths: Array.from(missingPaths.values())
+      }
+    }
+
+    return {
+      kind: "ready",
+      intents: normalizedIntents
+    }
+  }
+
+  private ensureWorkspaceDirectories(
+    paths: string[]
+  ): { ok: true } | { ok: false; path: string; error: string } {
+    for (const path of paths) {
+      try {
+        mkdirSync(path, { recursive: true })
+        const stat = statSync(path)
+        if (!stat.isDirectory()) {
+          return {
+            ok: false,
+            path,
+            error: "目标路径存在但不是目录。"
+          }
+        }
+      } catch (error) {
+        return {
+          ok: false,
+          path,
+          error: error instanceof Error ? error.message : String(error)
+        }
+      }
+    }
+    return { ok: true }
+  }
+
   private dispatchIntentsAndReply(params: {
     intents: ButlerDispatchIntent[]
     assistantText: string
@@ -979,10 +1173,63 @@ class ButlerManager {
       return this.getState()
     }
 
+    const workspaceValidation = this.resolveIntentWorkspacePaths(params.intents)
+    if (workspaceValidation.kind === "invalid") {
+      this.pushMessage({
+        id: uuid(),
+        role: "assistant",
+        content: [
+          params.assistantText || "当前任务计划无法派发。",
+          `原因: ${workspaceValidation.error}`,
+          "请重新输入正确路径后重试。"
+        ].join("\n"),
+        ts: nowIso()
+      })
+      this.broadcastState()
+      return this.getState()
+    }
+
+    if (workspaceValidation.kind === "missing") {
+      const optionCreate: PendingDispatchOption = {
+        kind: "dispatch",
+        intents: workspaceValidation.intents,
+        assistantText: params.assistantText,
+        summary: this.buildDispatchOptionSummary(workspaceValidation.intents),
+        capabilitySummary: params.capabilitySummary,
+        creation: params.creation,
+        missingWorkspacePaths: workspaceValidation.missingPaths
+      }
+      const optionReenter: PendingDispatchOption = {
+        kind: "cancel",
+        intents: [],
+        assistantText: "已取消本轮派发，请重新输入工作目录路径后再试。",
+        summary: "用户选择重新输入路径。",
+        capabilitySummary: params.capabilitySummary,
+        creation: params.creation
+      }
+
+      const choice: WorkspaceMissingPendingDispatchChoiceState = {
+        kind: "workspace_missing",
+        id: uuid(),
+        createdAt: nowIso(),
+        hint: "检测到工作目录不存在，请回复 创建 或 重输。",
+        expectedResponse: "create_reenter",
+        promptText: this.buildWorkspaceMissingDispatchChoicePrompt(
+          workspaceValidation.missingPaths,
+          optionCreate
+        ),
+        missingPaths: workspaceValidation.missingPaths,
+        optionCreate,
+        optionReenter
+      }
+      this.schedulePendingDispatchChoice(choice)
+      return this.getState()
+    }
+
     const groupId = uuid()
     const sourceTurnId = uuid()
     const created = this.createTasksFromIntents({
-      intents: params.intents,
+      intents: workspaceValidation.intents,
       groupId,
       sourceTurnId,
       creation: params.creation
@@ -1163,6 +1410,7 @@ class ButlerManager {
         }),
         title: intent.title,
         rootPath: this.getRootPath(),
+        workspacePath: intent.workspacePath,
         requester: "user",
         ralphMaxIterations: intent.mode === "ralph" ? intent.maxIterations : undefined,
         loopConfig: intent.mode === "loop" ? intent.loopConfig : undefined,

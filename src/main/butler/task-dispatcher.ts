@@ -31,6 +31,7 @@ interface CreateButlerTaskInput {
   prompt: string
   title: string
   rootPath: string
+  workspacePath?: string
   requester: ButlerTask["requester"]
   ralphMaxIterations?: number
   loopConfig?: LoopConfig
@@ -75,7 +76,8 @@ function updateRalphMetadata(threadId: string, updates: Partial<RalphState>): vo
 
 export function createButlerTaskThread(input: CreateButlerTaskInput): ButlerTask {
   const taskId = uuid()
-  const workspacePath = createButlerTaskFolder(input.rootPath, input.mode)
+  const workspacePath =
+    input.workspacePath?.trim() || createButlerTaskFolder(input.rootPath, input.mode)
   const nowIso = new Date().toISOString()
   const threadId = input.reuseThreadId || uuid()
 

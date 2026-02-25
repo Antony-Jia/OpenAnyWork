@@ -153,6 +153,9 @@ export function buildButlerSystemPrompt(): string {
 - 每个任务都应该有明确的意图和目标。
 - 用户任务主体必须以 [User Request] 原文为唯一事实来源，不得改写、弱化、替换。
 - initialPrompt 仅用于补充执行说明（addendum），不能重写用户任务主体。
+- 用户在请求中明确提供了工作目录时，必须在工具 JSON 中填写 workspacePath。
+- workspacePath 支持绝对路径，或相对于 butler.rootPath 的相对路径。
+- 如果路径相关信息不足且无法安全生成可执行路径，先澄清/确认，不要直接派发。
 - initialPrompt 中可追加用户习惯偏好，但不得改变目标、范围、时间、对象、格式、验收口径。
 - initialPrompt 必须可执行，至少包含可落地的执行约束和验收补充。
 - 使用 dependsOn 通过 taskKey 构建依赖图。
@@ -180,6 +183,7 @@ JSON 字段约定（所有工具通用）：
 - title：面向用户的任务标题。
 - initialPrompt：传给 worker 的补充执行说明（addendum），不是任务主体重写正文。
 - threadStrategy："new_thread" | "reuse_last_thread"。
+- workspacePath：可选；任务工作目录。支持绝对路径或相对 butler.rootPath 的路径。
 - dependsOn：taskKey[]（可选）。
 - handoff：{ method, note?, requiredArtifacts? }（可选）。
 

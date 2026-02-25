@@ -97,8 +97,18 @@ export function registerSpeechHandlers(ipcMain: IpcMain): void {
       throw new Error(`TTS request failed (${response.status}): ${details || response.statusText}`)
     }
 
+    const contentType = response.headers.get("content-type") || ""
+    if (!contentType.toLowerCase().includes("audio")) {
+      throw new Error(
+        `TTS response has unexpected content-type: "${contentType}". Expected audio data. Check that the TTS URL is correct.`
+      )
+    }
+
     const arrayBuffer = await response.arrayBuffer()
-    const mimeType = response.headers.get("content-type")?.split(";")[0]?.trim() || "audio/mpeg"
+    if (arrayBuffer.byteLength === 0) {
+      throw new Error("TTS response body is empty")
+    }
+    const mimeType = contentType.split(";")[0].trim() || "audio/wav"
     const audioBase64 = Buffer.from(arrayBuffer).toString("base64")
     const result: SpeechTtsResponse = { audioBase64, mimeType }
     return result

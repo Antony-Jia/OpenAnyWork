@@ -80,7 +80,7 @@ export function MessageBubble({
       const result = await window.api.speech.tts({ text: ttsText })
       const bytes = base64ToUint8Array(result.audioBase64)
       const safeBytes = Uint8Array.from(bytes)
-      const blob = new Blob([safeBytes], { type: result.mimeType || "audio/mpeg" })
+      const blob = new Blob([safeBytes], { type: result.mimeType || "audio/wav" })
       const url = URL.createObjectURL(blob)
       objectUrlRef.current = url
       const audio = new Audio(url)
@@ -88,7 +88,11 @@ export function MessageBubble({
 
       audio.onended = stopPlayback
       audio.onerror = () => {
-        console.error(t("chat.voice_play_failed"))
+        const mediaErr = audio.error
+        const detail = mediaErr
+          ? `MediaError code=${mediaErr.code}: ${mediaErr.message}`
+          : "unknown error"
+        console.error(`${t("chat.voice_play_failed")}: ${detail}`)
         stopPlayback()
       }
 

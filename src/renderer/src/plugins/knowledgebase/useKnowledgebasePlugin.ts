@@ -226,7 +226,6 @@ export function useKnowledgebasePlugin(): UseKnowledgebasePluginResult {
       const created = await window.api.plugins.knowledgebaseCreateCollection({
         name: DEFAULT_COLLECTION_NAME
       })
-      setCollections(await window.api.plugins.knowledgebaseListCollections())
       const nextActiveCollectionIds = Array.from(
         new Set([...(runtime?.config.activeCollectionIds ?? []), created.id])
       )
@@ -235,6 +234,22 @@ export function useKnowledgebasePlugin(): UseKnowledgebasePluginResult {
           activeCollectionIds: nextActiveCollectionIds
         })
       )
+      try {
+        setCollections(await window.api.plugins.knowledgebaseListCollections())
+      } catch (refreshError) {
+        setError(
+          toErrorMessage(
+            refreshError,
+            "Failed to refresh collections after creating default collection."
+          )
+        )
+        setCollections((prev) => {
+          if (prev.some((item) => item.id === created.id)) {
+            return prev
+          }
+          return [...prev, created]
+        })
+      }
       return created
     } catch (err) {
       setError(toErrorMessage(err, "Failed to create default collection."))

@@ -276,12 +276,20 @@ export class KnowledgebasePluginService {
     if (input.settings && typeof input.settings === "object") {
       payload.settings = input.settings
     }
-    const response = await this.requestJson("/api/v1/collections", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload)
-    })
-    return this.normalizeCollectionSummary(response)
+    try {
+      const response = await this.requestJson("/api/v1/collections", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      })
+      return this.normalizeCollectionSummary(response)
+    } catch (error) {
+      if (this.isHttpStatus(error, 409)) {
+        const detail = this.extractHttpErrorMessage(error)
+        throw new Error(detail || `Collection "${name}" already exists.`)
+      }
+      throw error
+    }
   }
 
   async deleteDocument(
@@ -828,6 +836,15 @@ export class KnowledgebasePluginService {
     return fallback
   }
 
+  private extractHttpErrorMessage(error: unknown): string | null {
+    if (!(error instanceof Error)) {
+      return null
+    }
+    const matched = error.message.match(/Knowledge Base request failed \(\d+\):\s*(.*)$/)
+    const detail = matched?.[1]?.trim()
+    return detail && detail.length > 0 ? detail : null
+  }
+
   private normalizeCollectionSummary(raw: unknown): KnowledgebaseCollectionSummary {
     const value = (raw && typeof raw === "object" ? raw : {}) as Record<string, unknown>
     return {
@@ -997,13 +1014,36 @@ export class KnowledgebasePluginService {
     })
     if (!response.ok) {
       const text = await response.text()
+      const detail = this.parseHttpErrorDetail(text)
       throw new Error(
-        `Knowledge Base request failed (${response.status}): ${text || response.statusText}`
+        `Knowledge Base request failed (${response.status}): ${detail || response.statusText}`
       )
     }
     const text = await response.text()
     if (!text) return null as T
     return JSON.parse(text) as T
+  }
+
+  private parseHttpErrorDetail(raw: string): string {
+    const text = raw.trim()
+    if (!text) {
+      return ""
+    }
+    try {
+      const parsed = JSON.parse(text) as unknown
+      if (parsed && typeof parsed === "object") {
+        const value = parsed as Record<string, unknown>
+        for (const key of ["message", "error", "detail", "reason", "msg"]) {
+          const candidate = value[key]
+          if (typeof candidate === "string" && candidate.trim().length > 0) {
+            return candidate.trim()
+          }
+        }
+      }
+    } catch {
+      // keep original non-json message
+    }
+    return text
   }
 
   private pushLog(source: KnowledgebaseLogSource, line: string): void {

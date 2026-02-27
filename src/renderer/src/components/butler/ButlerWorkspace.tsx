@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { useAppStore } from "@/lib/store"
@@ -215,6 +215,8 @@ export function ButlerWorkspace(): React.JSX.Element {
   const [clearingTasks, setClearingTasks] = useState(false)
   const [rightTab, setRightTab] = useState<"tasks" | "monitor">("tasks")
   const [mutedTaskIdentities, setMutedTaskIdentities] = useState<Set<string>>(new Set())
+  const scrollRef = useRef<HTMLDivElement>(null)
+  const isAtBottomRef = useRef(true)
   const [expandedDigestDetails, setExpandedDigestDetails] = useState<Record<string, boolean>>({})
   const [expandedEventDetails, setExpandedEventDetails] = useState<Record<string, boolean>>({})
   const [digestDetailTabs, setDigestDetailTabs] = useState<Record<string, DigestDetailTab>>({})
@@ -298,11 +300,40 @@ export function ButlerWorkspace(): React.JSX.Element {
     }
   }, [load])
 
-  const rounds = state?.recentRounds || []
+  const rounds = useMemo(() => state?.recentRounds || [], [state?.recentRounds])
   const canSend = useMemo(() => input.trim().length > 0 && !sending, [input, sending])
   const pendingChoice = state?.pendingDispatchChoice
   const hasPendingDispatchChoice = pendingChoice?.awaiting === true
   const pendingChoiceHint = pendingChoice?.hint || "当前有待确认的任务编排方案。"
+
+  const handleScroll = useCallback((): void => {
+    const el = scrollRef.current
+    if (!el) return
+    const { scrollTop, scrollHeight, clientHeight } = el
+    isAtBottomRef.current = scrollHeight - scrollTop - clientHeight < 50
+  }, [])
+
+  useEffect(() => {
+    const el = scrollRef.current
+    if (!el) return
+    el.addEventListener("scroll", handleScroll)
+    return () => el.removeEventListener("scroll", handleScroll)
+  }, [handleScroll])
+
+  useEffect(() => {
+    const el = scrollRef.current
+    if (el && isAtBottomRef.current) {
+      el.scrollTop = el.scrollHeight
+    }
+  }, [rounds])
+
+  useEffect(() => {
+    const el = scrollRef.current
+    if (el) {
+      el.scrollTop = el.scrollHeight
+      isAtBottomRef.current = true
+    }
+  }, [])
 
   const openTaskThread = useCallback(
     async (threadId: string): Promise<void> => {
@@ -470,7 +501,7 @@ export function ButlerWorkspace(): React.JSX.Element {
             </Button>
           </div>
         </header>
-        <div className="flex-1 min-h-0 overflow-y-auto p-5 space-y-5 tech-gradient">
+        <div ref={scrollRef} className="flex-1 min-h-0 overflow-y-auto p-5 space-y-5 tech-gradient">
           {hasPendingDispatchChoice && (
             <div className="text-xs rounded-xl border border-amber-500/40 bg-amber-500/10 p-4 shadow-[0_0_16px_rgba(245,158,11,0.1)]">
               {pendingChoiceHint}

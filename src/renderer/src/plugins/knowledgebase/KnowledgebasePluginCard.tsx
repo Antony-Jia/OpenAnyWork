@@ -102,11 +102,11 @@ export function KnowledgebasePluginCard(): React.JSX.Element {
     }
   }, [draft, runtime])
 
-  const runtimeStatus = useMemo(() => {
-    if (!runtime) return "Unknown"
-    if (runtime.ready) return "Ready"
-    if (runtime.running) return "Running"
-    return "Stopped"
+  const runtimeStatusKey = useMemo(() => {
+    if (!runtime) return "plugin.knowledgebase.status.unknown"
+    if (runtime.ready) return "plugin.knowledgebase.status.ready"
+    if (runtime.running) return "plugin.knowledgebase.status.running"
+    return "plugin.knowledgebase.status.stopped"
   }, [runtime])
 
   const selectedDocuments = selectedCollectionId
@@ -115,6 +115,8 @@ export function KnowledgebasePluginCard(): React.JSX.Element {
   const selectedChunks = selectedDocumentId
     ? (chunksByDocument[selectedDocumentId]?.chunks ?? [])
     : []
+  const yesOrNo = (value?: boolean): string =>
+    value ? t("plugin.knowledgebase.yes") : t("plugin.knowledgebase.no")
 
   if (loading && !runtime) {
     return (
@@ -127,7 +129,7 @@ export function KnowledgebasePluginCard(): React.JSX.Element {
   if (!plugin || !runtime || !form) {
     return (
       <div className="rounded-lg border border-border p-4 text-xs text-status-critical">
-        Knowledge Base plugin is unavailable.
+        {t("plugin.knowledgebase.unavailable")}
       </div>
     )
   }
@@ -138,10 +140,12 @@ export function KnowledgebasePluginCard(): React.JSX.Element {
     <div className="rounded-lg border border-border p-5 space-y-4">
       <div className="flex items-start justify-between gap-3">
         <div className="space-y-1">
-          <div className="text-[15px] font-semibold">{plugin.name}</div>
-          <div className="text-[13px] text-muted-foreground">{plugin.description}</div>
+          <div className="text-[15px] font-semibold">{t("plugin.knowledgebase.name")}</div>
+          <div className="text-[13px] text-muted-foreground">
+            {t("plugin.knowledgebase.description")}
+          </div>
           <div className="text-[11px] text-muted-foreground">
-            Configure daemon executable and env, then start to inspect collections/documents/chunks.
+            {t("plugin.knowledgebase.setup_hint")}
           </div>
         </div>
         <label className="flex items-center gap-2 text-[13px] text-muted-foreground">
@@ -151,20 +155,26 @@ export function KnowledgebasePluginCard(): React.JSX.Element {
             onChange={(event) => void toggleEnabled(event.target.checked)}
             disabled={!!busy["toggle"]}
           />
-          Enabled
+          {t("plugin.knowledgebase.enabled")}
         </label>
       </div>
 
       <div className="rounded-md border border-border p-3 text-[13px] space-y-1">
         <div>
-          Status:{" "}
+          {t("plugin.knowledgebase.status")}:{" "}
           <span className={cn(runtime.ready ? "text-status-nominal" : "text-muted-foreground")}>
-            {runtimeStatus}
+            {t(runtimeStatusKey)}
           </span>
         </div>
-        <div className="text-muted-foreground">Checked: {formatTime(runtime.checkedAt)}</div>
-        <div className="text-muted-foreground break-all">Base URL: {runtime.baseUrl ?? "-"}</div>
-        <div className="text-muted-foreground break-all">Token: {runtime.token ?? "-"}</div>
+        <div className="text-muted-foreground">
+          {t("plugin.knowledgebase.checked_at")}: {formatTime(runtime.checkedAt)}
+        </div>
+        <div className="text-muted-foreground break-all">
+          {t("plugin.knowledgebase.base_url")}: {runtime.baseUrl ?? "-"}
+        </div>
+        <div className="text-muted-foreground break-all">
+          {t("plugin.knowledgebase.token")}: {runtime.token ?? "-"}
+        </div>
       </div>
 
       <div className="flex flex-wrap gap-2">
@@ -173,7 +183,7 @@ export function KnowledgebasePluginCard(): React.JSX.Element {
           onClick={() => void startDaemon()}
           disabled={!!busy["start"] || !runtime.enabled}
         >
-          Start
+          {t("plugin.knowledgebase.start")}
         </Button>
         <Button
           variant="secondary"
@@ -181,7 +191,7 @@ export function KnowledgebasePluginCard(): React.JSX.Element {
           onClick={() => void stopDaemon()}
           disabled={!!busy["stop"]}
         >
-          Stop
+          {t("plugin.knowledgebase.stop")}
         </Button>
         <Button
           variant="ghost"
@@ -189,7 +199,7 @@ export function KnowledgebasePluginCard(): React.JSX.Element {
           onClick={() => void refreshStatus()}
           disabled={!!busy["refresh"]}
         >
-          Refresh
+          {t("plugin.knowledgebase.refresh")}
         </Button>
         <Button
           variant="ghost"
@@ -197,14 +207,20 @@ export function KnowledgebasePluginCard(): React.JSX.Element {
           onClick={() => void openDataDir()}
           disabled={!!busy["openDataDir"]}
         >
-          Open Data Dir
+          {t("plugin.knowledgebase.open_data_dir")}
         </Button>
       </div>
 
-      <Section title="Setup" open={setupOpen} onToggle={() => setSetupOpen((prev) => !prev)}>
+      <Section
+        title={t("plugin.knowledgebase.section.setup")}
+        open={setupOpen}
+        onToggle={() => setSetupOpen((prev) => !prev)}
+      >
         <div className="space-y-3 text-[13px]">
           <div className="space-y-1">
-            <div className="text-muted-foreground">Daemon executable</div>
+            <div className="text-muted-foreground">
+              {t("plugin.knowledgebase.daemon_executable")}
+            </div>
             <div className="font-mono text-[12px] break-all">{form.daemonExePath || "-"}</div>
             <div className="flex gap-2">
               <Button
@@ -213,7 +229,7 @@ export function KnowledgebasePluginCard(): React.JSX.Element {
                 onClick={() => void pickExe()}
                 disabled={!!busy["pickExe"]}
               >
-                Select Executable
+                {t("plugin.knowledgebase.select_executable")}
               </Button>
               <span
                 className={cn(
@@ -221,12 +237,14 @@ export function KnowledgebasePluginCard(): React.JSX.Element {
                   runtime.daemonExeExists ? "text-status-nominal" : "text-status-critical"
                 )}
               >
-                {runtime.daemonExeExists ? "Detected" : "Missing"}
+                {runtime.daemonExeExists
+                  ? t("plugin.knowledgebase.detected")
+                  : t("plugin.knowledgebase.missing")}
               </span>
             </div>
           </div>
           <div className="space-y-1">
-            <div className="text-muted-foreground">Data directory</div>
+            <div className="text-muted-foreground">{t("plugin.knowledgebase.data_directory")}</div>
             <div className="font-mono text-[12px] break-all">
               {form.dataDir || storage?.dataDir || "-"}
             </div>
@@ -237,7 +255,7 @@ export function KnowledgebasePluginCard(): React.JSX.Element {
                 onClick={() => void pickDataDir()}
                 disabled={!!busy["pickDataDir"] || !canEditConfig}
               >
-                Select Data Dir
+                {t("plugin.knowledgebase.select_data_dir")}
               </Button>
               <span
                 className={cn(
@@ -245,23 +263,29 @@ export function KnowledgebasePluginCard(): React.JSX.Element {
                   runtime.dataDirExists ? "text-status-nominal" : "text-muted-foreground"
                 )}
               >
-                {runtime.dataDirExists ? "Exists" : "Will be created on start"}
+                {runtime.dataDirExists
+                  ? t("plugin.knowledgebase.exists")
+                  : t("plugin.knowledgebase.will_create_on_start")}
               </span>
             </div>
           </div>
         </div>
       </Section>
 
-      <Section title="Environment" open={envOpen} onToggle={() => setEnvOpen((prev) => !prev)}>
+      <Section
+        title={t("plugin.knowledgebase.section.environment")}
+        open={envOpen}
+        onToggle={() => setEnvOpen((prev) => !prev)}
+      >
         <div className="space-y-3 text-[13px]">
           {!canEditConfig && (
             <div className="text-[12px] text-muted-foreground">
-              Stop daemon before editing configuration values.
+              {t("plugin.knowledgebase.stop_before_editing")}
             </div>
           )}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <label className="space-y-1">
-              <div className="text-muted-foreground">LLM Provider</div>
+              <div className="text-muted-foreground">{t("plugin.knowledgebase.llm_provider")}</div>
               <select
                 value={form.llmProvider}
                 disabled={!canEditConfig}
@@ -273,12 +297,16 @@ export function KnowledgebasePluginCard(): React.JSX.Element {
                 }
                 className="w-full rounded-md border border-border bg-transparent px-2 py-1.5"
               >
-                <option value="ollama">ollama</option>
-                <option value="open_compat">open_compat</option>
+                <option value="ollama">{t("plugin.knowledgebase.provider.ollama")}</option>
+                <option value="open_compat">
+                  {t("plugin.knowledgebase.provider.open_compat")}
+                </option>
               </select>
             </label>
             <label className="space-y-1">
-              <div className="text-muted-foreground">Embedding Provider</div>
+              <div className="text-muted-foreground">
+                {t("plugin.knowledgebase.embedding_provider")}
+              </div>
               <select
                 value={form.embeddingProvider}
                 disabled={!canEditConfig}
@@ -290,15 +318,19 @@ export function KnowledgebasePluginCard(): React.JSX.Element {
                 }
                 className="w-full rounded-md border border-border bg-transparent px-2 py-1.5"
               >
-                <option value="ollama">ollama</option>
-                <option value="open_compat">open_compat</option>
+                <option value="ollama">{t("plugin.knowledgebase.provider.ollama")}</option>
+                <option value="open_compat">
+                  {t("plugin.knowledgebase.provider.open_compat")}
+                </option>
               </select>
             </label>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
             <label className="space-y-1">
-              <div className="text-muted-foreground">Ollama Base URL</div>
+              <div className="text-muted-foreground">
+                {t("plugin.knowledgebase.ollama.base_url")}
+              </div>
               <Input
                 value={form.ollama.baseUrl}
                 disabled={!canEditConfig}
@@ -315,7 +347,9 @@ export function KnowledgebasePluginCard(): React.JSX.Element {
               />
             </label>
             <label className="space-y-1">
-              <div className="text-muted-foreground">Ollama LLM Model</div>
+              <div className="text-muted-foreground">
+                {t("plugin.knowledgebase.ollama.llm_model")}
+              </div>
               <Input
                 value={form.ollama.llmModel}
                 disabled={!canEditConfig}
@@ -332,7 +366,9 @@ export function KnowledgebasePluginCard(): React.JSX.Element {
               />
             </label>
             <label className="space-y-1">
-              <div className="text-muted-foreground">Ollama Embed Model</div>
+              <div className="text-muted-foreground">
+                {t("plugin.knowledgebase.ollama.embed_model")}
+              </div>
               <Input
                 value={form.ollama.embedModel}
                 disabled={!canEditConfig}
@@ -352,7 +388,9 @@ export function KnowledgebasePluginCard(): React.JSX.Element {
 
           <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
             <label className="space-y-1">
-              <div className="text-muted-foreground">OpenCompat Base URL</div>
+              <div className="text-muted-foreground">
+                {t("plugin.knowledgebase.open_compat.base_url")}
+              </div>
               <Input
                 value={form.openCompat.baseUrl}
                 disabled={!canEditConfig}
@@ -369,7 +407,9 @@ export function KnowledgebasePluginCard(): React.JSX.Element {
               />
             </label>
             <label className="space-y-1">
-              <div className="text-muted-foreground">OpenCompat API Key</div>
+              <div className="text-muted-foreground">
+                {t("plugin.knowledgebase.open_compat.api_key")}
+              </div>
               <Input
                 type="password"
                 value={form.openCompat.apiKey}
@@ -387,7 +427,9 @@ export function KnowledgebasePluginCard(): React.JSX.Element {
               />
             </label>
             <label className="space-y-1">
-              <div className="text-muted-foreground">OpenCompat LLM Model</div>
+              <div className="text-muted-foreground">
+                {t("plugin.knowledgebase.open_compat.llm_model")}
+              </div>
               <Input
                 value={form.openCompat.llmModel}
                 disabled={!canEditConfig}
@@ -404,7 +446,9 @@ export function KnowledgebasePluginCard(): React.JSX.Element {
               />
             </label>
             <label className="space-y-1">
-              <div className="text-muted-foreground">OpenCompat Embed Model</div>
+              <div className="text-muted-foreground">
+                {t("plugin.knowledgebase.open_compat.embed_model")}
+              </div>
               <Input
                 value={form.openCompat.embedModel}
                 disabled={!canEditConfig}
@@ -424,7 +468,9 @@ export function KnowledgebasePluginCard(): React.JSX.Element {
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
             <label className="space-y-1">
-              <div className="text-muted-foreground">Retrieve Top K</div>
+              <div className="text-muted-foreground">
+                {t("plugin.knowledgebase.retrieve_top_k")}
+              </div>
               <Input
                 type="number"
                 value={String(form.retrieveTopK)}
@@ -438,7 +484,7 @@ export function KnowledgebasePluginCard(): React.JSX.Element {
               />
             </label>
             <label className="space-y-1">
-              <div className="text-muted-foreground">Chunk Size</div>
+              <div className="text-muted-foreground">{t("plugin.knowledgebase.chunk_size")}</div>
               <Input
                 type="number"
                 value={String(form.chunkSize)}
@@ -452,7 +498,7 @@ export function KnowledgebasePluginCard(): React.JSX.Element {
               />
             </label>
             <label className="space-y-1">
-              <div className="text-muted-foreground">Chunk Overlap</div>
+              <div className="text-muted-foreground">{t("plugin.knowledgebase.chunk_overlap")}</div>
               <Input
                 type="number"
                 value={String(form.chunkOverlap)}
@@ -482,48 +528,50 @@ export function KnowledgebasePluginCard(): React.JSX.Element {
                 })
               }
             >
-              Save Environment
+              {t("plugin.knowledgebase.save_environment")}
             </Button>
           </div>
         </div>
       </Section>
 
       <Section
-        title="Data Contents"
+        title={t("plugin.knowledgebase.section.data_contents")}
         open={contentsOpen}
         onToggle={() => setContentsOpen((prev) => !prev)}
       >
         {!runtime.ready ? (
           <div className="text-[12px] text-muted-foreground">
-            Start daemon successfully before expanding collections/documents/chunks.
+            {t("plugin.knowledgebase.start_before_browsing")}
           </div>
         ) : (
           <div className="space-y-3">
             <div className="rounded-md border border-border p-3 text-[12px] space-y-1">
-              <div className="font-medium">Storage</div>
+              <div className="font-medium">{t("plugin.knowledgebase.storage")}</div>
               <div className="text-muted-foreground break-all">
-                sqlite: {storage?.sqlite.exists ? "yes" : "no"} (
+                {t("plugin.knowledgebase.storage.sqlite")}: {yesOrNo(storage?.sqlite.exists)} (
                 {formatSize(storage?.sqlite.sizeBytes)})
               </div>
               <div className="text-muted-foreground break-all">
-                chroma: {storage?.chromaDir.exists ? "yes" : "no"} (
+                {t("plugin.knowledgebase.storage.chroma")}: {yesOrNo(storage?.chromaDir.exists)} (
                 {formatSize(storage?.chromaDir.sizeBytes)})
               </div>
               <div className="text-muted-foreground break-all">
-                blobs: {storage?.blobsDir.exists ? "yes" : "no"} (
+                {t("plugin.knowledgebase.storage.blobs")}: {yesOrNo(storage?.blobsDir.exists)} (
                 {formatSize(storage?.blobsDir.sizeBytes)})
               </div>
               <Button variant="ghost" size="sm" onClick={() => void loadStorage()}>
-                Refresh Storage
+                {t("plugin.knowledgebase.refresh_storage")}
               </Button>
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
               <div className="rounded-md border border-border p-3 space-y-2">
                 <div className="flex items-center justify-between">
-                  <div className="text-[12px] text-muted-foreground">Collections</div>
+                  <div className="text-[12px] text-muted-foreground">
+                    {t("plugin.knowledgebase.collections")}
+                  </div>
                   <Button variant="ghost" size="sm" onClick={() => void loadCollections()}>
-                    Reload
+                    {t("plugin.knowledgebase.reload")}
                   </Button>
                 </div>
                 <div className="max-h-52 overflow-auto space-y-1">
@@ -545,13 +593,17 @@ export function KnowledgebasePluginCard(): React.JSX.Element {
                     </button>
                   ))}
                   {collections.length === 0 && (
-                    <div className="text-[12px] text-muted-foreground">No collections.</div>
+                    <div className="text-[12px] text-muted-foreground">
+                      {t("plugin.knowledgebase.empty_collections")}
+                    </div>
                   )}
                 </div>
               </div>
 
               <div className="rounded-md border border-border p-3 space-y-2">
-                <div className="text-[12px] text-muted-foreground">Documents</div>
+                <div className="text-[12px] text-muted-foreground">
+                  {t("plugin.knowledgebase.documents")}
+                </div>
                 <div className="max-h-52 overflow-auto space-y-1">
                   {selectedDocuments.map((document) => (
                     <button
@@ -572,17 +624,21 @@ export function KnowledgebasePluginCard(): React.JSX.Element {
                   ))}
                   {!selectedCollectionId && (
                     <div className="text-[12px] text-muted-foreground">
-                      Select a collection first.
+                      {t("plugin.knowledgebase.select_collection_first")}
                     </div>
                   )}
                   {selectedCollectionId && selectedDocuments.length === 0 && (
-                    <div className="text-[12px] text-muted-foreground">No documents.</div>
+                    <div className="text-[12px] text-muted-foreground">
+                      {t("plugin.knowledgebase.empty_documents")}
+                    </div>
                   )}
                 </div>
               </div>
 
               <div className="rounded-md border border-border p-3 space-y-2">
-                <div className="text-[12px] text-muted-foreground">Chunks</div>
+                <div className="text-[12px] text-muted-foreground">
+                  {t("plugin.knowledgebase.chunks")}
+                </div>
                 <div className="max-h-52 overflow-auto space-y-1">
                   {selectedChunks.map((chunk) => (
                     <div
@@ -595,11 +651,13 @@ export function KnowledgebasePluginCard(): React.JSX.Element {
                   ))}
                   {!selectedDocumentId && (
                     <div className="text-[12px] text-muted-foreground">
-                      Select a document first.
+                      {t("plugin.knowledgebase.select_document_first")}
                     </div>
                   )}
                   {selectedDocumentId && selectedChunks.length === 0 && (
-                    <div className="text-[12px] text-muted-foreground">No chunks.</div>
+                    <div className="text-[12px] text-muted-foreground">
+                      {t("plugin.knowledgebase.empty_chunks")}
+                    </div>
                   )}
                 </div>
               </div>
@@ -609,16 +667,20 @@ export function KnowledgebasePluginCard(): React.JSX.Element {
       </Section>
 
       <Section
-        title="Logs & Milestones"
+        title={t("plugin.knowledgebase.section.logs_milestones")}
         open={logsOpen}
         onToggle={() => setLogsOpen((prev) => !prev)}
       >
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
           <div className="rounded-md border border-border p-3">
-            <div className="text-[12px] text-muted-foreground mb-2">Milestones</div>
+            <div className="text-[12px] text-muted-foreground mb-2">
+              {t("plugin.knowledgebase.milestones")}
+            </div>
             <div className="max-h-40 overflow-auto space-y-1 text-[12px]">
               {runtime.milestones.length === 0 ? (
-                <div className="text-muted-foreground">No milestones.</div>
+                <div className="text-muted-foreground">
+                  {t("plugin.knowledgebase.empty_milestones")}
+                </div>
               ) : (
                 runtime.milestones
                   .slice()
@@ -637,10 +699,12 @@ export function KnowledgebasePluginCard(): React.JSX.Element {
             </div>
           </div>
           <div className="rounded-md border border-border p-3">
-            <div className="text-[12px] text-muted-foreground mb-2">Logs</div>
+            <div className="text-[12px] text-muted-foreground mb-2">
+              {t("plugin.knowledgebase.logs")}
+            </div>
             <div className="max-h-40 overflow-auto text-[12px]">
               {runtime.logs.length === 0 ? (
-                <div className="text-muted-foreground">No logs.</div>
+                <div className="text-muted-foreground">{t("plugin.knowledgebase.empty_logs")}</div>
               ) : (
                 <pre className="whitespace-pre-wrap break-words">
                   {runtime.logs

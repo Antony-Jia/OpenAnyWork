@@ -67,12 +67,15 @@ import type {
   ActionbookEvent,
   ActionbookRuntimeState,
   KnowledgebaseCollectionSummary,
+  KnowledgebaseCreateCollectionRequest,
   KnowledgebaseConfigUpdate,
   KnowledgebaseEvent,
   KnowledgebaseListChunksResult,
   KnowledgebaseListDocumentsResult,
   KnowledgebaseRuntimeState,
   KnowledgebaseStorageStatus,
+  KnowledgebaseUploadItemResult,
+  KnowledgebaseUploadRequest,
   PluginEnableUpdateParams,
   PresetPluginItem
 } from "../main/plugins/core/contracts"
@@ -591,6 +594,14 @@ const api = {
     knowledgebasePickDataDir: (): Promise<string | null> => {
       return ipcRenderer.invoke("plugins:knowledgebase:pickDataDir")
     },
+    knowledgebasePickUploadFiles: (): Promise<string[] | null> => {
+      return ipcRenderer.invoke("plugins:knowledgebase:pickUploadFiles")
+    },
+    knowledgebaseUploadDocuments: (
+      input: KnowledgebaseUploadRequest
+    ): Promise<KnowledgebaseUploadItemResult[]> => {
+      return ipcRenderer.invoke("plugins:knowledgebase:uploadDocuments", input)
+    },
     knowledgebaseStart: (): Promise<KnowledgebaseRuntimeState> => {
       return ipcRenderer.invoke("plugins:knowledgebase:start")
     },
@@ -605,6 +616,11 @@ const api = {
     },
     knowledgebaseListCollections: (): Promise<KnowledgebaseCollectionSummary[]> => {
       return ipcRenderer.invoke("plugins:knowledgebase:listCollections")
+    },
+    knowledgebaseCreateCollection: (
+      input: KnowledgebaseCreateCollectionRequest
+    ): Promise<KnowledgebaseCollectionSummary> => {
+      return ipcRenderer.invoke("plugins:knowledgebase:createCollection", input)
     },
     knowledgebaseListDocuments: (input: {
       collectionId: string

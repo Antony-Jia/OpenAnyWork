@@ -112,6 +112,7 @@ export interface KnowledgebaseProviderOpenCompatSettings {
 export interface KnowledgebaseConfig {
   daemonExePath: string | null
   dataDir: string | null
+  activeCollectionIds: string[]
   llmProvider: KnowledgebaseProvider
   embeddingProvider: KnowledgebaseProvider
   ollama: KnowledgebaseProviderOllamaSettings
@@ -124,6 +125,7 @@ export interface KnowledgebaseConfig {
 export interface KnowledgebaseConfigUpdate {
   daemonExePath?: string | null
   dataDir?: string | null
+  activeCollectionIds?: string[]
   llmProvider?: KnowledgebaseProvider
   embeddingProvider?: KnowledgebaseProvider
   ollama?: Partial<KnowledgebaseProviderOllamaSettings>
@@ -196,6 +198,12 @@ export interface KnowledgebaseCollectionSummary {
   created_at?: string
 }
 
+export interface KnowledgebaseCreateCollectionRequest {
+  name: string
+  description?: string | null
+  settings?: Record<string, unknown>
+}
+
 export interface KnowledgebaseDocumentSummary {
   id: string
   collection_id: string
@@ -230,6 +238,31 @@ export interface KnowledgebaseListChunksResult {
   chunks: KnowledgebaseChunkSummary[]
   limit: number
   offset: number
+}
+
+export interface KnowledgebaseUploadOptions {
+  chunkSize?: number
+  chunkOverlap?: number
+  parserName?: string
+  metadata?: Record<string, unknown>
+}
+
+export interface KnowledgebaseUploadRequest {
+  collectionId: string
+  filePaths: string[]
+  options?: KnowledgebaseUploadOptions
+  poll?: boolean
+}
+
+export type KnowledgebaseUploadStatus = "queued" | "running" | "done" | "failed"
+
+export interface KnowledgebaseUploadItemResult {
+  filePath: string
+  fileName: string
+  jobId?: string
+  documentId?: string
+  status: KnowledgebaseUploadStatus
+  error?: string
 }
 
 export type KnowledgebaseEvent = {

@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input"
 import { cn } from "@/lib/utils"
 import { useLanguage } from "@/lib/i18n"
 import type { CapabilityScope, ToolInfo } from "@/types"
+import type { PresetPluginItem } from "@/plugins/types"
 
 function isToolEnabledInScope(tool: ToolInfo, scope: CapabilityScope): boolean {
   return scope === "butler"
@@ -17,6 +18,8 @@ export function ToolsManager(): React.JSX.Element {
   const [open, setOpen] = useState(false)
   const [activeTab, setActiveTab] = useState<"native" | "plugin">("native")
   const [tools, setTools] = useState<ToolInfo[]>([])
+  const [plugins, setPlugins] = useState<PresetPluginItem[]>([])
+  const [pluginGroupsExpanded, setPluginGroupsExpanded] = useState<Record<string, boolean>>({})
   const [keyInputs, setKeyInputs] = useState<Record<string, string>>({})
   const [showKeys, setShowKeys] = useState<Record<string, boolean>>({})
   const [saving, setSaving] = useState<Record<string, boolean>>({})
@@ -30,8 +33,12 @@ export function ToolsManager(): React.JSX.Element {
         setError(t("tools.load_failed"))
         return
       }
-      const items = await window.api.tools.list()
+      const [items, pluginItems] = await Promise.all([
+        window.api.tools.list(),
+        window.api.plugins.list()
+      ])
       setTools(items)
+      setPlugins(pluginItems)
     } catch (e) {
       const message = e instanceof Error ? e.message : t("tools.load_failed")
       setError(message)
@@ -45,6 +52,7 @@ export function ToolsManager(): React.JSX.Element {
 
   const resetState = (): void => {
     setActiveTab("native")
+    setPluginGroupsExpanded({})
     setKeyInputs({})
     setShowKeys({})
     setSaving({})
@@ -123,6 +131,133 @@ export function ToolsManager(): React.JSX.Element {
   )
   const visibleTools = activeTab === "native" ? nativeTools : pluginTools
 
+  const pluginById = useMemo(() => {
+    return new Map(plugins.map((plugin) => [plugin.id, plugin]))
+  }, [plugins])
+
+  const pluginToolGroups = useMemo(() => {
+    const groups = new Map<string, ToolInfo[]>()
+    for (const tool of pluginTools) {
+      const key = tool.pluginId || "__unknown__"
+      const group = groups.get(key) ?? []
+      group.push(tool)
+      groups.set(key, group)
+    }
+    return Array.from(groups.entries())
+  }, [pluginTools])
+
+  useEffect(() => {
+    if (pluginToolGroups.length === 0) return
+    setPluginGroupsExpanded((prev) => {
+      const next = { ...prev }
+      let changed = false
+      for (const [groupId] of pluginToolGroups) {
+        if (next[groupId] === undefined) {
+          next[groupId] = true
+          changed = true
+        }
+      }
+      return changed ? next : prev
+    })
+  }, [pluginToolGroups])
+
+  const renderToolCard = (tool: ToolInfo): React.JSX.Element => (
+    <div
+      key={tool.name}
+      className={cn("rounded-lg border border-border p-3 space-y-3", !tool.available && "opacity-60")}
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div className="space-y-1">
+          <div className="text-sm font-medium">{tool.label}</div>
+          <div className="text-xs text-muted-foreground">{tool.description}</div>
+          <div className="text-[10px] text-muted-foreground font-mono">{tool.name}</div>
+          {tool.envVar && (
+            <div className="text-[10px] text-muted-foreground">
+              {t("tools.env_var")}: {tool.envVar}
+            </div>
+          )}
+        </div>
+        <div className="flex flex-col items-end gap-2">
+          <div className="flex items-center gap-3">
+            {(["classic", "butler"] as const).map((scope) => {
+              const enabled = isToolEnabledInScope(tool, scope)
+              const toggleKey = `${tool.name}:${scope}`
+              return (
+                <button
+                  key={scope}
+                  type="button"
+                  disabled={toggling[toggleKey] || !tool.available}
+                  onClick={() => void handleToggle(tool, scope)}
+                  className={cn(
+                    "text-[10px] uppercase tracking-[0.12em] transition-colors",
+                    enabled ? "text-foreground" : "text-muted-foreground hover:text-foreground"
+                  )}
+                >
+                  {t(`scope.${scope}`)}: {enabled ? t("tools.enabled") : t("tools.disabled")}
+                </button>
+              )
+            })}
+          </div>
+          <span
+            className={cn(
+              "text-[10px] uppercase tracking-[0.2em]",
+              tool.hasKey ? "text-status-success" : "text-muted-foreground"
+            )}
+          >
+            {tool.hasKey ? t("tools.status_configured") : t("tools.status_missing")}
+          </span>
+        </div>
+      </div>
+
+      {tool.requiresKey !== false && (
+        <div className="space-y-2">
+          <label className="text-xs text-muted-foreground">{tool.keyLabel || t("tools.key")}</label>
+          <div className="relative">
+            <Input
+              type={showKeys[tool.name] ? "text" : "password"}
+              value={keyInputs[tool.name] ?? ""}
+              onChange={(e) => handleKeyChange(tool.name, e.target.value)}
+              placeholder={t("tools.key_placeholder")}
+              className="pr-10"
+            />
+            <button
+              type="button"
+              onClick={() => toggleShowKey(tool.name)}
+              className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+            >
+              {showKeys[tool.name] ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {!tool.available && tool.disabledReason && (
+        <div className="text-xs text-muted-foreground">
+          {tool.name === "analyze_image" ? t("tools.analyze_image_unavailable") : tool.disabledReason}
+        </div>
+      )}
+
+      {!tool.enabledClassic && !tool.enabledButler && (
+        <div className="text-xs text-muted-foreground">{t("tools.disabled_hint")}</div>
+      )}
+      {tool.requiresKey !== false && (
+        <div className="flex items-center justify-end gap-2">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => void handleSave(tool, true)}
+            disabled={saving[tool.name]}
+          >
+            {t("tools.clear")}
+          </Button>
+          <Button size="sm" onClick={() => void handleSave(tool)} disabled={saving[tool.name]}>
+            {t("tools.save")}
+          </Button>
+        </div>
+      )}
+    </div>
+  )
+
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <Button
@@ -174,127 +309,53 @@ export function ToolsManager(): React.JSX.Element {
                 </button>
               </div>
 
-              {visibleTools.length === 0 ? (
+              {activeTab === "native" ? (
+                visibleTools.length === 0 ? (
+                  <div className="rounded-lg border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
+                    {t("tools.empty")}
+                  </div>
+                ) : (
+                  <div className="space-y-3">{visibleTools.map((tool) => renderToolCard(tool))}</div>
+                )
+              ) : pluginToolGroups.length === 0 ? (
                 <div className="rounded-lg border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
                   {t("tools.empty")}
                 </div>
               ) : (
                 <div className="space-y-3">
-                  {visibleTools.map((tool) => (
-                    <div
-                      key={tool.name}
-                      className={cn(
-                        "rounded-lg border border-border p-3 space-y-3",
-                        !tool.available && "opacity-60"
-                      )}
-                    >
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="space-y-1">
-                          <div className="text-sm font-medium">{tool.label}</div>
-                          <div className="text-xs text-muted-foreground">{tool.description}</div>
-                          {tool.envVar && (
-                            <div className="text-[10px] text-muted-foreground">
-                              {t("tools.env_var")}: {tool.envVar}
-                            </div>
-                          )}
-                        </div>
-                        <div className="flex flex-col items-end gap-2">
-                          <div className="flex items-center gap-3">
-                            {(["classic", "butler"] as const).map((scope) => {
-                              const enabled = isToolEnabledInScope(tool, scope)
-                              const toggleKey = `${tool.name}:${scope}`
-                              return (
-                                <button
-                                  key={scope}
-                                  type="button"
-                                  disabled={toggling[toggleKey] || !tool.available}
-                                  onClick={() => handleToggle(tool, scope)}
-                                  className={cn(
-                                    "text-[10px] uppercase tracking-[0.12em] transition-colors",
-                                    enabled
-                                      ? "text-foreground"
-                                      : "text-muted-foreground hover:text-foreground"
-                                  )}
-                                >
-                                  {t(`scope.${scope}`)}:{" "}
-                                  {enabled ? t("tools.enabled") : t("tools.disabled")}
-                                </button>
-                              )
-                            })}
-                          </div>
-                          <span
-                            className={cn(
-                              "text-[10px] uppercase tracking-[0.2em]",
-                              tool.hasKey ? "text-status-success" : "text-muted-foreground"
+                  {pluginToolGroups.map(([pluginId, groupedTools]) => {
+                    const plugin = pluginById.get(pluginId as "actionbook" | "knowledgebase")
+                    const groupTitle = plugin?.name || t("tools.plugin_group_unknown")
+                    const groupDescription = plugin?.description
+                    const expanded = pluginGroupsExpanded[pluginId] ?? true
+
+                    return (
+                      <div key={pluginId} className="rounded-lg border border-border">
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setPluginGroupsExpanded((prev) => ({
+                              ...prev,
+                              [pluginId]: !(prev[pluginId] ?? true)
+                            }))
+                          }
+                          className="w-full px-3 py-2 flex items-center justify-between text-left hover:bg-muted/30"
+                        >
+                          <div>
+                            <div className="text-sm font-medium">{groupTitle}</div>
+                            {groupDescription && (
+                              <div className="text-xs text-muted-foreground">{groupDescription}</div>
                             )}
-                          >
-                            {tool.hasKey ? t("tools.status_configured") : t("tools.status_missing")}
-                          </span>
-                        </div>
-                      </div>
-
-                      {tool.requiresKey !== false && (
-                        <div className="space-y-2">
-                          <label className="text-xs text-muted-foreground">
-                            {tool.keyLabel || t("tools.key")}
-                          </label>
-                          <div className="relative">
-                            <Input
-                              type={showKeys[tool.name] ? "text" : "password"}
-                              value={keyInputs[tool.name] ?? ""}
-                              onChange={(e) => handleKeyChange(tool.name, e.target.value)}
-                              placeholder={t("tools.key_placeholder")}
-                              className="pr-10"
-                            />
-                            <button
-                              type="button"
-                              onClick={() => toggleShowKey(tool.name)}
-                              className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
-                            >
-                              {showKeys[tool.name] ? (
-                                <EyeOff className="size-4" />
-                              ) : (
-                                <Eye className="size-4" />
-                              )}
-                            </button>
                           </div>
-                        </div>
-                      )}
-
-                      {!tool.available && tool.disabledReason && (
-                        <div className="text-xs text-muted-foreground">
-                          {tool.name === "analyze_image"
-                            ? t("tools.analyze_image_unavailable")
-                            : tool.disabledReason}
-                        </div>
-                      )}
-
-                      {!tool.enabledClassic && !tool.enabledButler && (
-                        <div className="text-xs text-muted-foreground">
-                          {t("tools.disabled_hint")}
-                        </div>
-                      )}
-                      {tool.requiresKey !== false && (
-                        <div className="flex items-center justify-end gap-2">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleSave(tool, true)}
-                            disabled={saving[tool.name]}
-                          >
-                            {t("tools.clear")}
-                          </Button>
-                          <Button
-                            size="sm"
-                            onClick={() => handleSave(tool)}
-                            disabled={saving[tool.name]}
-                          >
-                            {t("tools.save")}
-                          </Button>
-                        </div>
-                      )}
-                    </div>
-                  ))}
+                          <div className="text-xs text-muted-foreground">
+                            {groupedTools.length} ·{" "}
+                            {expanded ? t("tools.plugin_group_collapse") : t("tools.plugin_group_expand")}
+                          </div>
+                        </button>
+                        {expanded && <div className="p-3 space-y-3">{groupedTools.map((tool) => renderToolCard(tool))}</div>}
+                      </div>
+                    )
+                  })}
                 </div>
               )}
 

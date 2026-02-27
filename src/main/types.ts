@@ -505,6 +505,7 @@ export interface KnowledgebasePluginSettings {
   enabled: boolean
   daemonExePath: string | null
   dataDir: string | null
+  activeCollectionIds: string[]
   llmProvider: KnowledgebaseProvider
   embeddingProvider: KnowledgebaseProvider
   ollama: KnowledgebaseProviderOllamaSettings

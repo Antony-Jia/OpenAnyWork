@@ -68,12 +68,15 @@ import type {
   ActionbookEvent,
   ActionbookRuntimeState,
   KnowledgebaseCollectionSummary,
+  KnowledgebaseCreateCollectionRequest,
   KnowledgebaseConfigUpdate,
   KnowledgebaseEvent,
   KnowledgebaseListChunksResult,
   KnowledgebaseListDocumentsResult,
   KnowledgebaseRuntimeState,
   KnowledgebaseStorageStatus,
+  KnowledgebaseUploadItemResult,
+  KnowledgebaseUploadRequest,
   PluginEnableUpdateParams,
   PresetPluginItem
 } from "../main/plugins/core/contracts"
@@ -293,11 +296,18 @@ interface CustomAPI {
     ) => Promise<KnowledgebaseRuntimeState>
     knowledgebasePickExe: () => Promise<string | null>
     knowledgebasePickDataDir: () => Promise<string | null>
+    knowledgebasePickUploadFiles: () => Promise<string[] | null>
+    knowledgebaseUploadDocuments: (
+      input: KnowledgebaseUploadRequest
+    ) => Promise<KnowledgebaseUploadItemResult[]>
     knowledgebaseStart: () => Promise<KnowledgebaseRuntimeState>
     knowledgebaseStop: () => Promise<KnowledgebaseRuntimeState>
     knowledgebaseRefresh: () => Promise<KnowledgebaseRuntimeState>
     knowledgebaseStorageStatus: () => Promise<KnowledgebaseStorageStatus>
     knowledgebaseListCollections: () => Promise<KnowledgebaseCollectionSummary[]>
+    knowledgebaseCreateCollection: (
+      input: KnowledgebaseCreateCollectionRequest
+    ) => Promise<KnowledgebaseCollectionSummary>
     knowledgebaseListDocuments: (input: {
       collectionId: string
       limit?: number

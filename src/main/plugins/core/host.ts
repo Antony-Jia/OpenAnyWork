@@ -6,6 +6,7 @@ import type {
   ActionbookEvent,
   ActionbookRuntimeState,
   KnowledgebaseCollectionSummary,
+  KnowledgebaseCreateCollectionRequest,
   KnowledgebaseConfig,
   KnowledgebaseConfigUpdate,
   KnowledgebaseEvent,
@@ -13,6 +14,8 @@ import type {
   KnowledgebaseListDocumentsResult,
   KnowledgebaseRuntimeState,
   KnowledgebaseStorageStatus,
+  KnowledgebaseUploadItemResult,
+  KnowledgebaseUploadRequest,
   PluginEnableUpdateParams,
   PresetPluginId,
   PresetPluginItem
@@ -26,6 +29,7 @@ function createDefaultKnowledgebaseConfig(): KnowledgebaseConfig {
   return {
     daemonExePath: null,
     dataDir: null,
+    activeCollectionIds: [],
     llmProvider: "ollama",
     embeddingProvider: "ollama",
     ollama: {
@@ -50,6 +54,9 @@ function resolveKnowledgebaseConfig(settings = getSettings()): KnowledgebaseConf
   return {
     daemonExePath: config.daemonExePath,
     dataDir: config.dataDir,
+    activeCollectionIds: Array.isArray(config.activeCollectionIds)
+      ? config.activeCollectionIds
+      : [],
     llmProvider: config.llmProvider,
     embeddingProvider: config.embeddingProvider,
     ollama: {
@@ -203,7 +210,10 @@ export class PluginHost {
       openCompat: {
         ...currentConfig.openCompat,
         ...(input.openCompat ?? {})
-      }
+      },
+      activeCollectionIds: Array.isArray(input.activeCollectionIds)
+        ? input.activeCollectionIds
+        : currentConfig.activeCollectionIds
     }
     updateSettings({
       plugins: {
@@ -242,6 +252,13 @@ export class PluginHost {
   async listKnowledgebaseCollections(): Promise<KnowledgebaseCollectionSummary[]> {
     await this.hydrateFromSettings()
     return this.knowledgebase.listCollections()
+  }
+
+  async createKnowledgebaseCollection(
+    input: KnowledgebaseCreateCollectionRequest
+  ): Promise<KnowledgebaseCollectionSummary> {
+    await this.hydrateFromSettings()
+    return this.knowledgebase.createCollection(input)
   }
 
   async listKnowledgebaseDocuments(
@@ -285,6 +302,13 @@ export class PluginHost {
   }> {
     await this.hydrateFromSettings()
     return this.knowledgebase.retrieve(input)
+  }
+
+  async uploadKnowledgebaseDocuments(
+    input: KnowledgebaseUploadRequest
+  ): Promise<KnowledgebaseUploadItemResult[]> {
+    await this.hydrateFromSettings()
+    return this.knowledgebase.uploadDocuments(input)
   }
 
   onActionbookEvent(listener: (event: ActionbookEvent) => void): () => void {

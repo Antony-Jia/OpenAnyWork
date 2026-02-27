@@ -1,10 +1,12 @@
 import { spawn, type ChildProcess } from "node:child_process"
 import { existsSync, mkdirSync, statSync, writeFileSync } from "node:fs"
-import { join } from "node:path"
+import { readFile } from "node:fs/promises"
+import { basename, extname, join } from "node:path"
 import { app, shell } from "electron"
 import type {
   KnowledgebaseChunkSummary,
   KnowledgebaseCollectionSummary,
+  KnowledgebaseCreateCollectionRequest,
   KnowledgebaseConfig,
   KnowledgebaseEvent,
   KnowledgebaseListChunksResult,
@@ -15,12 +17,17 @@ import type {
   KnowledgebaseMilestoneType,
   KnowledgebaseRuntimeState,
   KnowledgebaseStorageFileInfo,
-  KnowledgebaseStorageStatus
+  KnowledgebaseStorageStatus,
+  KnowledgebaseUploadItemResult,
+  KnowledgebaseUploadRequest,
+  KnowledgebaseUploadStatus
 } from "../core/contracts"
 
 const START_TIMEOUT_MS = 15000
 const HEALTH_TIMEOUT_MS = 12000
 const HEALTH_POLL_INTERVAL_MS = 500
+const JOB_POLL_INTERVAL_MS = 1200
+const JOB_POLL_TIMEOUT_MS = 180000
 const MAX_LOG_ENTRIES = 300
 const MAX_MILESTONES = 160
 
@@ -41,9 +48,20 @@ function sanitizeProvider(value: string): "ollama" | "open_compat" {
 }
 
 function sanitizeConfig(config: KnowledgebaseConfig): KnowledgebaseConfig {
+  const activeCollectionIds = Array.isArray(config.activeCollectionIds)
+    ? Array.from(
+        new Set(
+          config.activeCollectionIds
+            .map((value) => (typeof value === "string" ? value.trim() : ""))
+            .filter((value) => value.length > 0)
+        )
+      )
+    : []
+
   return {
     daemonExePath: trimOrNull(config.daemonExePath),
     dataDir: trimOrNull(config.dataDir),
+    activeCollectionIds,
     llmProvider: sanitizeProvider(config.llmProvider),
     embeddingProvider: sanitizeProvider(config.embeddingProvider),
     ollama: {
@@ -77,6 +95,30 @@ function withQuery(pathname: string, params: Record<string, string | number | un
   }
   const query = searchParams.toString()
   return query ? `${pathname}?${query}` : pathname
+}
+
+function toUploadMimeType(filePath: string): string {
+  const ext = extname(filePath).toLowerCase()
+  switch (ext) {
+    case ".pdf":
+      return "application/pdf"
+    case ".docx":
+      return "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+    case ".txt":
+      return "text/plain"
+    default:
+      return "application/octet-stream"
+  }
+}
+
+function normalizeJobStatus(rawStatus: unknown): KnowledgebaseUploadStatus {
+  const value = String(rawStatus ?? "")
+    .trim()
+    .toLowerCase()
+  if (value === "queued") return "queued"
+  if (value === "running") return "running"
+  if (value === "done" || value === "succeeded") return "done"
+  return "failed"
 }
 
 export class KnowledgebasePluginService {
@@ -212,7 +254,30 @@ export class KnowledgebasePluginService {
   async listCollections(): Promise<KnowledgebaseCollectionSummary[]> {
     await this.ensureDaemonReady()
     const data = await this.requestJson<KnowledgebaseCollectionSummary[]>("/api/v1/collections")
-    return Array.isArray(data) ? data : []
+    return Array.isArray(data) ? data.map((item) => this.normalizeCollectionSummary(item)) : []
+  }
+
+  async createCollection(
+    input: KnowledgebaseCreateCollectionRequest
+  ): Promise<KnowledgebaseCollectionSummary> {
+    await this.ensureDaemonReady()
+    const name = String(input.name ?? "").trim()
+    if (!name) {
+      throw new Error("Collection name is required.")
+    }
+    const payload: Record<string, unknown> = { name }
+    if (input.description !== undefined) {
+      payload.description = input.description
+    }
+    if (input.settings && typeof input.settings === "object") {
+      payload.settings = input.settings
+    }
+    const response = await this.requestJson("/api/v1/collections", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    })
+    return this.normalizeCollectionSummary(response)
   }
 
   async listDocuments(
@@ -222,9 +287,20 @@ export class KnowledgebasePluginService {
   ): Promise<KnowledgebaseListDocumentsResult> {
     await this.ensureDaemonReady()
     const safeCollectionId = encodeURIComponent(collectionId)
-    return this.requestJson<KnowledgebaseListDocumentsResult>(
+    const response = await this.requestJson<KnowledgebaseListDocumentsResult & { documents?: unknown[] }>(
       withQuery(`/api/v1/collections/${safeCollectionId}/documents`, { limit, offset })
     )
+    return {
+      collection: {
+        id: response.collection?.id ?? collectionId,
+        name: response.collection?.name
+      },
+      documents: Array.isArray(response.documents)
+        ? response.documents.map((item) => this.normalizeDocumentSummary(item))
+        : [],
+      limit: response.limit ?? limit,
+      offset: response.offset ?? offset
+    }
   }
 
   async listChunks(
@@ -234,9 +310,21 @@ export class KnowledgebasePluginService {
   ): Promise<KnowledgebaseListChunksResult> {
     await this.ensureDaemonReady()
     const safeDocumentId = encodeURIComponent(documentId)
-    return this.requestJson<KnowledgebaseListChunksResult>(
+    const response = await this.requestJson<KnowledgebaseListChunksResult & { chunks?: unknown[] }>(
       withQuery(`/api/v1/documents/${safeDocumentId}/chunks`, { limit, offset })
     )
+    const normalizedDocument = this.normalizeDocumentRef(response.document)
+    return {
+      document: {
+        ...normalizedDocument,
+        id: normalizedDocument.id || documentId
+      },
+      chunks: Array.isArray(response.chunks)
+        ? response.chunks.map((item) => this.normalizeChunkSummary(item))
+        : [],
+      limit: response.limit ?? limit,
+      offset: response.offset ?? offset
+    }
   }
 
   async retrieve(payload: {
@@ -253,11 +341,150 @@ export class KnowledgebasePluginService {
     }>
   }> {
     await this.ensureDaemonReady()
-    return this.requestJson("/api/v1/retrieve", {
+    const response = await this.requestJson<{
+      chunks?: Array<{
+        chunk?: unknown
+        document?: unknown
+        score?: number
+      }>
+      hits?: Array<{
+        chunk_id?: string
+        score?: number
+        text?: string | null
+        citation?: {
+          document_id?: string
+          chunk_id?: string
+          snippet?: string
+        }
+        document?: {
+          id?: string
+          title?: string
+          filename?: string
+        }
+      }>
+    }>("/api/v1/retrieve", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload)
     })
+
+    if (Array.isArray(response.chunks)) {
+      return {
+        chunks: response.chunks.map((item) => ({
+          chunk: this.normalizeChunkSummary(item.chunk),
+          document: this.normalizeDocumentRef(item.document),
+          score: item.score
+        }))
+      }
+    }
+
+    if (Array.isArray(response.hits)) {
+      return {
+        chunks: response.hits.map((hit, index) => {
+          const documentId = hit.document?.id ?? hit.citation?.document_id ?? ""
+          const text = typeof hit.text === "string" ? hit.text : (hit.citation?.snippet ?? "")
+          return {
+            chunk: {
+              id: hit.chunk_id || hit.citation?.chunk_id || `hit:${index}`,
+              document_id: documentId,
+              text,
+              index
+            },
+            document: {
+              id: documentId,
+              filename: hit.document?.filename ?? hit.document?.title
+            },
+            score: hit.score
+          }
+        })
+      }
+    }
+
+    return { chunks: [] }
+  }
+
+  async uploadDocuments(input: KnowledgebaseUploadRequest): Promise<KnowledgebaseUploadItemResult[]> {
+    await this.ensureDaemonReady()
+    if (!input.collectionId || !input.collectionId.trim()) {
+      throw new Error("Collection ID is required for upload.")
+    }
+    const filePaths = Array.isArray(input.filePaths) ? input.filePaths : []
+    if (filePaths.length === 0) {
+      throw new Error("At least one file path is required.")
+    }
+
+    const poll = input.poll !== false
+    const results: KnowledgebaseUploadItemResult[] = []
+
+    for (const filePath of filePaths) {
+      const fileName = basename(filePath)
+      try {
+        const content = await readFile(filePath)
+        const formData = new FormData()
+        const blob = new Blob([content], { type: toUploadMimeType(filePath) })
+        formData.append("file", blob, fileName)
+        formData.append("collection_id", input.collectionId)
+        if (input.options) {
+          formData.append(
+            "options",
+            JSON.stringify({
+              chunk_size: input.options.chunkSize,
+              chunk_overlap: input.options.chunkOverlap,
+              parser_name: input.options.parserName,
+              metadata: input.options.metadata
+            })
+          )
+        }
+
+        const uploadResponse = await this.requestJson<{
+          job_id?: string
+          jobId?: string
+          document_id?: string
+          documentId?: string
+        }>("/api/v1/ingest/upload", {
+          method: "POST",
+          body: formData
+        })
+
+        const jobId = uploadResponse.job_id ?? uploadResponse.jobId
+        const documentId = uploadResponse.document_id ?? uploadResponse.documentId
+        if (!jobId) {
+          throw new Error("Upload response missing job ID.")
+        }
+
+        if (!poll) {
+          results.push({
+            filePath,
+            fileName,
+            jobId,
+            documentId,
+            status: "queued"
+          })
+          continue
+        }
+
+        const finalJob = await this.waitForJob(jobId)
+        const status = normalizeJobStatus(finalJob.status)
+        results.push({
+          filePath,
+          fileName,
+          jobId,
+          documentId,
+          status,
+          error: status === "failed" ? this.jobErrorMessage(finalJob) : undefined
+        })
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error)
+        results.push({
+          filePath,
+          fileName,
+          status: "failed",
+          error: message
+        })
+      }
+    }
+
+    return results
   }
 
   getStorageStatus(): KnowledgebaseStorageStatus {
@@ -420,6 +647,94 @@ export class KnowledgebasePluginService {
       await new Promise((resolve) => setTimeout(resolve, HEALTH_POLL_INTERVAL_MS))
     }
     throw new Error("Timed out waiting for daemon health check.")
+  }
+
+  private async getJob(jobId: string): Promise<{
+    status?: unknown
+    error?: string | null
+    message?: string | null
+  }> {
+    const safeJobId = encodeURIComponent(jobId)
+    return this.requestJson(`/api/v1/jobs/${safeJobId}`)
+  }
+
+  private async waitForJob(jobId: string): Promise<{
+    status?: unknown
+    error?: string | null
+    message?: string | null
+  }> {
+    const startedAt = Date.now()
+    while (Date.now() - startedAt < JOB_POLL_TIMEOUT_MS) {
+      const job = await this.getJob(jobId)
+      const status = normalizeJobStatus(job.status)
+      if (status === "done" || status === "failed") {
+        return job
+      }
+      await new Promise((resolve) => setTimeout(resolve, JOB_POLL_INTERVAL_MS))
+    }
+    throw new Error(`Timed out waiting for job completion: ${jobId}`)
+  }
+
+  private jobErrorMessage(job: { error?: string | null; message?: string | null }): string {
+    return job.error || job.message || "Job failed."
+  }
+
+  private normalizeCollectionSummary(raw: unknown): KnowledgebaseCollectionSummary {
+    const value = (raw && typeof raw === "object" ? raw : {}) as Record<string, unknown>
+    return {
+      id: String(value.id ?? ""),
+      name: String(value.name ?? ""),
+      description: value.description === null ? null : typeof value.description === "string" ? value.description : undefined,
+      settings:
+        value.settings && typeof value.settings === "object"
+          ? (value.settings as Record<string, unknown>)
+          : undefined,
+      created_at: typeof value.created_at === "string" ? value.created_at : undefined
+    }
+  }
+
+  private normalizeDocumentSummary(raw: unknown): KnowledgebaseListDocumentsResult["documents"][number] {
+    const value = (raw && typeof raw === "object" ? raw : {}) as Record<string, unknown>
+    return {
+      id: String(value.id ?? ""),
+      collection_id: String(value.collection_id ?? ""),
+      filename: String(value.filename ?? value.title ?? ""),
+      mime: typeof value.mime === "string" ? value.mime : undefined,
+      metadata:
+        value.metadata && typeof value.metadata === "object"
+          ? (value.metadata as Record<string, unknown>)
+          : undefined,
+      created_at: typeof value.created_at === "string" ? value.created_at : undefined
+    }
+  }
+
+  private normalizeChunkSummary(raw: unknown): KnowledgebaseChunkSummary {
+    const value = (raw && typeof raw === "object" ? raw : {}) as Record<string, unknown>
+    const normalizedIndex =
+      typeof value.index === "number"
+        ? value.index
+        : typeof value.order === "number"
+          ? value.order
+          : 0
+    return {
+      id: String(value.id ?? ""),
+      document_id: String(value.document_id ?? ""),
+      text: typeof value.text === "string" ? value.text : "",
+      index: normalizedIndex
+    }
+  }
+
+  private normalizeDocumentRef(raw: unknown): KnowledgebaseListChunksResult["document"] {
+    const value = (raw && typeof raw === "object" ? raw : {}) as Record<string, unknown>
+    return {
+      id: String(value.id ?? ""),
+      filename:
+        typeof value.filename === "string"
+          ? value.filename
+          : typeof value.title === "string"
+            ? value.title
+            : undefined
+    }
   }
 
   private handleStdoutChunk(chunk: string): void {

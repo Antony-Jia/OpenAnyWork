@@ -1,5 +1,10 @@
 import { BrowserWindow, dialog, type IpcMain } from "electron"
-import type { KnowledgebaseConfigUpdate, PluginEnableUpdateParams } from "./core/contracts"
+import type {
+  KnowledgebaseCreateCollectionRequest,
+  KnowledgebaseConfigUpdate,
+  KnowledgebaseUploadRequest,
+  PluginEnableUpdateParams
+} from "./core/contracts"
 import { pluginHost } from "./core/host"
 import { withSpan } from "../logging"
 
@@ -108,6 +113,32 @@ export function registerPluginsIpc(ipcMain: IpcMain): () => void {
     })
   })
 
+  ipcMain.handle("plugins:knowledgebase:pickUploadFiles", async () => {
+    return withSpan("IPC", "plugins:knowledgebase:pickUploadFiles", undefined, async () => {
+      const result = await dialog.showOpenDialog({
+        properties: ["openFile", "multiSelections"],
+        title: "Select Documents to Upload",
+        filters: [
+          {
+            name: "Documents",
+            extensions: ["txt", "pdf", "docx"]
+          }
+        ]
+      })
+      if (result.canceled || result.filePaths.length === 0) return null
+      return result.filePaths
+    })
+  })
+
+  ipcMain.handle("plugins:knowledgebase:uploadDocuments", async (_event, input: KnowledgebaseUploadRequest) => {
+    return withSpan(
+      "IPC",
+      "plugins:knowledgebase:uploadDocuments",
+      { collectionId: input?.collectionId, fileCount: input?.filePaths?.length ?? 0, poll: input?.poll },
+      async () => pluginHost.uploadKnowledgebaseDocuments(input)
+    )
+  })
+
   ipcMain.handle("plugins:knowledgebase:start", async () => {
     return withSpan("IPC", "plugins:knowledgebase:start", undefined, async () =>
       pluginHost.startKnowledgebaseDaemon()
@@ -137,6 +168,18 @@ export function registerPluginsIpc(ipcMain: IpcMain): () => void {
       pluginHost.listKnowledgebaseCollections()
     )
   })
+
+  ipcMain.handle(
+    "plugins:knowledgebase:createCollection",
+    async (_event, input: KnowledgebaseCreateCollectionRequest) => {
+      return withSpan(
+        "IPC",
+        "plugins:knowledgebase:createCollection",
+        { name: input?.name },
+        async () => pluginHost.createKnowledgebaseCollection(input)
+      )
+    }
+  )
 
   ipcMain.handle(
     "plugins:knowledgebase:listDocuments",

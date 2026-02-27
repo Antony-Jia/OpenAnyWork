@@ -7,7 +7,8 @@ import { logEntry, logExit } from "../logging"
 export const kbRetrieveDefinition: ToolDefinition = {
   name: "kb_retrieve",
   label: "Knowledge Base",
-  description: "Retrieve semantic matches from the local Knowledge Base plugin.",
+  description:
+    "Retrieve semantic matches from the local Knowledge Base plugin. If collection_ids is omitted, active collections configured in the plugin are used.",
   requiresKey: false,
   kind: "plugin",
   pluginId: "knowledgebase"
@@ -40,11 +41,13 @@ export const kbRetrieveTool = tool(
 
     let collectionIds = input.collection_ids ?? []
     if (collectionIds.length === 0) {
-      const collections = await pluginHost.listKnowledgebaseCollections()
-      collectionIds = collections.map((collection) => collection.id)
+      collectionIds = runtime.config.activeCollectionIds ?? []
     }
+    collectionIds = Array.from(new Set(collectionIds.map((id) => id.trim()).filter(Boolean)))
     if (collectionIds.length === 0) {
-      throw new Error("No collections are available in Knowledge Base.")
+      throw new Error(
+        "No active collections selected in Knowledge Base. Activate at least one collection in Plugins > Knowledge Base."
+      )
     }
 
     const result = await pluginHost.retrieveKnowledgebase({
@@ -72,7 +75,9 @@ export const kbRetrieveTool = tool(
       collection_ids: z
         .array(z.string())
         .optional()
-        .describe("Optional collection IDs. Empty means all collections."),
+        .describe(
+          "Optional collection IDs. If omitted or empty, active collections from the Knowledge Base plugin are used."
+        ),
       top_k: z.number().int().positive().optional().describe("Optional max retrieval count."),
       include_chunks: z
         .boolean()

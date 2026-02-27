@@ -60,6 +60,7 @@ const defaultSettings: AppSettings = {
       enabled: false,
       daemonExePath: null,
       dataDir: null,
+      activeCollectionIds: [],
       llmProvider: "ollama",
       embeddingProvider: "ollama",
       ollama: {

@@ -61,8 +61,16 @@ export function KnowledgebasePluginCard({
   const [envOpen, setEnvOpen] = useState(true)
   const [contentsOpen, setContentsOpen] = useState(false)
   const [logsOpen, setLogsOpen] = useState(false)
+  const [contentTab, setContentTab] = useState<"collections" | "documents" | "chunks" | "upload">(
+    "collections"
+  )
   const [selectedCollectionId, setSelectedCollectionId] = useState<string | null>(null)
   const [selectedDocumentId, setSelectedDocumentId] = useState<string | null>(null)
+  const [uploadCollectionId, setUploadCollectionId] = useState<string>("")
+  const [uploadCreationFeedback, setUploadCreationFeedback] = useState<{
+    kind: "success" | "error"
+    message: string
+  } | null>(null)
   const [draft, setDraft] = useState<Partial<KnowledgebaseConfig>>({})
   const {
     plugin,
@@ -71,6 +79,8 @@ export function KnowledgebasePluginCard({
     collections,
     documentsByCollection,
     chunksByDocument,
+    uploadFilePaths,
+    uploadResults,
     loading,
     busy,
     error,
@@ -85,7 +95,13 @@ export function KnowledgebasePluginCard({
     loadStorage,
     loadCollections,
     loadDocuments,
-    loadChunks
+    loadChunks,
+    setActiveCollections,
+    pickUploadFiles,
+    clearUploadFiles,
+    clearUploadResults,
+    uploadDocuments,
+    createDefaultCollection
   } = useKnowledgebasePlugin()
 
   useEffect(() => {
@@ -93,6 +109,16 @@ export function KnowledgebasePluginCard({
       void loadCollections()
     }
   }, [collections.length, contentsOpen, loadCollections, runtime?.ready])
+
+  useEffect(() => {
+    if (collections.length === 0) {
+      setUploadCollectionId("")
+      return
+    }
+    if (!uploadCollectionId || !collections.some((item) => item.id === uploadCollectionId)) {
+      setUploadCollectionId(collections[0].id)
+    }
+  }, [collections, uploadCollectionId])
 
   const form = useMemo(() => {
     if (!runtime) return null
@@ -123,6 +149,7 @@ export function KnowledgebasePluginCard({
   const selectedChunks = selectedDocumentId
     ? (chunksByDocument[selectedDocumentId]?.chunks ?? [])
     : []
+  const activeCollectionSet = new Set(runtime?.config.activeCollectionIds ?? [])
   const yesOrNo = (value?: boolean): string =>
     value ? t("plugin.knowledgebase.yes") : t("plugin.knowledgebase.no")
 
@@ -573,7 +600,7 @@ export function KnowledgebasePluginCard({
                 {t("plugin.knowledgebase.start_before_browsing")}
               </div>
             ) : (
-              <div className="space-y-3">
+              <div className="space-y-4">
                 <div className="rounded-md border border-border p-3 text-[12px] space-y-1">
                   <div className="font-medium">{t("plugin.knowledgebase.storage")}</div>
                   <div className="text-muted-foreground break-all">
@@ -593,104 +620,347 @@ export function KnowledgebasePluginCard({
                   </Button>
                 </div>
 
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
-                  <div className="rounded-md border border-border p-3 space-y-2">
-                    <div className="flex items-center justify-between">
-                      <div className="text-[12px] text-muted-foreground">
-                        {t("plugin.knowledgebase.collections")}
-                      </div>
-                      <Button variant="ghost" size="sm" onClick={() => void loadCollections()}>
-                        {t("plugin.knowledgebase.reload")}
-                      </Button>
-                    </div>
-                    <div className="max-h-52 overflow-auto space-y-1">
-                      {collections.map((collection) => (
-                        <button
-                          key={collection.id}
-                          type="button"
-                          onClick={() => {
-                            setSelectedCollectionId(collection.id)
-                            void loadDocuments(collection.id)
-                          }}
-                          className={cn(
-                            "w-full rounded border border-border px-2 py-1 text-left text-[12px]",
-                            selectedCollectionId === collection.id && "bg-muted/40"
-                          )}
-                        >
-                          <div className="font-medium">{collection.name}</div>
-                          <div className="text-muted-foreground break-all">{collection.id}</div>
-                        </button>
-                      ))}
-                      {collections.length === 0 && (
-                        <div className="text-[12px] text-muted-foreground">
-                          {t("plugin.knowledgebase.empty_collections")}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="rounded-md border border-border p-3 space-y-2">
-                    <div className="text-[12px] text-muted-foreground">
-                      {t("plugin.knowledgebase.documents")}
-                    </div>
-                    <div className="max-h-52 overflow-auto space-y-1">
-                      {selectedDocuments.map((document) => (
-                        <button
-                          key={document.id}
-                          type="button"
-                          onClick={() => {
-                            setSelectedDocumentId(document.id)
-                            void loadChunks(document.id)
-                          }}
-                          className={cn(
-                            "w-full rounded border border-border px-2 py-1 text-left text-[12px]",
-                            selectedDocumentId === document.id && "bg-muted/40"
-                          )}
-                        >
-                          <div className="font-medium">{document.filename}</div>
-                          <div className="text-muted-foreground break-all">{document.id}</div>
-                        </button>
-                      ))}
-                      {!selectedCollectionId && (
-                        <div className="text-[12px] text-muted-foreground">
-                          {t("plugin.knowledgebase.select_collection_first")}
-                        </div>
-                      )}
-                      {selectedCollectionId && selectedDocuments.length === 0 && (
-                        <div className="text-[12px] text-muted-foreground">
-                          {t("plugin.knowledgebase.empty_documents")}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="rounded-md border border-border p-3 space-y-2">
-                    <div className="text-[12px] text-muted-foreground">
-                      {t("plugin.knowledgebase.chunks")}
-                    </div>
-                    <div className="max-h-52 overflow-auto space-y-1">
-                      {selectedChunks.map((chunk) => (
-                        <div
-                          key={chunk.id}
-                          className="rounded border border-border px-2 py-1 text-[12px]"
-                        >
-                          <div className="text-muted-foreground">#{chunk.index}</div>
-                          <div className="line-clamp-3 whitespace-pre-wrap">{chunk.text}</div>
-                        </div>
-                      ))}
-                      {!selectedDocumentId && (
-                        <div className="text-[12px] text-muted-foreground">
-                          {t("plugin.knowledgebase.select_document_first")}
-                        </div>
-                      )}
-                      {selectedDocumentId && selectedChunks.length === 0 && (
-                        <div className="text-[12px] text-muted-foreground">
-                          {t("plugin.knowledgebase.empty_chunks")}
-                        </div>
-                      )}
-                    </div>
-                  </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  {(
+                    ["collections", "documents", "chunks", "upload"] as Array<
+                      "collections" | "documents" | "chunks" | "upload"
+                    >
+                  ).map((tabKey) => (
+                    <Button
+                      key={tabKey}
+                      size="sm"
+                      variant={contentTab === tabKey ? "secondary" : "ghost"}
+                      onClick={() => setContentTab(tabKey)}
+                    >
+                      {t(`plugin.knowledgebase.tab.${tabKey}`)}
+                    </Button>
+                  ))}
+                  <Button variant="ghost" size="sm" onClick={() => void loadCollections()}>
+                    {t("plugin.knowledgebase.reload")}
+                  </Button>
                 </div>
+
+                {contentTab === "collections" && (
+                  <div className="rounded-md border border-border p-3 space-y-2">
+                    <div className="text-sm font-medium">{t("plugin.knowledgebase.collections")}</div>
+                    <div className="max-h-[360px] overflow-auto">
+                      <table className="w-full text-sm">
+                        <thead className="text-muted-foreground text-left">
+                          <tr>
+                            <th className="pb-2 pr-3">{t("plugin.knowledgebase.active_for_query")}</th>
+                            <th className="pb-2 pr-3">{t("plugin.knowledgebase.name_label")}</th>
+                            <th className="pb-2 pr-3">{t("plugin.knowledgebase.id_label")}</th>
+                            <th className="pb-2">{t("plugin.knowledgebase.created_label")}</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {collections.map((collection) => (
+                            <tr
+                              key={collection.id}
+                              className={cn(
+                                "border-t border-border/70 cursor-pointer hover:bg-muted/40",
+                                selectedCollectionId === collection.id && "bg-muted/40"
+                              )}
+                              onClick={() => {
+                                setSelectedCollectionId(collection.id)
+                                setUploadCollectionId(collection.id)
+                                setContentTab("documents")
+                                void loadDocuments(collection.id)
+                              }}
+                            >
+                              <td className="py-2 pr-3 align-top">
+                                <input
+                                  type="checkbox"
+                                  checked={activeCollectionSet.has(collection.id)}
+                                  onClick={(event) => event.stopPropagation()}
+                                  onChange={(event) => {
+                                    const next = new Set(runtime.config.activeCollectionIds ?? [])
+                                    if (event.target.checked) {
+                                      next.add(collection.id)
+                                    } else {
+                                      next.delete(collection.id)
+                                    }
+                                    void setActiveCollections(Array.from(next))
+                                  }}
+                                />
+                              </td>
+                              <td className="py-2 pr-3 align-top">{collection.name}</td>
+                              <td className="py-2 pr-3 align-top font-mono break-all">{collection.id}</td>
+                              <td className="py-2 align-top">{formatTime(collection.created_at)}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                      {collections.length === 0 && (
+                        <div className="text-sm text-muted-foreground">{t("plugin.knowledgebase.empty_collections")}</div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {contentTab === "documents" && (
+                  <div className="rounded-md border border-border p-3 space-y-2">
+                    <div className="text-sm font-medium">{t("plugin.knowledgebase.documents")}</div>
+                    {!selectedCollectionId ? (
+                      <div className="text-sm text-muted-foreground">
+                        {t("plugin.knowledgebase.select_collection_first")}
+                      </div>
+                    ) : (
+                      <div className="max-h-[360px] overflow-auto">
+                        <table className="w-full text-sm">
+                          <thead className="text-muted-foreground text-left">
+                            <tr>
+                              <th className="pb-2 pr-3">{t("plugin.knowledgebase.filename_label")}</th>
+                              <th className="pb-2 pr-3">{t("plugin.knowledgebase.id_label")}</th>
+                              <th className="pb-2 pr-3">{t("plugin.knowledgebase.mime_label")}</th>
+                              <th className="pb-2">{t("plugin.knowledgebase.created_label")}</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {selectedDocuments.map((document) => (
+                              <tr
+                                key={document.id}
+                                className={cn(
+                                  "border-t border-border/70 cursor-pointer hover:bg-muted/40",
+                                  selectedDocumentId === document.id && "bg-muted/40"
+                                )}
+                                onClick={() => {
+                                  setSelectedDocumentId(document.id)
+                                  setContentTab("chunks")
+                                  void loadChunks(document.id)
+                                }}
+                              >
+                                <td className="py-2 pr-3 align-top">{document.filename}</td>
+                                <td className="py-2 pr-3 align-top font-mono break-all">{document.id}</td>
+                                <td className="py-2 pr-3 align-top">{document.mime || "-"}</td>
+                                <td className="py-2 align-top">{formatTime(document.created_at)}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                        {selectedDocuments.length === 0 && (
+                          <div className="text-sm text-muted-foreground">
+                            {t("plugin.knowledgebase.empty_documents")}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {contentTab === "chunks" && (
+                  <div className="rounded-md border border-border p-3 space-y-2">
+                    <div className="text-sm font-medium">{t("plugin.knowledgebase.chunks")}</div>
+                    {!selectedDocumentId ? (
+                      <div className="text-sm text-muted-foreground">
+                        {t("plugin.knowledgebase.select_document_first")}
+                      </div>
+                    ) : (
+                      <div className="max-h-[360px] overflow-auto">
+                        <table className="w-full text-sm">
+                          <thead className="text-muted-foreground text-left">
+                            <tr>
+                              <th className="pb-2 pr-3">#</th>
+                              <th className="pb-2 pr-3">{t("plugin.knowledgebase.id_label")}</th>
+                              <th className="pb-2">{t("plugin.knowledgebase.text_label")}</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {selectedChunks.map((chunk) => (
+                              <tr key={chunk.id} className="border-t border-border/70 align-top">
+                                <td className="py-2 pr-3 align-top">{chunk.index}</td>
+                                <td className="py-2 pr-3 align-top font-mono break-all">{chunk.id}</td>
+                                <td className="py-2 whitespace-pre-wrap">{chunk.text}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                        {selectedChunks.length === 0 && (
+                          <div className="text-sm text-muted-foreground">{t("plugin.knowledgebase.empty_chunks")}</div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {contentTab === "upload" && (
+                  <div className="rounded-md border border-border p-3 space-y-3">
+                    <div className="text-sm font-medium">{t("plugin.knowledgebase.upload_title")}</div>
+                    {collections.length === 0 ? (
+                      <div className="rounded border border-border p-3 space-y-3">
+                        <div className="text-sm text-muted-foreground">
+                          {t("plugin.knowledgebase.upload_empty_collections_hint")}
+                        </div>
+                        <Button
+                          size="sm"
+                          onClick={async () => {
+                            setUploadCreationFeedback(null)
+                            const created = await createDefaultCollection()
+                            if (created) {
+                              setUploadCollectionId(created.id)
+                              setUploadCreationFeedback({
+                                kind: "success",
+                                message: t("plugin.knowledgebase.create_default_collection_success")
+                              })
+                              return
+                            }
+                            setUploadCreationFeedback({
+                              kind: "error",
+                              message: t("plugin.knowledgebase.create_default_collection_failed")
+                            })
+                          }}
+                          disabled={!!busy["createDefaultCollection"]}
+                        >
+                          {t("plugin.knowledgebase.create_default_collection")}
+                        </Button>
+                        {uploadCreationFeedback && (
+                          <div
+                            className={cn(
+                              "text-xs",
+                              uploadCreationFeedback.kind === "success"
+                                ? "text-status-nominal"
+                                : "text-status-critical"
+                            )}
+                          >
+                            {uploadCreationFeedback.message}
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-1 md:grid-cols-[1fr_auto_auto_auto] gap-2 items-end">
+                        <label className="space-y-1">
+                          <div className="text-muted-foreground text-xs">
+                            {t("plugin.knowledgebase.upload_collection")}
+                          </div>
+                          <select
+                            value={uploadCollectionId}
+                            onChange={(event) => setUploadCollectionId(event.target.value)}
+                            className="w-full rounded-md border border-border bg-transparent px-2 py-1.5"
+                          >
+                            <option value="">
+                              {t("plugin.knowledgebase.upload_collection_placeholder")}
+                            </option>
+                            {collections.map((collection) => (
+                              <option key={collection.id} value={collection.id}>
+                                {collection.name}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => void pickUploadFiles()}
+                          disabled={!!busy["pickUploadFiles"]}
+                        >
+                          {t("plugin.knowledgebase.upload_pick_files")}
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={clearUploadFiles}
+                          disabled={uploadFilePaths.length === 0}
+                        >
+                          {t("plugin.knowledgebase.upload_clear_files")}
+                        </Button>
+                        <Button
+                          size="sm"
+                          onClick={() =>
+                            void uploadDocuments({
+                              collectionId: uploadCollectionId,
+                              options: {
+                                chunkSize: runtime.config.chunkSize,
+                                chunkOverlap: runtime.config.chunkOverlap
+                              }
+                            })
+                          }
+                          disabled={
+                            !!busy["uploadDocuments"] ||
+                            uploadFilePaths.length === 0 ||
+                            !uploadCollectionId
+                          }
+                        >
+                          {busy["uploadDocuments"]
+                            ? t("plugin.knowledgebase.upload_submitting")
+                            : t("plugin.knowledgebase.upload_submit")}
+                        </Button>
+                      </div>
+                    )}
+
+                    <div className="max-h-[180px] overflow-auto rounded border border-border">
+                      <table className="w-full text-sm">
+                        <thead className="text-muted-foreground text-left">
+                          <tr>
+                            <th className="px-2 py-1.5">{t("plugin.knowledgebase.upload_file")}</th>
+                            <th className="px-2 py-1.5">{t("plugin.knowledgebase.upload_path")}</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {uploadFilePaths.map((filePath) => (
+                            <tr key={filePath} className="border-t border-border/70">
+                              <td className="px-2 py-1.5">{filePath.split(/[/\\]/).pop()}</td>
+                              <td className="px-2 py-1.5 font-mono break-all">{filePath}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                      {uploadFilePaths.length === 0 && (
+                        <div className="p-2 text-sm text-muted-foreground">
+                          {t("plugin.knowledgebase.upload_no_files")}
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <div className="text-sm font-medium">{t("plugin.knowledgebase.upload_results")}</div>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={clearUploadResults}
+                          disabled={uploadResults.length === 0}
+                        >
+                          {t("plugin.knowledgebase.upload_clear_results")}
+                        </Button>
+                      </div>
+                      <div className="max-h-[220px] overflow-auto rounded border border-border">
+                        <table className="w-full text-sm">
+                          <thead className="text-muted-foreground text-left">
+                            <tr>
+                              <th className="px-2 py-1.5">{t("plugin.knowledgebase.upload_file")}</th>
+                              <th className="px-2 py-1.5">{t("plugin.knowledgebase.upload_status")}</th>
+                              <th className="px-2 py-1.5">{t("plugin.knowledgebase.upload_job")}</th>
+                              <th className="px-2 py-1.5">{t("plugin.knowledgebase.upload_error")}</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {uploadResults.map((result) => (
+                              <tr key={`${result.filePath}:${result.jobId ?? "no-job"}`} className="border-t border-border/70">
+                                <td className="px-2 py-1.5">{result.fileName}</td>
+                                <td className="px-2 py-1.5">{result.status}</td>
+                                <td className="px-2 py-1.5 font-mono break-all">{result.jobId ?? "-"}</td>
+                                <td className="px-2 py-1.5 text-status-critical break-all">
+                                  {result.error ?? "-"}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                        {uploadResults.length === 0 && (
+                          <div className="p-2 text-sm text-muted-foreground">
+                            {t("plugin.knowledgebase.upload_no_results")}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {runtime.config.activeCollectionIds.length === 0 && (
+                  <div className="rounded border border-border p-2 text-xs text-muted-foreground">
+                    {t("plugin.knowledgebase.active_collections_hint")}
+                  </div>
+                )}
               </div>
             )}
           </Section>

@@ -7,6 +7,8 @@ import type {
   KnowledgebaseListDocumentsResult,
   KnowledgebaseRuntimeState,
   KnowledgebaseStorageStatus,
+  KnowledgebaseUploadItemResult,
+  KnowledgebaseUploadOptions,
   PresetPluginItem
 } from "@/plugins/types"
 
@@ -17,6 +19,8 @@ interface UseKnowledgebasePluginResult {
   collections: KnowledgebaseCollectionSummary[]
   documentsByCollection: Record<string, KnowledgebaseListDocumentsResult | undefined>
   chunksByDocument: Record<string, KnowledgebaseListChunksResult | undefined>
+  uploadFilePaths: string[]
+  uploadResults: KnowledgebaseUploadItemResult[]
   loading: boolean
   busy: Record<string, boolean>
   error: string | null
@@ -33,7 +37,15 @@ interface UseKnowledgebasePluginResult {
   loadCollections: () => Promise<void>
   loadDocuments: (collectionId: string) => Promise<void>
   loadChunks: (documentId: string) => Promise<void>
+  setActiveCollections: (collectionIds: string[]) => Promise<void>
+  pickUploadFiles: () => Promise<void>
+  clearUploadFiles: () => void
+  clearUploadResults: () => void
+  uploadDocuments: (input: { collectionId: string; options?: KnowledgebaseUploadOptions }) => Promise<void>
+  createDefaultCollection: () => Promise<KnowledgebaseCollectionSummary | null>
 }
+
+const DEFAULT_COLLECTION_NAME = "默认集合"
 
 function toErrorMessage(error: unknown, fallback = "Unknown error"): string {
   if (error instanceof Error) return error.message
@@ -52,6 +64,8 @@ export function useKnowledgebasePlugin(): UseKnowledgebasePluginResult {
   const [chunksByDocument, setChunksByDocument] = useState<
     Record<string, KnowledgebaseListChunksResult | undefined>
   >({})
+  const [uploadFilePaths, setUploadFilePaths] = useState<string[]>([])
+  const [uploadResults, setUploadResults] = useState<KnowledgebaseUploadItemResult[]>([])
   const [loading, setLoading] = useState(false)
   const [busy, setBusy] = useState<Record<string, boolean>>({})
   const [error, setError] = useState<string | null>(null)
@@ -142,6 +156,14 @@ export function useKnowledgebasePlugin(): UseKnowledgebasePluginResult {
     [loadStorage, setBusyFlag]
   )
 
+  const setActiveCollections = useCallback(
+    async (collectionIds: string[]) => {
+      const normalized = Array.from(new Set(collectionIds.map((value) => value.trim()).filter(Boolean)))
+      await updateConfig({ activeCollectionIds: normalized })
+    },
+    [updateConfig]
+  )
+
   const pickExe = useCallback(async () => {
     setBusyFlag("pickExe", true)
     setError(null)
@@ -169,6 +191,54 @@ export function useKnowledgebasePlugin(): UseKnowledgebasePluginResult {
       setBusyFlag("pickDataDir", false)
     }
   }, [loadStorage, setBusyFlag])
+
+  const pickUploadFiles = useCallback(async () => {
+    setBusyFlag("pickUploadFiles", true)
+    setError(null)
+    try {
+      const paths = await window.api.plugins.knowledgebasePickUploadFiles()
+      if (Array.isArray(paths)) {
+        setUploadFilePaths(paths)
+      }
+    } catch (err) {
+      setError(toErrorMessage(err, "Failed to pick upload files."))
+    } finally {
+      setBusyFlag("pickUploadFiles", false)
+    }
+  }, [setBusyFlag])
+
+  const clearUploadFiles = useCallback(() => {
+    setUploadFilePaths([])
+  }, [])
+
+  const clearUploadResults = useCallback(() => {
+    setUploadResults([])
+  }, [])
+
+  const createDefaultCollection = useCallback(async (): Promise<KnowledgebaseCollectionSummary | null> => {
+    setBusyFlag("createDefaultCollection", true)
+    setError(null)
+    try {
+      const created = await window.api.plugins.knowledgebaseCreateCollection({
+        name: DEFAULT_COLLECTION_NAME
+      })
+      setCollections(await window.api.plugins.knowledgebaseListCollections())
+      const nextActiveCollectionIds = Array.from(
+        new Set([...(runtime?.config.activeCollectionIds ?? []), created.id])
+      )
+      setRuntime(
+        await window.api.plugins.knowledgebaseUpdateConfig({
+          activeCollectionIds: nextActiveCollectionIds
+        })
+      )
+      return created
+    } catch (err) {
+      setError(toErrorMessage(err, "Failed to create default collection."))
+      return null
+    } finally {
+      setBusyFlag("createDefaultCollection", false)
+    }
+  }, [runtime?.config.activeCollectionIds, setBusyFlag])
 
   const startDaemon = useCallback(async () => {
     await runAction("start", () => window.api.plugins.knowledgebaseStart())
@@ -246,6 +316,39 @@ export function useKnowledgebasePlugin(): UseKnowledgebasePluginResult {
     [setBusyFlag]
   )
 
+  const uploadDocuments = useCallback(
+    async (input: { collectionId: string; options?: KnowledgebaseUploadOptions }) => {
+      const collectionId = input.collectionId?.trim()
+      if (!collectionId) {
+        setError("Collection ID is required.")
+        return
+      }
+      if (uploadFilePaths.length === 0) {
+        setError("No files selected for upload.")
+        return
+      }
+
+      setBusyFlag("uploadDocuments", true)
+      setError(null)
+      try {
+        const results = await window.api.plugins.knowledgebaseUploadDocuments({
+          collectionId,
+          filePaths: uploadFilePaths,
+          options: input.options,
+          poll: true
+        })
+        setUploadResults(results)
+        await loadCollections()
+        await loadDocuments(collectionId)
+      } catch (err) {
+        setError(toErrorMessage(err, "Failed to upload documents."))
+      } finally {
+        setBusyFlag("uploadDocuments", false)
+      }
+    },
+    [loadCollections, loadDocuments, setBusyFlag, uploadFilePaths]
+  )
+
   return {
     plugin,
     runtime,
@@ -253,6 +356,8 @@ export function useKnowledgebasePlugin(): UseKnowledgebasePluginResult {
     collections,
     documentsByCollection,
     chunksByDocument,
+    uploadFilePaths,
+    uploadResults,
     loading,
     busy,
     error,
@@ -268,6 +373,12 @@ export function useKnowledgebasePlugin(): UseKnowledgebasePluginResult {
     loadStorage,
     loadCollections,
     loadDocuments,
-    loadChunks
+    loadChunks,
+    setActiveCollections,
+    pickUploadFiles,
+    clearUploadFiles,
+    clearUploadResults,
+    uploadDocuments,
+    createDefaultCollection
   }
 }

@@ -5,8 +5,19 @@
     <title>openwork</title>
     <meta
       http-equiv="Content-Security-Policy"
-      content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' blob:"
+      content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' blob:"
     />
+    <script>
+      ;(function () {
+        try {
+          var s = localStorage.getItem('app-settings')
+          var theme = s ? JSON.parse(s).state?.theme : null
+          document.documentElement.classList.add(theme === 'light' ? 'light' : 'dark')
+        } catch (e) {
+          document.documentElement.classList.add('dark')
+        }
+      })()
+    </script>
   </head>
   <body>
     <div id="root"></div>

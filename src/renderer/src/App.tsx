@@ -254,7 +254,7 @@ function MainApp(): React.JSX.Element {
           onMuteTask={(taskIdentity) => void muteTaskIdentity(taskIdentity)}
         />
       )}
-      <div className="flex h-screen w-screen flex-col overflow-hidden bg-background text-foreground">
+      <div className="app-shell flex h-screen w-screen flex-col overflow-hidden text-foreground">
         {/* Global Window Title Bar */}
         <TitleBar threadId={currentThreadId} />
 

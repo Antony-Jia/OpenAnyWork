@@ -67,6 +67,13 @@ import type {
 import type {
   ActionbookEvent,
   ActionbookRuntimeState,
+  KnowledgebaseCollectionSummary,
+  KnowledgebaseConfigUpdate,
+  KnowledgebaseEvent,
+  KnowledgebaseListChunksResult,
+  KnowledgebaseListDocumentsResult,
+  KnowledgebaseRuntimeState,
+  KnowledgebaseStorageStatus,
   PluginEnableUpdateParams,
   PresetPluginItem
 } from "../main/plugins/core/contracts"
@@ -280,6 +287,29 @@ interface CustomAPI {
     actionbookStatus: () => Promise<ActionbookRuntimeState>
     actionbookPing: () => Promise<ActionbookRuntimeState>
     onActionbookEvent: (callback: (event: ActionbookEvent) => void) => () => void
+    knowledgebaseGetState: () => Promise<KnowledgebaseRuntimeState>
+    knowledgebaseUpdateConfig: (
+      input: KnowledgebaseConfigUpdate
+    ) => Promise<KnowledgebaseRuntimeState>
+    knowledgebasePickExe: () => Promise<string | null>
+    knowledgebasePickDataDir: () => Promise<string | null>
+    knowledgebaseStart: () => Promise<KnowledgebaseRuntimeState>
+    knowledgebaseStop: () => Promise<KnowledgebaseRuntimeState>
+    knowledgebaseRefresh: () => Promise<KnowledgebaseRuntimeState>
+    knowledgebaseStorageStatus: () => Promise<KnowledgebaseStorageStatus>
+    knowledgebaseListCollections: () => Promise<KnowledgebaseCollectionSummary[]>
+    knowledgebaseListDocuments: (input: {
+      collectionId: string
+      limit?: number
+      offset?: number
+    }) => Promise<KnowledgebaseListDocumentsResult>
+    knowledgebaseListChunks: (input: {
+      documentId: string
+      limit?: number
+      offset?: number
+    }) => Promise<KnowledgebaseListChunksResult>
+    knowledgebaseOpenDataDir: () => Promise<boolean>
+    onKnowledgebaseEvent: (callback: (event: KnowledgebaseEvent) => void) => () => void
   }
   speech: {
     stt: (input: SpeechSttRequest) => Promise<SpeechSttResponse>

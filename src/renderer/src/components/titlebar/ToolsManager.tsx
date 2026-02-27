@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import { Eye, EyeOff, Wrench } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
@@ -15,6 +15,7 @@ function isToolEnabledInScope(tool: ToolInfo, scope: CapabilityScope): boolean {
 
 export function ToolsManager(): React.JSX.Element {
   const [open, setOpen] = useState(false)
+  const [activeTab, setActiveTab] = useState<"native" | "plugin">("native")
   const [tools, setTools] = useState<ToolInfo[]>([])
   const [keyInputs, setKeyInputs] = useState<Record<string, string>>({})
   const [showKeys, setShowKeys] = useState<Record<string, boolean>>({})
@@ -43,6 +44,7 @@ export function ToolsManager(): React.JSX.Element {
   }, [open, loadTools])
 
   const resetState = (): void => {
+    setActiveTab("native")
     setKeyInputs({})
     setShowKeys({})
     setSaving({})
@@ -111,6 +113,16 @@ export function ToolsManager(): React.JSX.Element {
     setShowKeys((prev) => ({ ...prev, [toolName]: !prev[toolName] }))
   }
 
+  const nativeTools = useMemo(
+    () => tools.filter((tool) => (tool.kind ?? "native") === "native"),
+    [tools]
+  )
+  const pluginTools = useMemo(
+    () => tools.filter((tool) => (tool.kind ?? "native") === "plugin"),
+    [tools]
+  )
+  const visibleTools = activeTab === "native" ? nativeTools : pluginTools
+
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <Button
@@ -139,13 +151,36 @@ export function ToolsManager(): React.JSX.Element {
 
           <div className="flex-1 min-h-0 overflow-y-auto px-6 pb-6 pt-4">
             <div className="space-y-4">
-              {tools.length === 0 ? (
+              <div className="inline-flex items-center rounded-md border border-border p-1">
+                <button
+                  type="button"
+                  onClick={() => setActiveTab("native")}
+                  className={cn(
+                    "rounded px-2.5 py-1 text-[11px] uppercase tracking-[0.12em] transition-colors",
+                    activeTab === "native" ? "bg-muted text-foreground" : "text-muted-foreground"
+                  )}
+                >
+                  {t("tools.tab_native")}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveTab("plugin")}
+                  className={cn(
+                    "rounded px-2.5 py-1 text-[11px] uppercase tracking-[0.12em] transition-colors",
+                    activeTab === "plugin" ? "bg-muted text-foreground" : "text-muted-foreground"
+                  )}
+                >
+                  {t("tools.tab_plugins")}
+                </button>
+              </div>
+
+              {visibleTools.length === 0 ? (
                 <div className="rounded-lg border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
                   {t("tools.empty")}
                 </div>
               ) : (
                 <div className="space-y-3">
-                  {tools.map((tool) => (
+                  {visibleTools.map((tool) => (
                     <div
                       key={tool.name}
                       className={cn(

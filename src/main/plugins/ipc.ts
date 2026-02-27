@@ -1,9 +1,10 @@
-import { BrowserWindow, type IpcMain } from "electron"
-import type { PluginEnableUpdateParams } from "./core/contracts"
+import { BrowserWindow, dialog, type IpcMain } from "electron"
+import type { KnowledgebaseConfigUpdate, PluginEnableUpdateParams } from "./core/contracts"
 import { pluginHost } from "./core/host"
 import { withSpan } from "../logging"
 
 const ACTIONBOOK_EVENT_CHANNEL = "plugins:actionbook:event"
+const KNOWLEDGEBASE_EVENT_CHANNEL = "plugins:knowledgebase:event"
 
 export function registerPluginsIpc(ipcMain: IpcMain): () => void {
   void pluginHost.hydrateFromSettings()
@@ -57,13 +58,125 @@ export function registerPluginsIpc(ipcMain: IpcMain): () => void {
     )
   })
 
+  ipcMain.handle("plugins:knowledgebase:getState", async () => {
+    return withSpan("IPC", "plugins:knowledgebase:getState", undefined, async () =>
+      pluginHost.getKnowledgebaseState()
+    )
+  })
+
+  ipcMain.handle(
+    "plugins:knowledgebase:updateConfig",
+    async (_event, input: KnowledgebaseConfigUpdate) => {
+      return withSpan("IPC", "plugins:knowledgebase:updateConfig", { ...(input ?? {}) }, async () =>
+        pluginHost.updateKnowledgebaseConfig(input ?? {})
+      )
+    }
+  )
+
+  ipcMain.handle("plugins:knowledgebase:pickExe", async () => {
+    return withSpan("IPC", "plugins:knowledgebase:pickExe", undefined, async () => {
+      const result = await dialog.showOpenDialog({
+        properties: ["openFile"],
+        title: "Select Knowledge Base Daemon Executable",
+        filters:
+          process.platform === "win32"
+            ? [
+                {
+                  name: "Executable",
+                  extensions: ["exe"]
+                }
+              ]
+            : undefined
+      })
+      if (result.canceled || result.filePaths.length === 0) return null
+      const selectedPath = result.filePaths[0]
+      await pluginHost.updateKnowledgebaseConfig({ daemonExePath: selectedPath })
+      return selectedPath
+    })
+  })
+
+  ipcMain.handle("plugins:knowledgebase:pickDataDir", async () => {
+    return withSpan("IPC", "plugins:knowledgebase:pickDataDir", undefined, async () => {
+      const result = await dialog.showOpenDialog({
+        properties: ["openDirectory", "createDirectory"],
+        title: "Select Knowledge Base Data Directory"
+      })
+      if (result.canceled || result.filePaths.length === 0) return null
+      const selectedPath = result.filePaths[0]
+      await pluginHost.updateKnowledgebaseConfig({ dataDir: selectedPath })
+      return selectedPath
+    })
+  })
+
+  ipcMain.handle("plugins:knowledgebase:start", async () => {
+    return withSpan("IPC", "plugins:knowledgebase:start", undefined, async () =>
+      pluginHost.startKnowledgebaseDaemon()
+    )
+  })
+
+  ipcMain.handle("plugins:knowledgebase:stop", async () => {
+    return withSpan("IPC", "plugins:knowledgebase:stop", undefined, async () =>
+      pluginHost.stopKnowledgebaseDaemon()
+    )
+  })
+
+  ipcMain.handle("plugins:knowledgebase:refresh", async () => {
+    return withSpan("IPC", "plugins:knowledgebase:refresh", undefined, async () =>
+      pluginHost.refreshKnowledgebaseStatus()
+    )
+  })
+
+  ipcMain.handle("plugins:knowledgebase:storageStatus", async () => {
+    return withSpan("IPC", "plugins:knowledgebase:storageStatus", undefined, async () =>
+      pluginHost.getKnowledgebaseStorageStatus()
+    )
+  })
+
+  ipcMain.handle("plugins:knowledgebase:listCollections", async () => {
+    return withSpan("IPC", "plugins:knowledgebase:listCollections", undefined, async () =>
+      pluginHost.listKnowledgebaseCollections()
+    )
+  })
+
+  ipcMain.handle(
+    "plugins:knowledgebase:listDocuments",
+    async (_event, input: { collectionId: string; limit?: number; offset?: number }) => {
+      return withSpan("IPC", "plugins:knowledgebase:listDocuments", input, async () =>
+        pluginHost.listKnowledgebaseDocuments(input.collectionId, input.limit, input.offset)
+      )
+    }
+  )
+
+  ipcMain.handle(
+    "plugins:knowledgebase:listChunks",
+    async (_event, input: { documentId: string; limit?: number; offset?: number }) => {
+      return withSpan("IPC", "plugins:knowledgebase:listChunks", input, async () =>
+        pluginHost.listKnowledgebaseChunks(input.documentId, input.limit, input.offset)
+      )
+    }
+  )
+
+  ipcMain.handle("plugins:knowledgebase:openDataDir", async () => {
+    return withSpan("IPC", "plugins:knowledgebase:openDataDir", undefined, async () => {
+      await pluginHost.openKnowledgebaseDataDir()
+      return true
+    })
+  })
+
   const unsubscribe = pluginHost.onActionbookEvent((event) => {
     for (const win of BrowserWindow.getAllWindows()) {
       win.webContents.send(ACTIONBOOK_EVENT_CHANNEL, event)
     }
   })
 
+  const unsubscribeKnowledgebase = pluginHost.onKnowledgebaseEvent((event) => {
+    for (const win of BrowserWindow.getAllWindows()) {
+      win.webContents.send(KNOWLEDGEBASE_EVENT_CHANNEL, event)
+    }
+  })
+
   return () => {
     unsubscribe()
+    unsubscribeKnowledgebase()
   }
 }

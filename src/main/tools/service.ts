@@ -1,3 +1,4 @@
+import { existsSync } from "node:fs"
 import { isToolEnabled, resolveToolKey, setStoredToolKey, setToolEnabled } from "./config"
 import { toolDefinitions, toolInstanceMap } from "./registry"
 import { getRunningMcpToolInstanceMap } from "../mcp/service"
@@ -12,6 +13,24 @@ function computeToolAvailability(toolName: string): {
   available: boolean
   disabledReason?: string
 } {
+  if (toolName === "kb_retrieve") {
+    const settings = getSettings()
+    if (!settings.plugins.knowledgebase.enabled) {
+      return {
+        available: false,
+        disabledReason: "Knowledge Base plugin is disabled."
+      }
+    }
+    const exePath = settings.plugins.knowledgebase.daemonExePath?.trim()
+    if (!exePath || !existsSync(exePath)) {
+      return {
+        available: false,
+        disabledReason: "Knowledge Base daemon executable is not configured."
+      }
+    }
+    return { available: true }
+  }
+
   if (toolName !== "analyze_image") {
     return { available: true }
   }
@@ -34,11 +53,13 @@ function toToolInfo(definition: (typeof toolDefinitions)[number]): ToolInfo {
   const hasKey =
     definition.name === "analyze_image"
       ? availability.available
-      : definition.name === "send_email"
-        ? canSendEmail()
-        : definition.requiresKey === false
-          ? true
-          : !!resolveToolKey(definition.name, definition.envVar)
+      : definition.name === "kb_retrieve"
+        ? availability.available
+        : definition.name === "send_email"
+          ? canSendEmail()
+          : definition.requiresKey === false
+            ? true
+            : !!resolveToolKey(definition.name, definition.envVar)
   const enabledClassic = isToolEnabled(definition.name, "classic")
   const enabledButler = isToolEnabled(definition.name, "butler")
   const enabled = enabledClassic

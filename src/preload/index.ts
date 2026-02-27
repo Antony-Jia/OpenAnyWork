@@ -66,6 +66,13 @@ import type {
 import type {
   ActionbookEvent,
   ActionbookRuntimeState,
+  KnowledgebaseCollectionSummary,
+  KnowledgebaseConfigUpdate,
+  KnowledgebaseEvent,
+  KnowledgebaseListChunksResult,
+  KnowledgebaseListDocumentsResult,
+  KnowledgebaseRuntimeState,
+  KnowledgebaseStorageStatus,
   PluginEnableUpdateParams,
   PresetPluginItem
 } from "../main/plugins/core/contracts"
@@ -569,6 +576,57 @@ const api = {
       const handler = (_: unknown, event: ActionbookEvent): void => callback(event)
       ipcRenderer.on("plugins:actionbook:event", handler)
       return () => ipcRenderer.removeListener("plugins:actionbook:event", handler)
+    },
+    knowledgebaseGetState: (): Promise<KnowledgebaseRuntimeState> => {
+      return ipcRenderer.invoke("plugins:knowledgebase:getState")
+    },
+    knowledgebaseUpdateConfig: (
+      input: KnowledgebaseConfigUpdate
+    ): Promise<KnowledgebaseRuntimeState> => {
+      return ipcRenderer.invoke("plugins:knowledgebase:updateConfig", input)
+    },
+    knowledgebasePickExe: (): Promise<string | null> => {
+      return ipcRenderer.invoke("plugins:knowledgebase:pickExe")
+    },
+    knowledgebasePickDataDir: (): Promise<string | null> => {
+      return ipcRenderer.invoke("plugins:knowledgebase:pickDataDir")
+    },
+    knowledgebaseStart: (): Promise<KnowledgebaseRuntimeState> => {
+      return ipcRenderer.invoke("plugins:knowledgebase:start")
+    },
+    knowledgebaseStop: (): Promise<KnowledgebaseRuntimeState> => {
+      return ipcRenderer.invoke("plugins:knowledgebase:stop")
+    },
+    knowledgebaseRefresh: (): Promise<KnowledgebaseRuntimeState> => {
+      return ipcRenderer.invoke("plugins:knowledgebase:refresh")
+    },
+    knowledgebaseStorageStatus: (): Promise<KnowledgebaseStorageStatus> => {
+      return ipcRenderer.invoke("plugins:knowledgebase:storageStatus")
+    },
+    knowledgebaseListCollections: (): Promise<KnowledgebaseCollectionSummary[]> => {
+      return ipcRenderer.invoke("plugins:knowledgebase:listCollections")
+    },
+    knowledgebaseListDocuments: (input: {
+      collectionId: string
+      limit?: number
+      offset?: number
+    }): Promise<KnowledgebaseListDocumentsResult> => {
+      return ipcRenderer.invoke("plugins:knowledgebase:listDocuments", input)
+    },
+    knowledgebaseListChunks: (input: {
+      documentId: string
+      limit?: number
+      offset?: number
+    }): Promise<KnowledgebaseListChunksResult> => {
+      return ipcRenderer.invoke("plugins:knowledgebase:listChunks", input)
+    },
+    knowledgebaseOpenDataDir: (): Promise<boolean> => {
+      return ipcRenderer.invoke("plugins:knowledgebase:openDataDir")
+    },
+    onKnowledgebaseEvent: (callback: (event: KnowledgebaseEvent) => void): (() => void) => {
+      const handler = (_: unknown, event: KnowledgebaseEvent): void => callback(event)
+      ipcRenderer.on("plugins:knowledgebase:event", handler)
+      return () => ipcRenderer.removeListener("plugins:knowledgebase:event", handler)
     }
   },
   speech: {

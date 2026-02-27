@@ -55,6 +55,27 @@ const defaultSettings: AppSettings = {
   plugins: {
     actionbook: {
       enabled: false
+    },
+    knowledgebase: {
+      enabled: false,
+      daemonExePath: null,
+      dataDir: null,
+      llmProvider: "ollama",
+      embeddingProvider: "ollama",
+      ollama: {
+        baseUrl: "http://127.0.0.1:11434",
+        llmModel: "qwen2.5:7b-instruct",
+        embedModel: "nomic-embed-text"
+      },
+      openCompat: {
+        baseUrl: "https://api.openai.com/v1",
+        apiKey: "",
+        llmModel: "gpt-4o-mini",
+        embedModel: "text-embedding-3-small"
+      },
+      retrieveTopK: 10,
+      chunkSize: 800,
+      chunkOverlap: 120
     }
   },
   dockerConfig: {
@@ -126,6 +147,18 @@ function readSettings(): AppSettings {
         actionbook: {
           ...defaultSettings.plugins.actionbook,
           ...(parsed?.plugins?.actionbook ?? {})
+        },
+        knowledgebase: {
+          ...defaultSettings.plugins.knowledgebase,
+          ...(parsed?.plugins?.knowledgebase ?? {}),
+          ollama: {
+            ...defaultSettings.plugins.knowledgebase.ollama,
+            ...(parsed?.plugins?.knowledgebase?.ollama ?? {})
+          },
+          openCompat: {
+            ...defaultSettings.plugins.knowledgebase.openCompat,
+            ...(parsed?.plugins?.knowledgebase?.openCompat ?? {})
+          }
         }
       }
     }
@@ -188,6 +221,18 @@ export function updateSettings(updates: Partial<AppSettings>): AppSettings {
       actionbook: {
         ...current.plugins.actionbook,
         ...(updates.plugins?.actionbook ?? {})
+      },
+      knowledgebase: {
+        ...current.plugins.knowledgebase,
+        ...(updates.plugins?.knowledgebase ?? {}),
+        ollama: {
+          ...current.plugins.knowledgebase.ollama,
+          ...(updates.plugins?.knowledgebase?.ollama ?? {})
+        },
+        openCompat: {
+          ...current.plugins.knowledgebase.openCompat,
+          ...(updates.plugins?.knowledgebase?.openCompat ?? {})
+        }
       }
     },
     defaultWorkspacePath:

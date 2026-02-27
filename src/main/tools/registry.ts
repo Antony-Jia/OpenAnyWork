@@ -18,6 +18,7 @@ import {
   parseWorkspaceDocumentDefinition,
   parseWorkspaceDocumentTool
 } from "./parse-workspace-document"
+import { kbRetrieveDefinition, kbRetrieveTool } from "./kb-retrieve"
 import type { ToolDefinition } from "../types"
 
 export const toolRegistry: Array<{
@@ -37,7 +38,8 @@ export const toolRegistry: Array<{
   { definition: queryMailboxDefinition, instance: queryMailboxTool },
   { definition: sendEmailDefinition, instance: sendEmailTool },
   { definition: analyzeImageDefinition, instance: analyzeImageTool },
-  { definition: parseWorkspaceDocumentDefinition, instance: parseWorkspaceDocumentTool }
+  { definition: parseWorkspaceDocumentDefinition, instance: parseWorkspaceDocumentTool },
+  { definition: kbRetrieveDefinition, instance: kbRetrieveTool }
 ]
 
 export const toolDefinitions: ToolDefinition[] = toolRegistry.map((entry) => entry.definition)

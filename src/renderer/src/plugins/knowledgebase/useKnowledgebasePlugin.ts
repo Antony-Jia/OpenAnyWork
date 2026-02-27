@@ -1,0 +1,273 @@
+import { useCallback, useEffect, useState } from "react"
+import type {
+  KnowledgebaseCollectionSummary,
+  KnowledgebaseConfigUpdate,
+  KnowledgebaseEvent,
+  KnowledgebaseListChunksResult,
+  KnowledgebaseListDocumentsResult,
+  KnowledgebaseRuntimeState,
+  KnowledgebaseStorageStatus,
+  PresetPluginItem
+} from "@/plugins/types"
+
+interface UseKnowledgebasePluginResult {
+  plugin: PresetPluginItem | null
+  runtime: KnowledgebaseRuntimeState | null
+  storage: KnowledgebaseStorageStatus | null
+  collections: KnowledgebaseCollectionSummary[]
+  documentsByCollection: Record<string, KnowledgebaseListDocumentsResult | undefined>
+  chunksByDocument: Record<string, KnowledgebaseListChunksResult | undefined>
+  loading: boolean
+  busy: Record<string, boolean>
+  error: string | null
+  reload: () => Promise<void>
+  toggleEnabled: (enabled: boolean) => Promise<void>
+  updateConfig: (updates: KnowledgebaseConfigUpdate) => Promise<void>
+  pickExe: () => Promise<void>
+  pickDataDir: () => Promise<void>
+  startDaemon: () => Promise<void>
+  stopDaemon: () => Promise<void>
+  refreshStatus: () => Promise<void>
+  openDataDir: () => Promise<void>
+  loadStorage: () => Promise<void>
+  loadCollections: () => Promise<void>
+  loadDocuments: (collectionId: string) => Promise<void>
+  loadChunks: (documentId: string) => Promise<void>
+}
+
+function toErrorMessage(error: unknown, fallback = "Unknown error"): string {
+  if (error instanceof Error) return error.message
+  if (typeof error === "string") return error
+  return fallback
+}
+
+export function useKnowledgebasePlugin(): UseKnowledgebasePluginResult {
+  const [plugin, setPlugin] = useState<PresetPluginItem | null>(null)
+  const [runtime, setRuntime] = useState<KnowledgebaseRuntimeState | null>(null)
+  const [storage, setStorage] = useState<KnowledgebaseStorageStatus | null>(null)
+  const [collections, setCollections] = useState<KnowledgebaseCollectionSummary[]>([])
+  const [documentsByCollection, setDocumentsByCollection] = useState<
+    Record<string, KnowledgebaseListDocumentsResult | undefined>
+  >({})
+  const [chunksByDocument, setChunksByDocument] = useState<
+    Record<string, KnowledgebaseListChunksResult | undefined>
+  >({})
+  const [loading, setLoading] = useState(false)
+  const [busy, setBusy] = useState<Record<string, boolean>>({})
+  const [error, setError] = useState<string | null>(null)
+
+  const setBusyFlag = useCallback((key: string, value: boolean) => {
+    setBusy((prev) => ({ ...prev, [key]: value }))
+  }, [])
+
+  const loadStorage = useCallback(async () => {
+    const status = await window.api.plugins.knowledgebaseStorageStatus()
+    setStorage(status)
+  }, [])
+
+  const reload = useCallback(async () => {
+    setLoading(true)
+    setError(null)
+    try {
+      const plugins = await window.api.plugins.list()
+      setPlugin(plugins.find((item) => item.id === "knowledgebase") ?? null)
+      setRuntime(await window.api.plugins.knowledgebaseGetState())
+      await loadStorage()
+    } catch (err) {
+      setError(toErrorMessage(err, "Failed to load Knowledge Base plugin state."))
+    } finally {
+      setLoading(false)
+    }
+  }, [loadStorage])
+
+  useEffect(() => {
+    void reload()
+    const unsubscribe = window.api.plugins.onKnowledgebaseEvent((event: KnowledgebaseEvent) => {
+      if (event.type === "state") {
+        setRuntime(event.state)
+      }
+    })
+    return () => {
+      if (typeof unsubscribe === "function") unsubscribe()
+    }
+  }, [reload])
+
+  const runAction = useCallback(
+    async (key: string, action: () => Promise<KnowledgebaseRuntimeState>) => {
+      setBusyFlag(key, true)
+      setError(null)
+      try {
+        setRuntime(await action())
+        await loadStorage()
+      } catch (err) {
+        setError(toErrorMessage(err, "Knowledge Base action failed."))
+      } finally {
+        setBusyFlag(key, false)
+      }
+    },
+    [loadStorage, setBusyFlag]
+  )
+
+  const toggleEnabled = useCallback(
+    async (enabled: boolean) => {
+      setBusyFlag("toggle", true)
+      setError(null)
+      try {
+        const item = await window.api.plugins.setEnabled({ id: "knowledgebase", enabled })
+        setPlugin(item)
+        setRuntime(await window.api.plugins.knowledgebaseGetState())
+        await loadStorage()
+      } catch (err) {
+        setError(toErrorMessage(err, "Failed to update plugin state."))
+      } finally {
+        setBusyFlag("toggle", false)
+      }
+    },
+    [loadStorage, setBusyFlag]
+  )
+
+  const updateConfig = useCallback(
+    async (updates: KnowledgebaseConfigUpdate) => {
+      setBusyFlag("saveConfig", true)
+      setError(null)
+      try {
+        setRuntime(await window.api.plugins.knowledgebaseUpdateConfig(updates))
+        await loadStorage()
+      } catch (err) {
+        setError(toErrorMessage(err, "Failed to update Knowledge Base config."))
+      } finally {
+        setBusyFlag("saveConfig", false)
+      }
+    },
+    [loadStorage, setBusyFlag]
+  )
+
+  const pickExe = useCallback(async () => {
+    setBusyFlag("pickExe", true)
+    setError(null)
+    try {
+      await window.api.plugins.knowledgebasePickExe()
+      setRuntime(await window.api.plugins.knowledgebaseGetState())
+      await loadStorage()
+    } catch (err) {
+      setError(toErrorMessage(err, "Failed to choose executable."))
+    } finally {
+      setBusyFlag("pickExe", false)
+    }
+  }, [loadStorage, setBusyFlag])
+
+  const pickDataDir = useCallback(async () => {
+    setBusyFlag("pickDataDir", true)
+    setError(null)
+    try {
+      await window.api.plugins.knowledgebasePickDataDir()
+      setRuntime(await window.api.plugins.knowledgebaseGetState())
+      await loadStorage()
+    } catch (err) {
+      setError(toErrorMessage(err, "Failed to choose data directory."))
+    } finally {
+      setBusyFlag("pickDataDir", false)
+    }
+  }, [loadStorage, setBusyFlag])
+
+  const startDaemon = useCallback(async () => {
+    await runAction("start", () => window.api.plugins.knowledgebaseStart())
+  }, [runAction])
+
+  const stopDaemon = useCallback(async () => {
+    await runAction("stop", () => window.api.plugins.knowledgebaseStop())
+  }, [runAction])
+
+  const refreshStatus = useCallback(async () => {
+    await runAction("refresh", () => window.api.plugins.knowledgebaseRefresh())
+  }, [runAction])
+
+  const openDataDir = useCallback(async () => {
+    setBusyFlag("openDataDir", true)
+    setError(null)
+    try {
+      await window.api.plugins.knowledgebaseOpenDataDir()
+    } catch (err) {
+      setError(toErrorMessage(err, "Failed to open data directory."))
+    } finally {
+      setBusyFlag("openDataDir", false)
+    }
+  }, [setBusyFlag])
+
+  const loadCollections = useCallback(async () => {
+    setBusyFlag("loadCollections", true)
+    setError(null)
+    try {
+      setCollections(await window.api.plugins.knowledgebaseListCollections())
+    } catch (err) {
+      setError(toErrorMessage(err, "Failed to load collections."))
+    } finally {
+      setBusyFlag("loadCollections", false)
+    }
+  }, [setBusyFlag])
+
+  const loadDocuments = useCallback(
+    async (collectionId: string) => {
+      setBusyFlag(`loadDocuments:${collectionId}`, true)
+      setError(null)
+      try {
+        const result = await window.api.plugins.knowledgebaseListDocuments({
+          collectionId,
+          limit: 200,
+          offset: 0
+        })
+        setDocumentsByCollection((prev) => ({ ...prev, [collectionId]: result }))
+      } catch (err) {
+        setError(toErrorMessage(err, "Failed to load collection documents."))
+      } finally {
+        setBusyFlag(`loadDocuments:${collectionId}`, false)
+      }
+    },
+    [setBusyFlag]
+  )
+
+  const loadChunks = useCallback(
+    async (documentId: string) => {
+      setBusyFlag(`loadChunks:${documentId}`, true)
+      setError(null)
+      try {
+        const result = await window.api.plugins.knowledgebaseListChunks({
+          documentId,
+          limit: 200,
+          offset: 0
+        })
+        setChunksByDocument((prev) => ({ ...prev, [documentId]: result }))
+      } catch (err) {
+        setError(toErrorMessage(err, "Failed to load document chunks."))
+      } finally {
+        setBusyFlag(`loadChunks:${documentId}`, false)
+      }
+    },
+    [setBusyFlag]
+  )
+
+  return {
+    plugin,
+    runtime,
+    storage,
+    collections,
+    documentsByCollection,
+    chunksByDocument,
+    loading,
+    busy,
+    error,
+    reload,
+    toggleEnabled,
+    updateConfig,
+    pickExe,
+    pickDataDir,
+    startDaemon,
+    stopDaemon,
+    refreshStatus,
+    openDataDir,
+    loadStorage,
+    loadCollections,
+    loadDocuments,
+    loadChunks
+  }
+}

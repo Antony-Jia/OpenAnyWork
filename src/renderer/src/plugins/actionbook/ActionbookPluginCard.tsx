@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react"
+import { ChevronDown, ChevronRight } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import { useLanguage } from "@/lib/i18n"
@@ -25,6 +26,7 @@ function StatusDot({ ok }: { ok: boolean }): React.JSX.Element {
 export function ActionbookPluginCard(): React.JSX.Element {
   const { t } = useLanguage()
   const [copied, setCopied] = useState(false)
+  const [detailsExpanded, setDetailsExpanded] = useState(false)
   const {
     plugin,
     runtime,
@@ -104,14 +106,18 @@ export function ActionbookPluginCard(): React.JSX.Element {
             <StatusDot ok={runtime.checks.cli.ok} />
             <span>{t("plugin.actionbook.check_cli")}</span>
           </div>
-          <div className="mt-1.5 text-muted-foreground break-all text-[12px]">{runtime.checks.cli.message}</div>
+          <div className="mt-1.5 text-muted-foreground break-all text-[12px]">
+            {runtime.checks.cli.message}
+          </div>
         </div>
         <div className="rounded-md border border-border p-3">
           <div className="flex items-center gap-2.5">
             <StatusDot ok={runtime.checks.skill.ok} />
             <span>{t("plugin.actionbook.check_skill")}</span>
           </div>
-          <div className="mt-1.5 text-muted-foreground break-all text-[12px]">{runtime.checks.skill.message}</div>
+          <div className="mt-1.5 text-muted-foreground break-all text-[12px]">
+            {runtime.checks.skill.message}
+          </div>
         </div>
         <div className="rounded-md border border-border p-3">
           <div className="flex items-center gap-2.5">
@@ -226,48 +232,74 @@ export function ActionbookPluginCard(): React.JSX.Element {
         </div>
       )}
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-        <div className="rounded-md border border-border p-3.5">
-          <div className="text-[13px] text-muted-foreground mb-2.5">
-            {t("plugin.actionbook.milestones")}
-          </div>
-          <div className="max-h-40 overflow-auto space-y-1.5 text-[12px]">
-            {runtime.milestones.length === 0 ? (
-              <div className="text-muted-foreground">{t("plugin.actionbook.empty_milestones")}</div>
-            ) : (
-              runtime.milestones
-                .slice()
-                .reverse()
-                .map((milestone) => (
-                  <div key={milestone.id} className="break-words">
-                    <span
-                      className={cn(milestone.ok ? "text-status-nominal" : "text-status-critical")}
-                    >
-                      [{formatTime(milestone.at)}]
-                    </span>{" "}
-                    {milestone.message}
-                  </div>
-                ))
-            )}
-          </div>
-        </div>
-
-        <div className="rounded-md border border-border p-3.5">
-          <div className="text-[13px] text-muted-foreground mb-2.5">{t("plugin.actionbook.logs")}</div>
-          <div className="max-h-40 overflow-auto">
-            {runtime.logs.length === 0 ? (
-              <div className="text-[12px] text-muted-foreground">
-                {t("plugin.actionbook.empty_logs")}
+      <div className="rounded-md border border-border">
+        <button
+          type="button"
+          onClick={() => setDetailsExpanded((prev) => !prev)}
+          className="flex w-full items-center gap-2 px-3.5 py-2.5 text-left text-[13px] hover:bg-muted/30"
+        >
+          {detailsExpanded ? (
+            <ChevronDown className="size-4" />
+          ) : (
+            <ChevronRight className="size-4" />
+          )}
+          <span>
+            {t("plugin.actionbook.logs")} / {t("plugin.actionbook.milestones")}
+          </span>
+        </button>
+        {detailsExpanded && (
+          <div className="border-t border-border p-3.5">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+              <div className="rounded-md border border-border p-3.5">
+                <div className="text-[13px] text-muted-foreground mb-2.5">
+                  {t("plugin.actionbook.milestones")}
+                </div>
+                <div className="max-h-40 overflow-auto space-y-1.5 text-[12px]">
+                  {runtime.milestones.length === 0 ? (
+                    <div className="text-muted-foreground">
+                      {t("plugin.actionbook.empty_milestones")}
+                    </div>
+                  ) : (
+                    runtime.milestones
+                      .slice()
+                      .reverse()
+                      .map((milestone) => (
+                        <div key={milestone.id} className="break-words">
+                          <span
+                            className={cn(
+                              milestone.ok ? "text-status-nominal" : "text-status-critical"
+                            )}
+                          >
+                            [{formatTime(milestone.at)}]
+                          </span>{" "}
+                          {milestone.message}
+                        </div>
+                      ))
+                  )}
+                </div>
               </div>
-            ) : (
-              <pre className="text-[12px] whitespace-pre-wrap break-words">
-                {runtime.logs
-                  .map((entry) => `[${formatTime(entry.at)}][${entry.source}] ${entry.line}`)
-                  .join("\n")}
-              </pre>
-            )}
+
+              <div className="rounded-md border border-border p-3.5">
+                <div className="text-[13px] text-muted-foreground mb-2.5">
+                  {t("plugin.actionbook.logs")}
+                </div>
+                <div className="max-h-40 overflow-auto">
+                  {runtime.logs.length === 0 ? (
+                    <div className="text-[12px] text-muted-foreground">
+                      {t("plugin.actionbook.empty_logs")}
+                    </div>
+                  ) : (
+                    <pre className="text-[12px] whitespace-pre-wrap break-words">
+                      {runtime.logs
+                        .map((entry) => `[${formatTime(entry.at)}][${entry.source}] ${entry.line}`)
+                        .join("\n")}
+                    </pre>
+                  )}
+                </div>
+              </div>
+            </div>
           </div>
-        </div>
+        )}
       </div>
     </div>
   )

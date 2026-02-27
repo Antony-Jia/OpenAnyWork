@@ -395,6 +395,8 @@ export interface SkillItem {
   enabled: boolean
 }
 
+export type ToolKind = "native" | "plugin"
+
 export interface ToolDefinition {
   name: string
   label: string
@@ -402,6 +404,8 @@ export interface ToolDefinition {
   keyLabel?: string
   envVar?: string
   requiresKey?: boolean
+  kind?: ToolKind
+  pluginId?: string
 }
 
 export interface ToolInfo extends ToolDefinition {
@@ -482,8 +486,37 @@ export interface ActionbookPluginSettings {
   enabled: boolean
 }
 
+export type KnowledgebaseProvider = "ollama" | "open_compat"
+
+export interface KnowledgebaseProviderOllamaSettings {
+  baseUrl: string
+  llmModel: string
+  embedModel: string
+}
+
+export interface KnowledgebaseProviderOpenCompatSettings {
+  baseUrl: string
+  apiKey: string
+  llmModel: string
+  embedModel: string
+}
+
+export interface KnowledgebasePluginSettings {
+  enabled: boolean
+  daemonExePath: string | null
+  dataDir: string | null
+  llmProvider: KnowledgebaseProvider
+  embeddingProvider: KnowledgebaseProvider
+  ollama: KnowledgebaseProviderOllamaSettings
+  openCompat: KnowledgebaseProviderOpenCompatSettings
+  retrieveTopK: number
+  chunkSize: number
+  chunkOverlap: number
+}
+
 export interface PluginSettings {
   actionbook: ActionbookPluginSettings
+  knowledgebase: KnowledgebasePluginSettings
 }
 
 export interface AppSettings {

@@ -429,6 +429,8 @@ const translations = {
     "tools.load_failed": "Failed to load tools",
     "tools.save_failed": "Failed to save tool key",
     "tools.analyze_image_unavailable": "Requires Multimodal URL, API key, and model in Settings.",
+    "tools.tab_native": "Native Tools",
+    "tools.tab_plugins": "Plugin Tools",
 
     // MCP
     "mcp.title": "MCP",
@@ -934,6 +936,8 @@ const translations = {
     "tools.load_failed": "工具加载失败",
     "tools.save_failed": "工具保存失败",
     "tools.analyze_image_unavailable": "需先在设置中配置多模态 URL、API 密钥与模型。",
+    "tools.tab_native": "原生工具",
+    "tools.tab_plugins": "插件工具",
 
     // MCP
     "mcp.title": "MCP",

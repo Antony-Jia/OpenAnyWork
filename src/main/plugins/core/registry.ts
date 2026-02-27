@@ -12,6 +12,11 @@ export const PRESET_PLUGIN_DEFINITIONS: PresetPluginDefinition[] = [
     name: "Actionbook",
     description:
       "Browser automation plugin with extension bridge, runtime checks, and guided setup."
+  },
+  {
+    id: "knowledgebase",
+    name: "Knowledge Base",
+    description: "Local RAG daemon plugin with runtime management and indexed data visibility."
   }
 ]
 

@@ -193,7 +193,7 @@ function FileContentPreview({ content }: { content: string; path?: string }): Re
   const hasMore = lines.length > 10
 
   return (
-    <div className="text-xs font-mono bg-background rounded-sm overflow-hidden w-full">
+    <div className="text-xs font-mono bg-background rounded-md overflow-hidden w-full">
       <pre className="p-2 overflow-auto max-h-40 w-full">
         {preview.map((line, i) => (
           <div key={i} className="flex min-w-0">
@@ -225,12 +225,12 @@ function FileEditSummary({ args }: { args: Record<string, unknown> }): React.JSX
     return (
       <div className="text-xs space-y-2">
         <div className="flex items-center gap-1.5 text-status-critical">
-          <span className="font-mono bg-status-critical/10 px-1.5 py-0.5 rounded">
+          <span className="font-mono bg-status-critical/10 px-1.5 py-0.5 rounded-md">
             - {oldStr.split("\n").length} lines
           </span>
         </div>
         <div className="flex items-center gap-1.5 text-status-nominal">
-          <span className="font-mono bg-status-nominal/10 px-1.5 py-0.5 rounded">
+          <span className="font-mono bg-status-nominal/10 px-1.5 py-0.5 rounded-md">
             + {newStr.split("\n").length} lines
           </span>
         </div>
@@ -260,12 +260,12 @@ function CommandDisplay({
 }): React.JSX.Element {
   return (
     <div className="text-xs space-y-2 w-full overflow-hidden">
-      <div className="font-mono bg-background rounded-sm p-2 flex items-center gap-2 min-w-0">
+      <div className="font-mono bg-background rounded-md p-2 flex items-center gap-2 min-w-0">
         <span className="text-status-info shrink-0">$</span>
         <span className="truncate">{command}</span>
       </div>
       {output && (
-        <pre className="font-mono bg-background rounded-sm p-2 overflow-auto max-h-32 text-muted-foreground w-full whitespace-pre-wrap break-all">
+        <pre className="font-mono bg-background rounded-md p-2 overflow-auto max-h-32 text-muted-foreground w-full whitespace-pre-wrap break-all">
           {output.slice(0, 500)}
           {output.length > 500 && "..."}
         </pre>
@@ -499,7 +499,7 @@ export function ToolCallRenderer({
                 <CheckCircle2 className="size-3" />
                 <span>Command completed</span>
               </div>
-              <pre className="text-xs font-mono bg-background rounded-sm p-2 overflow-auto max-h-32 text-muted-foreground whitespace-pre-wrap break-all">
+              <pre className="text-xs font-mono bg-background rounded-md p-2 overflow-auto max-h-32 text-muted-foreground whitespace-pre-wrap break-all">
                 {output.slice(0, 500)}
                 {output.length > 500 && "..."}
               </pre>
@@ -591,7 +591,7 @@ export function ToolCallRenderer({
   return (
     <div
       className={cn(
-        "rounded-sm border overflow-hidden",
+        "rounded-lg border overflow-hidden",
         needsApproval
           ? "border-amber-500/50 bg-amber-500/5"
           : "border-border bg-background-elevated"
@@ -654,7 +654,7 @@ export function ToolCallRenderer({
           {/* Arguments */}
           <div>
             <div className="text-section-header text-[10px] mb-1">ARGUMENTS</div>
-            <pre className="text-xs font-mono bg-background p-2 rounded-sm overflow-auto max-h-24">
+            <pre className="text-xs font-mono bg-background p-2 rounded-md overflow-auto max-h-24">
               {JSON.stringify(args, null, 2)}
             </pre>
           </div>
@@ -662,19 +662,19 @@ export function ToolCallRenderer({
           {/* Action buttons */}
           <div className="flex items-center justify-end gap-2">
             <button
-              className="px-3 py-1.5 text-xs border border-border rounded-sm hover:bg-background-interactive transition-colors"
+              className="px-3 py-1.5 text-xs border border-border rounded-md hover:bg-background-interactive transition-colors"
               onClick={handleReject}
             >
               {t("chat.approval.reject")}
             </button>
             <button
-              className="px-3 py-1.5 text-xs border border-status-nominal/40 text-status-nominal rounded-sm hover:bg-status-nominal/10 transition-colors"
+              className="px-3 py-1.5 text-xs border border-status-nominal/40 text-status-nominal rounded-md hover:bg-status-nominal/10 transition-colors"
               onClick={handleApproveAlways}
             >
               {t("chat.approval.always_approve")}
             </button>
             <button
-              className="px-3 py-1.5 text-xs bg-status-nominal text-background rounded-sm hover:bg-status-nominal/90 transition-colors"
+              className="px-3 py-1.5 text-xs bg-status-nominal text-background rounded-md hover:bg-status-nominal/90 transition-colors"
               onClick={handleApprove}
             >
               {t("chat.approval.approve")}
@@ -701,7 +701,7 @@ export function ToolCallRenderer({
           {/* Raw Arguments */}
           <div className="overflow-hidden w-full">
             <div className="text-section-header mb-1">RAW ARGUMENTS</div>
-            <pre className="text-xs font-mono bg-background p-2 rounded-sm overflow-auto max-h-48 w-full whitespace-pre-wrap break-all">
+            <pre className="text-xs font-mono bg-background p-2 rounded-md overflow-auto max-h-48 w-full whitespace-pre-wrap break-all">
               {JSON.stringify(args, null, 2)}
             </pre>
           </div>
@@ -712,7 +712,7 @@ export function ToolCallRenderer({
               <div className="text-section-header mb-1">RAW RESULT</div>
               <pre
                 className={cn(
-                  "text-xs font-mono p-2 rounded-sm overflow-auto max-h-48 w-full whitespace-pre-wrap break-all",
+                  "text-xs font-mono p-2 rounded-md overflow-auto max-h-48 w-full whitespace-pre-wrap break-all",
                   isError ? "bg-status-critical/10 text-status-critical" : "bg-background"
                 )}
               >

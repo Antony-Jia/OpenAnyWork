@@ -98,7 +98,7 @@ function FileTab({ file, isActive, onSelect, onClose }: FileTabProps): React.JSX
       <button
         onClick={handleClose}
         className={cn(
-          "size-4 flex items-center justify-center rounded-sm hover:bg-background-interactive transition-colors",
+          "size-4 flex items-center justify-center rounded-md hover:bg-background-interactive transition-colors",
           isActive ? "opacity-100" : "opacity-0 group-hover:opacity-100"
         )}
       >

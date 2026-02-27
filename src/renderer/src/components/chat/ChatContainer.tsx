@@ -875,7 +875,7 @@ export function ChatContainer({ threadId }: ChatContainerProps): React.JSX.Eleme
                 </div>
                 <button
                   onClick={handleDismissError}
-                  className="shrink-0 rounded p-1 hover:bg-destructive/20 transition-colors"
+                  className="shrink-0 rounded-md p-1 hover:bg-destructive/20 transition-colors"
                   aria-label="Dismiss error"
                 >
                   <X className="size-4 text-muted-foreground" />

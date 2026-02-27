@@ -86,7 +86,7 @@ function SelectionSection({
   children
 }: SelectionSectionProps): React.JSX.Element {
   return (
-    <div className="rounded-sm border border-border">
+    <div className="rounded-lg border border-border">
       <button
         type="button"
         onClick={onToggle}
@@ -103,7 +103,7 @@ function SelectionSection({
       {open && (
         <div className="border-t border-border p-2">
           {total === 0 ? (
-            <div className="rounded-sm border border-dashed border-border p-3 text-xs text-muted-foreground">
+            <div className="rounded-lg border border-dashed border-border p-3 text-xs text-muted-foreground">
               {emptyText}
             </div>
           ) : (
@@ -362,7 +362,7 @@ export function SubagentManager(): React.JSX.Element {
                 </div>
 
                 {subagents.length === 0 ? (
-                  <div className="rounded-sm border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
+                  <div className="rounded-lg border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
                     {t("subagents.empty")}
                   </div>
                 ) : (
@@ -370,7 +370,7 @@ export function SubagentManager(): React.JSX.Element {
                     {subagents.map((agent) => (
                       <div
                         key={agent.id}
-                        className="flex items-start justify-between gap-3 rounded-sm border border-border p-3"
+                        className="flex items-start justify-between gap-3 rounded-lg border border-border p-3"
                       >
                         <div className="space-y-1">
                           <div className="text-sm font-medium">{agent.name}</div>
@@ -443,7 +443,7 @@ export function SubagentManager(): React.JSX.Element {
                   <textarea
                     value={form.systemPrompt}
                     onChange={(e) => setForm((prev) => ({ ...prev, systemPrompt: e.target.value }))}
-                    className="w-full min-h-[120px] rounded-sm border border-input bg-background px-3 py-2 text-sm text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                    className="w-full min-h-[120px] rounded-lg border border-input bg-background px-3 py-2 text-sm text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
                   />
                 </div>
 
@@ -460,7 +460,7 @@ export function SubagentManager(): React.JSX.Element {
                           provider: e.target.value as SimpleProviderId | "inherit"
                         }))
                       }
-                      className="w-full rounded-sm border border-input bg-background px-3 py-2 text-sm text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                      className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
                     >
                       <option value="inherit">{t("subagents.provider_inherit")}</option>
                       <option value="ollama">{t("provider.ollama")}</option>
@@ -497,7 +497,7 @@ export function SubagentManager(): React.JSX.Element {
                             key={tool.name}
                             onClick={() => (canSelect ? toggleTool(tool.name) : null)}
                             className={cn(
-                              "rounded-sm border p-2 transition-colors",
+                              "rounded-md border p-2 transition-colors",
                               canSelect ? "cursor-pointer" : "cursor-not-allowed opacity-60",
                               isSelected
                                 ? "border-primary bg-primary/10"
@@ -568,7 +568,7 @@ export function SubagentManager(): React.JSX.Element {
                             key={server.config.id}
                             onClick={() => (canSelect ? toggleMcpServer(server.config.id) : null)}
                             className={cn(
-                              "rounded-sm border p-2 transition-colors",
+                              "rounded-md border p-2 transition-colors",
                               canSelect ? "cursor-pointer" : "opacity-60 cursor-not-allowed",
                               isSelected
                                 ? "border-primary bg-primary/10"
@@ -619,7 +619,7 @@ export function SubagentManager(): React.JSX.Element {
                             key={item.id}
                             onClick={() => toggleMiddleware(item.id)}
                             className={cn(
-                              "rounded-sm border p-2 cursor-pointer transition-colors",
+                              "rounded-md border p-2 cursor-pointer transition-colors",
                               isSelected
                                 ? "border-primary bg-primary/10"
                                 : "border-border hover:border-primary/50 hover:bg-muted/50"
@@ -664,7 +664,7 @@ export function SubagentManager(): React.JSX.Element {
                             key={skill.name}
                             onClick={() => toggleSkill(skill.name)}
                             className={cn(
-                              "rounded-sm border p-2 cursor-pointer transition-colors",
+                              "rounded-md border p-2 cursor-pointer transition-colors",
                               isSelected
                                 ? "border-primary bg-primary/10"
                                 : "border-border hover:border-primary/50 hover:bg-muted/50"

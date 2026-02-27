@@ -158,11 +158,11 @@ export function MemoryManager(): React.JSX.Element {
               </div>
 
               {loading ? (
-                <div className="rounded-sm border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
+                <div className="rounded-lg border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
                   {t("common.loading")}
                 </div>
               ) : groupedSummaries.length === 0 ? (
-                <div className="rounded-sm border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
+                <div className="rounded-lg border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
                   {t("memory.empty_conversation")}
                 </div>
               ) : (
@@ -170,7 +170,7 @@ export function MemoryManager(): React.JSX.Element {
                   {groupedSummaries.map((group) => (
                     <div
                       key={group.threadId}
-                      className="rounded-sm border border-border p-3 space-y-2"
+                      className="rounded-lg border border-border p-3 space-y-2"
                     >
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0">
@@ -190,7 +190,7 @@ export function MemoryManager(): React.JSX.Element {
                         {group.items.map((item) => (
                           <details
                             key={item.id}
-                            className="rounded-sm border border-border/70 bg-background/60 p-2"
+                            className="rounded-md border border-border/70 bg-background/60 p-2"
                           >
                             <summary className="cursor-pointer">
                               <div className="space-y-1">
@@ -200,7 +200,7 @@ export function MemoryManager(): React.JSX.Element {
                                 <div className="text-sm line-clamp-2">{item.summaryBrief}</div>
                               </div>
                             </summary>
-                            <div className="mt-2 whitespace-pre-wrap rounded-sm border border-border/60 bg-background/80 p-2 text-xs">
+                            <div className="mt-2 whitespace-pre-wrap rounded-md border border-border/60 bg-background/80 p-2 text-xs">
                               {item.summaryDetail}
                             </div>
                           </details>
@@ -218,11 +218,11 @@ export function MemoryManager(): React.JSX.Element {
               </div>
 
               {loading ? (
-                <div className="rounded-sm border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
+                <div className="rounded-lg border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
                   {t("common.loading")}
                 </div>
               ) : dailyProfiles.length === 0 ? (
-                <div className="rounded-sm border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
+                <div className="rounded-lg border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
                   {t("memory.empty_global")}
                 </div>
               ) : (
@@ -230,15 +230,15 @@ export function MemoryManager(): React.JSX.Element {
                   {dailyProfiles.map((profile) => (
                     <div
                       key={profile.day}
-                      className="rounded-sm border border-border p-3 space-y-2"
+                      className="rounded-lg border border-border p-3 space-y-2"
                     >
                       <div className="text-xs text-muted-foreground">
                         {profile.day} | {new Date(profile.createdAt).toLocaleString()}
                       </div>
-                      <div className="whitespace-pre-wrap rounded-sm border border-border/60 bg-background/70 p-2 text-xs">
+                      <div className="whitespace-pre-wrap rounded-md border border-border/60 bg-background/70 p-2 text-xs">
                         {profile.profileText}
                       </div>
-                      <div className="whitespace-pre-wrap rounded-sm border border-border/60 bg-background/70 p-2 text-xs text-muted-foreground">
+                      <div className="whitespace-pre-wrap rounded-md border border-border/60 bg-background/70 p-2 text-xs text-muted-foreground">
                         {profile.comparisonText}
                       </div>
                     </div>

@@ -124,7 +124,7 @@ export function ModelPickerPanel({
                   key={provider.id}
                   onClick={() => handleProviderClick(provider)}
                   className={cn(
-                    "w-full flex items-center gap-1.5 px-2 py-1 rounded-sm text-xs transition-colors text-left",
+                    "w-full flex items-center gap-1.5 px-2 py-1 rounded-md text-xs transition-colors text-left",
                     effectiveProviderId === provider.id
                       ? "bg-muted text-foreground"
                       : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
@@ -167,7 +167,7 @@ export function ModelPickerPanel({
                     key={model.id}
                     onClick={() => handleModelSelect(model.id)}
                     className={cn(
-                      "w-full flex items-center gap-1.5 px-2 py-1 rounded-sm text-xs transition-colors text-left font-mono",
+                      "w-full flex items-center gap-1.5 px-2 py-1 rounded-md text-xs transition-colors text-left font-mono",
                       currentModel === model.id
                         ? "bg-muted text-foreground"
                         : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
@@ -189,7 +189,7 @@ export function ModelPickerPanel({
               {selectedProvider?.hasApiKey && (
                 <button
                   onClick={() => handleConfigureApiKey(selectedProvider)}
-                  className="w-full flex items-center gap-2 px-2 py-1.5 rounded-sm text-xs text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors mt-2 border-t border-border pt-2"
+                  className="w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-xs text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors mt-2 border-t border-border pt-2"
                 >
                   <Key className="size-3.5" />
                   <span>Edit API Key</span>

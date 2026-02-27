@@ -258,11 +258,11 @@ export function PromptManager(): React.JSX.Element {
                 </div>
 
                 {loading ? (
-                  <div className="rounded-sm border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
+                  <div className="rounded-lg border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
                     {t("common.loading")}
                   </div>
                 ) : filteredPrompts.length === 0 ? (
-                  <div className="rounded-sm border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
+                  <div className="rounded-lg border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
                     {t("prompts.empty")}
                   </div>
                 ) : (
@@ -270,7 +270,7 @@ export function PromptManager(): React.JSX.Element {
                     {filteredPrompts.map((prompt) => (
                       <div
                         key={prompt.id}
-                        className="flex items-start justify-between gap-3 rounded-sm border border-border p-3"
+                        className="flex items-start justify-between gap-3 rounded-lg border border-border p-3"
                       >
                         <div className="space-y-1 min-w-0">
                           <div className="text-sm font-medium truncate" title={prompt.name}>
@@ -331,7 +331,7 @@ export function PromptManager(): React.JSX.Element {
                     }
                     placeholder={t("prompts.content_placeholder")}
                     disabled={inViewMode}
-                    className="w-full min-h-[360px] rounded-sm border border-input bg-background px-3 py-2 text-sm text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:opacity-100"
+                    className="w-full min-h-[360px] rounded-lg border border-input bg-background px-3 py-2 text-sm text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:opacity-100"
                   />
                 </div>
               </div>

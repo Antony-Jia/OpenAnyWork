@@ -211,7 +211,7 @@ export function SkillsManager(): React.JSX.Element {
                 {error && <div className="text-xs text-status-critical">{error}</div>}
 
                 {skills.length === 0 ? (
-                  <div className="rounded-sm border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
+                  <div className="rounded-lg border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
                     {t("skills.empty")}
                   </div>
                 ) : (
@@ -219,7 +219,7 @@ export function SkillsManager(): React.JSX.Element {
                     {skills.map((skill) => (
                       <div
                         key={skill.name}
-                        className="flex items-start justify-between gap-3 rounded-sm border border-border p-3"
+                        className="flex items-start justify-between gap-3 rounded-lg border border-border p-3"
                       >
                         <div className="space-y-1">
                           <div className="text-sm font-medium">{skill.name}</div>
@@ -328,7 +328,7 @@ export function SkillsManager(): React.JSX.Element {
                     value={form.content}
                     onChange={(e) => setForm((prev) => ({ ...prev, content: e.target.value }))}
                     placeholder={t("skills.content_placeholder")}
-                    className="w-full min-h-[160px] rounded-sm border border-input bg-background px-3 py-2 text-sm text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                    className="w-full min-h-[160px] rounded-lg border border-input bg-background px-3 py-2 text-sm text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
                   />
                 </div>
                 {error && <div className="text-xs text-status-critical">{error}</div>}

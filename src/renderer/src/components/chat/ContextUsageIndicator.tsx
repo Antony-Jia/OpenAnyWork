@@ -121,7 +121,7 @@ export function ContextUsageIndicator({
       <PopoverTrigger asChild>
         <button
           className={cn(
-            "flex items-center gap-1.5 px-2 py-0.5 rounded-sm text-xs transition-colors hover:opacity-80",
+            "flex items-center gap-1.5 px-2 py-0.5 rounded-md text-xs transition-colors hover:opacity-80",
             bgColorClass,
             colorClass,
             className

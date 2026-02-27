@@ -232,7 +232,7 @@ export function RalphProgress(): React.JSX.Element | null {
                       <div
                         key={story.id}
                         className={cn(
-                          "rounded px-1.5 py-1 border-l-2",
+                          "rounded-md px-1.5 py-1 border-l-2",
                           story.passes
                             ? "border-emerald-500 bg-emerald-50/50 dark:bg-emerald-950/30"
                             : "border-muted bg-muted/30"
@@ -277,7 +277,7 @@ export function RalphProgress(): React.JSX.Element | null {
             {progressExpanded && (
               <div className="ml-4 mt-1 space-y-2 text-xs">
                 {progress.slice(0, 5).map((section, idx) => (
-                  <div key={idx} className="rounded bg-muted/30 p-1.5">
+                  <div key={idx} className="rounded-md bg-muted/30 p-1.5">
                     <div className="font-medium text-[10px] text-muted-foreground truncate">
                       {section.title}
                     </div>

@@ -265,7 +265,7 @@ export function McpManager(): React.JSX.Element {
                 </div>
 
                 {servers.length === 0 ? (
-                  <div className="rounded-sm border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
+                  <div className="rounded-lg border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
                     {t("mcp.empty")}
                   </div>
                 ) : (
@@ -273,7 +273,7 @@ export function McpManager(): React.JSX.Element {
                     {servers.map((item) => (
                       <div
                         key={item.config.id}
-                        className="flex items-start justify-between gap-3 rounded-sm border border-border p-3"
+                        className="flex items-start justify-between gap-3 rounded-lg border border-border p-3"
                       >
                         <div className="space-y-1">
                           <div className="text-sm font-medium">{item.config.name}</div>

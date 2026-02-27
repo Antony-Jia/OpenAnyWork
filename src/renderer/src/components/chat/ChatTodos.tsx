@@ -37,7 +37,7 @@ export function ChatTodos({ todos }: ChatTodosProps): React.JSX.Element | null {
   const progress = totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 0
 
   return (
-    <div className="rounded-sm border border-border bg-background-elevated overflow-hidden">
+    <div className="rounded-lg border border-border bg-background-elevated overflow-hidden">
       {/* Header */}
       <div className="flex items-center gap-2 px-3 py-2 border-b border-border">
         <ListTodo className="size-4 text-status-info" />

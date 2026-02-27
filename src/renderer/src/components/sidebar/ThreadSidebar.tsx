@@ -398,7 +398,7 @@ export function ThreadSidebar(): React.JSX.Element {
 
           <div className="space-y-3">
             <div className="text-sm text-muted-foreground">{t("sidebar.delete_confirm_desc")}</div>
-            <div className="rounded-sm border border-border px-3 py-2 text-xs text-muted-foreground break-all">
+            <div className="rounded-md border border-border px-3 py-2 text-xs text-muted-foreground break-all">
               {deleteTarget?.title?.trim() || deleteTarget?.thread_id}
             </div>
             <label className="flex items-center gap-2 text-xs text-foreground">

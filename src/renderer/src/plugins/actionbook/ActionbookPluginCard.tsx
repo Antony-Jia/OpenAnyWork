@@ -63,7 +63,7 @@ export function ActionbookPluginCard(): React.JSX.Element {
 
   if (loading && !runtime) {
     return (
-      <div className="rounded-sm border border-border p-4 text-xs text-muted-foreground">
+      <div className="rounded-lg border border-border p-4 text-xs text-muted-foreground">
         {t("common.loading")}
       </div>
     )
@@ -71,7 +71,7 @@ export function ActionbookPluginCard(): React.JSX.Element {
 
   if (!plugin || !runtime) {
     return (
-      <div className="rounded-sm border border-border p-4 text-xs text-status-critical">
+      <div className="rounded-lg border border-border p-4 text-xs text-status-critical">
         {t("plugin.actionbook.unavailable")}
       </div>
     )

@@ -139,7 +139,7 @@ function TodoItem({ todo }: { todo: Todo }): React.JSX.Element {
   return (
     <div
       className={cn(
-        "flex items-start gap-3 rounded-sm border border-border p-3 transition-colors",
+        "flex items-start gap-3 rounded-lg border border-border p-3 transition-colors",
         todo.status === "completed" && "opacity-60",
         todo.status === "cancelled" && "opacity-40"
       )}

@@ -140,7 +140,7 @@ export function ToolsManager(): React.JSX.Element {
           <div className="flex-1 min-h-0 overflow-y-auto px-6 pb-6 pt-4">
             <div className="space-y-4">
               {tools.length === 0 ? (
-                <div className="rounded-sm border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
+                <div className="rounded-lg border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
                   {t("tools.empty")}
                 </div>
               ) : (
@@ -149,7 +149,7 @@ export function ToolsManager(): React.JSX.Element {
                     <div
                       key={tool.name}
                       className={cn(
-                        "rounded-sm border border-border p-3 space-y-3",
+                        "rounded-lg border border-border p-3 space-y-3",
                         !tool.available && "opacity-60"
                       )}
                     >

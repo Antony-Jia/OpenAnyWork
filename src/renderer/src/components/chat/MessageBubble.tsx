@@ -191,7 +191,7 @@ export function MessageBubble({
       {/* Left avatar column - shows for agent/tool */}
       <div className="w-8 shrink-0">
         {!isUser && (
-          <div className="flex size-8 items-center justify-center rounded-sm bg-status-info/10 text-status-info">
+          <div className="flex size-8 items-center justify-center rounded-lg bg-status-info/10 text-status-info">
             {getIcon()}
           </div>
         )}
@@ -204,7 +204,7 @@ export function MessageBubble({
         {content && (
           <div
             className={cn(
-              "rounded-sm p-3 overflow-hidden relative",
+              "rounded-lg p-3 overflow-hidden relative",
               isUser ? "bg-primary/10" : "bg-card",
               canPlayAudio && "pr-10"
             )}
@@ -217,7 +217,7 @@ export function MessageBubble({
                 title={isPlaying ? t("chat.voice_stop_playback") : t("chat.voice_play")}
                 aria-label={isPlaying ? t("chat.voice_stop_playback") : t("chat.voice_play")}
                 className={cn(
-                  "absolute top-2 right-2 rounded p-1 text-muted-foreground hover:text-foreground hover:bg-background/60 transition-colors",
+                  "absolute top-2 right-2 rounded-md p-1 text-muted-foreground hover:text-foreground hover:bg-background/60 transition-colors",
                   isTtsBusy && "opacity-60 cursor-not-allowed"
                 )}
               >
@@ -260,7 +260,7 @@ export function MessageBubble({
       {/* Right avatar column - shows for user */}
       <div className="w-8 shrink-0">
         {isUser && (
-          <div className="flex size-8 items-center justify-center rounded-sm bg-primary/10 text-primary">
+          <div className="flex size-8 items-center justify-center rounded-lg bg-primary/10 text-primary">
             {getIcon()}
           </div>
         )}

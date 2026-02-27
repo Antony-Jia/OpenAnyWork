@@ -67,6 +67,10 @@ import type {
   ActionbookEvent,
   ActionbookRuntimeState,
   KnowledgebaseCollectionSummary,
+  KnowledgebaseDeleteCollectionRequest,
+  KnowledgebaseDeleteCollectionResult,
+  KnowledgebaseDeleteDocumentRequest,
+  KnowledgebaseDeleteDocumentResult,
   KnowledgebaseCreateCollectionRequest,
   KnowledgebaseConfigUpdate,
   KnowledgebaseEvent,
@@ -621,6 +625,16 @@ const api = {
       input: KnowledgebaseCreateCollectionRequest
     ): Promise<KnowledgebaseCollectionSummary> => {
       return ipcRenderer.invoke("plugins:knowledgebase:createCollection", input)
+    },
+    knowledgebaseDeleteDocument: (
+      input: KnowledgebaseDeleteDocumentRequest
+    ): Promise<KnowledgebaseDeleteDocumentResult> => {
+      return ipcRenderer.invoke("plugins:knowledgebase:deleteDocument", input)
+    },
+    knowledgebaseDeleteCollection: (
+      input: KnowledgebaseDeleteCollectionRequest
+    ): Promise<KnowledgebaseDeleteCollectionResult> => {
+      return ipcRenderer.invoke("plugins:knowledgebase:deleteCollection", input)
     },
     knowledgebaseListDocuments: (input: {
       collectionId: string

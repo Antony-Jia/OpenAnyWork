@@ -265,6 +265,31 @@ export interface KnowledgebaseUploadItemResult {
   error?: string
 }
 
+export interface KnowledgebaseDeleteDocumentRequest {
+  documentId: string
+  poll?: boolean
+}
+
+export interface KnowledgebaseDeleteDocumentResult {
+  documentId: string
+  jobId?: string
+  status: KnowledgebaseUploadStatus
+  error?: string
+}
+
+export interface KnowledgebaseDeleteCollectionRequest {
+  collectionId: string
+  poll?: boolean
+  cascadeDocuments?: boolean
+}
+
+export interface KnowledgebaseDeleteCollectionResult {
+  collectionId: string
+  collectionDeleted: boolean
+  documentResults: KnowledgebaseDeleteDocumentResult[]
+  error?: string
+}
+
 export type KnowledgebaseEvent = {
   type: "state"
   state: KnowledgebaseRuntimeState

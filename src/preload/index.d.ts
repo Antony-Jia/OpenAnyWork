@@ -68,6 +68,10 @@ import type {
   ActionbookEvent,
   ActionbookRuntimeState,
   KnowledgebaseCollectionSummary,
+  KnowledgebaseDeleteCollectionRequest,
+  KnowledgebaseDeleteCollectionResult,
+  KnowledgebaseDeleteDocumentRequest,
+  KnowledgebaseDeleteDocumentResult,
   KnowledgebaseCreateCollectionRequest,
   KnowledgebaseConfigUpdate,
   KnowledgebaseEvent,
@@ -308,6 +312,12 @@ interface CustomAPI {
     knowledgebaseCreateCollection: (
       input: KnowledgebaseCreateCollectionRequest
     ) => Promise<KnowledgebaseCollectionSummary>
+    knowledgebaseDeleteDocument: (
+      input: KnowledgebaseDeleteDocumentRequest
+    ) => Promise<KnowledgebaseDeleteDocumentResult>
+    knowledgebaseDeleteCollection: (
+      input: KnowledgebaseDeleteCollectionRequest
+    ) => Promise<KnowledgebaseDeleteCollectionResult>
     knowledgebaseListDocuments: (input: {
       collectionId: string
       limit?: number

@@ -6,6 +6,10 @@ import { app, shell } from "electron"
 import type {
   KnowledgebaseChunkSummary,
   KnowledgebaseCollectionSummary,
+  KnowledgebaseDeleteCollectionRequest,
+  KnowledgebaseDeleteCollectionResult,
+  KnowledgebaseDeleteDocumentRequest,
+  KnowledgebaseDeleteDocumentResult,
   KnowledgebaseCreateCollectionRequest,
   KnowledgebaseConfig,
   KnowledgebaseEvent,
@@ -278,6 +282,137 @@ export class KnowledgebasePluginService {
       body: JSON.stringify(payload)
     })
     return this.normalizeCollectionSummary(response)
+  }
+
+  async deleteDocument(
+    input: KnowledgebaseDeleteDocumentRequest
+  ): Promise<KnowledgebaseDeleteDocumentResult> {
+    await this.ensureDaemonReady()
+    const documentId = String(input.documentId ?? "").trim()
+    if (!documentId) {
+      throw new Error("Document ID is required.")
+    }
+    const poll = input.poll !== false
+
+    try {
+      const safeDocumentId = encodeURIComponent(documentId)
+      const response = await this.requestJson<{
+        job_id?: string
+        jobId?: string
+      }>(`/api/v1/documents/${safeDocumentId}`, {
+        method: "DELETE"
+      })
+      const jobId = response.job_id ?? response.jobId
+      if (!jobId) {
+        throw new Error("Delete document response missing job ID.")
+      }
+
+      if (!poll) {
+        return {
+          documentId,
+          jobId,
+          status: "queued"
+        }
+      }
+
+      const finalJob = await this.waitForJob(jobId)
+      const status = normalizeJobStatus(finalJob.status)
+      return {
+        documentId,
+        jobId,
+        status,
+        error: status === "failed" ? this.jobErrorMessage(finalJob) : undefined
+      }
+    } catch (error) {
+      if (this.isHttpStatus(error, 404)) {
+        return {
+          documentId,
+          status: "done"
+        }
+      }
+      return {
+        documentId,
+        status: "failed",
+        error: this.toErrorMessage(error, "Failed to delete document.")
+      }
+    }
+  }
+
+  async deleteCollection(
+    input: KnowledgebaseDeleteCollectionRequest
+  ): Promise<KnowledgebaseDeleteCollectionResult> {
+    await this.ensureDaemonReady()
+    const collectionId = String(input.collectionId ?? "").trim()
+    if (!collectionId) {
+      throw new Error("Collection ID is required.")
+    }
+
+    const cascadeDocuments = input.cascadeDocuments !== false
+    const poll = input.poll !== false
+    const documentResults: KnowledgebaseDeleteDocumentResult[] = []
+
+    if (cascadeDocuments) {
+      while (true) {
+        let page: KnowledgebaseListDocumentsResult
+        try {
+          page = await this.listDocuments(collectionId, 200, 0)
+        } catch (error) {
+          return {
+            collectionId,
+            collectionDeleted: false,
+            documentResults,
+            error: this.toErrorMessage(error, "Failed to list collection documents.")
+          }
+        }
+
+        if (page.documents.length === 0) {
+          break
+        }
+
+        for (const document of page.documents) {
+          const result = await this.deleteDocument({
+            documentId: document.id,
+            poll
+          })
+          documentResults.push(result)
+          if (result.status === "failed") {
+            return {
+              collectionId,
+              collectionDeleted: false,
+              documentResults,
+              error: result.error ?? `Failed to delete document ${document.id}.`
+            }
+          }
+          if (result.status !== "done") {
+            return {
+              collectionId,
+              collectionDeleted: false,
+              documentResults,
+              error: "Collection delete requires poll=true so document deletion can be verified."
+            }
+          }
+        }
+      }
+    }
+
+    try {
+      const safeCollectionId = encodeURIComponent(collectionId)
+      await this.requestJson(`/api/v1/collections/${safeCollectionId}`, {
+        method: "DELETE"
+      })
+      return {
+        collectionId,
+        collectionDeleted: true,
+        documentResults
+      }
+    } catch (error) {
+      return {
+        collectionId,
+        collectionDeleted: false,
+        documentResults,
+        error: this.toErrorMessage(error, "Failed to delete collection.")
+      }
+    }
   }
 
   async listDocuments(
@@ -677,6 +812,20 @@ export class KnowledgebasePluginService {
 
   private jobErrorMessage(job: { error?: string | null; message?: string | null }): string {
     return job.error || job.message || "Job failed."
+  }
+
+  private isHttpStatus(error: unknown, statusCode: number): boolean {
+    return error instanceof Error && error.message.includes(`request failed (${statusCode})`)
+  }
+
+  private toErrorMessage(error: unknown, fallback: string): string {
+    if (error instanceof Error && error.message.trim()) {
+      return error.message
+    }
+    if (typeof error === "string" && error.trim()) {
+      return error
+    }
+    return fallback
   }
 
   private normalizeCollectionSummary(raw: unknown): KnowledgebaseCollectionSummary {

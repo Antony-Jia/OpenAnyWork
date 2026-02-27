@@ -1,5 +1,7 @@
 import { BrowserWindow, dialog, type IpcMain } from "electron"
 import type {
+  KnowledgebaseDeleteCollectionRequest,
+  KnowledgebaseDeleteDocumentRequest,
   KnowledgebaseCreateCollectionRequest,
   KnowledgebaseConfigUpdate,
   KnowledgebaseUploadRequest,
@@ -177,6 +179,34 @@ export function registerPluginsIpc(ipcMain: IpcMain): () => void {
         "plugins:knowledgebase:createCollection",
         { name: input?.name },
         async () => pluginHost.createKnowledgebaseCollection(input)
+      )
+    }
+  )
+
+  ipcMain.handle(
+    "plugins:knowledgebase:deleteDocument",
+    async (_event, input: KnowledgebaseDeleteDocumentRequest) => {
+      return withSpan(
+        "IPC",
+        "plugins:knowledgebase:deleteDocument",
+        { documentId: input?.documentId, poll: input?.poll },
+        async () => pluginHost.deleteKnowledgebaseDocument(input)
+      )
+    }
+  )
+
+  ipcMain.handle(
+    "plugins:knowledgebase:deleteCollection",
+    async (_event, input: KnowledgebaseDeleteCollectionRequest) => {
+      return withSpan(
+        "IPC",
+        "plugins:knowledgebase:deleteCollection",
+        {
+          collectionId: input?.collectionId,
+          poll: input?.poll,
+          cascadeDocuments: input?.cascadeDocuments
+        },
+        async () => pluginHost.deleteKnowledgebaseCollection(input)
       )
     }
   )

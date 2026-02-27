@@ -21,6 +21,7 @@ interface UseKnowledgebasePluginResult {
   chunksByDocument: Record<string, KnowledgebaseListChunksResult | undefined>
   uploadFilePaths: string[]
   uploadResults: KnowledgebaseUploadItemResult[]
+  staleCollectionsPruned: boolean
   loading: boolean
   busy: Record<string, boolean>
   error: string | null
@@ -43,6 +44,8 @@ interface UseKnowledgebasePluginResult {
   clearUploadResults: () => void
   uploadDocuments: (input: { collectionId: string; options?: KnowledgebaseUploadOptions }) => Promise<void>
   createDefaultCollection: () => Promise<KnowledgebaseCollectionSummary | null>
+  deleteDocument: (documentId: string) => Promise<void>
+  deleteCollection: (collectionId: string) => Promise<void>
 }
 
 const DEFAULT_COLLECTION_NAME = "默认集合"
@@ -66,6 +69,7 @@ export function useKnowledgebasePlugin(): UseKnowledgebasePluginResult {
   >({})
   const [uploadFilePaths, setUploadFilePaths] = useState<string[]>([])
   const [uploadResults, setUploadResults] = useState<KnowledgebaseUploadItemResult[]>([])
+  const [staleCollectionsPruned, setStaleCollectionsPruned] = useState(false)
   const [loading, setLoading] = useState(false)
   const [busy, setBusy] = useState<Record<string, boolean>>({})
   const [error, setError] = useState<string | null>(null)
@@ -268,13 +272,34 @@ export function useKnowledgebasePlugin(): UseKnowledgebasePluginResult {
     setBusyFlag("loadCollections", true)
     setError(null)
     try {
-      setCollections(await window.api.plugins.knowledgebaseListCollections())
+      const nextCollections = await window.api.plugins.knowledgebaseListCollections()
+      setCollections(nextCollections)
+
+      const activeCollectionIds = runtime?.config.activeCollectionIds ?? []
+      if (activeCollectionIds.length > 0) {
+        const validIds = new Set(nextCollections.map((item) => item.id))
+        const nextActiveCollectionIds = Array.from(
+          new Set(activeCollectionIds.filter((collectionId) => validIds.has(collectionId)))
+        )
+        if (nextActiveCollectionIds.length !== activeCollectionIds.length) {
+          setRuntime(
+            await window.api.plugins.knowledgebaseUpdateConfig({
+              activeCollectionIds: nextActiveCollectionIds
+            })
+          )
+          setStaleCollectionsPruned(true)
+        } else {
+          setStaleCollectionsPruned(false)
+        }
+      } else {
+        setStaleCollectionsPruned(false)
+      }
     } catch (err) {
       setError(toErrorMessage(err, "Failed to load collections."))
     } finally {
       setBusyFlag("loadCollections", false)
     }
-  }, [setBusyFlag])
+  }, [runtime?.config.activeCollectionIds, setBusyFlag])
 
   const loadDocuments = useCallback(
     async (collectionId: string) => {
@@ -349,6 +374,92 @@ export function useKnowledgebasePlugin(): UseKnowledgebasePluginResult {
     [loadCollections, loadDocuments, setBusyFlag, uploadFilePaths]
   )
 
+  const deleteDocument = useCallback(
+    async (documentId: string) => {
+      const normalizedDocumentId = documentId.trim()
+      if (!normalizedDocumentId) {
+        setError("Document ID is required.")
+        return
+      }
+
+      setBusyFlag(`deleteDocument:${normalizedDocumentId}`, true)
+      setError(null)
+      try {
+        const result = await window.api.plugins.knowledgebaseDeleteDocument({
+          documentId: normalizedDocumentId,
+          poll: true
+        })
+        if (result.status === "failed") {
+          throw new Error(result.error || "Failed to delete document.")
+        }
+
+        const parentCollectionId = Object.values(documentsByCollection)
+          .flatMap((item) => item?.documents ?? [])
+          .find((item) => item.id === normalizedDocumentId)?.collection_id
+
+        setChunksByDocument((prev) => {
+          const next = { ...prev }
+          delete next[normalizedDocumentId]
+          return next
+        })
+
+        if (parentCollectionId) {
+          await loadDocuments(parentCollectionId)
+        }
+      } catch (err) {
+        setError(toErrorMessage(err, "Failed to delete document."))
+      } finally {
+        setBusyFlag(`deleteDocument:${normalizedDocumentId}`, false)
+      }
+    },
+    [documentsByCollection, loadDocuments, setBusyFlag]
+  )
+
+  const deleteCollection = useCallback(
+    async (collectionId: string) => {
+      const normalizedCollectionId = collectionId.trim()
+      if (!normalizedCollectionId) {
+        setError("Collection ID is required.")
+        return
+      }
+
+      setBusyFlag(`deleteCollection:${normalizedCollectionId}`, true)
+      setError(null)
+      try {
+        const result = await window.api.plugins.knowledgebaseDeleteCollection({
+          collectionId: normalizedCollectionId,
+          poll: true,
+          cascadeDocuments: true
+        })
+        if (!result.collectionDeleted) {
+          throw new Error(result.error || "Failed to delete collection.")
+        }
+
+        setDocumentsByCollection((prev) => {
+          const next = { ...prev }
+          delete next[normalizedCollectionId]
+          return next
+        })
+        const deletedDocumentIds = new Set(result.documentResults.map((item) => item.documentId))
+        setChunksByDocument((prev) => {
+          const next: Record<string, KnowledgebaseListChunksResult | undefined> = {}
+          for (const [documentId, chunkResult] of Object.entries(prev)) {
+            if (!deletedDocumentIds.has(documentId)) {
+              next[documentId] = chunkResult
+            }
+          }
+          return next
+        })
+        await loadCollections()
+      } catch (err) {
+        setError(toErrorMessage(err, "Failed to delete collection."))
+      } finally {
+        setBusyFlag(`deleteCollection:${normalizedCollectionId}`, false)
+      }
+    },
+    [loadCollections, setBusyFlag]
+  )
+
   return {
     plugin,
     runtime,
@@ -358,6 +469,7 @@ export function useKnowledgebasePlugin(): UseKnowledgebasePluginResult {
     chunksByDocument,
     uploadFilePaths,
     uploadResults,
+    staleCollectionsPruned,
     loading,
     busy,
     error,
@@ -379,6 +491,8 @@ export function useKnowledgebasePlugin(): UseKnowledgebasePluginResult {
     clearUploadFiles,
     clearUploadResults,
     uploadDocuments,
-    createDefaultCollection
+    createDefaultCollection,
+    deleteDocument,
+    deleteCollection
   }
 }

@@ -6,6 +6,10 @@ import type {
   ActionbookEvent,
   ActionbookRuntimeState,
   KnowledgebaseCollectionSummary,
+  KnowledgebaseDeleteCollectionRequest,
+  KnowledgebaseDeleteCollectionResult,
+  KnowledgebaseDeleteDocumentRequest,
+  KnowledgebaseDeleteDocumentResult,
   KnowledgebaseCreateCollectionRequest,
   KnowledgebaseConfig,
   KnowledgebaseConfigUpdate,
@@ -259,6 +263,20 @@ export class PluginHost {
   ): Promise<KnowledgebaseCollectionSummary> {
     await this.hydrateFromSettings()
     return this.knowledgebase.createCollection(input)
+  }
+
+  async deleteKnowledgebaseDocument(
+    input: KnowledgebaseDeleteDocumentRequest
+  ): Promise<KnowledgebaseDeleteDocumentResult> {
+    await this.hydrateFromSettings()
+    return this.knowledgebase.deleteDocument(input)
+  }
+
+  async deleteKnowledgebaseCollection(
+    input: KnowledgebaseDeleteCollectionRequest
+  ): Promise<KnowledgebaseDeleteCollectionResult> {
+    await this.hydrateFromSettings()
+    return this.knowledgebase.deleteCollection(input)
   }
 
   async listKnowledgebaseDocuments(

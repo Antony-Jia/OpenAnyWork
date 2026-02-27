@@ -81,6 +81,7 @@ export function KnowledgebasePluginCard({
     chunksByDocument,
     uploadFilePaths,
     uploadResults,
+    staleCollectionsPruned,
     loading,
     busy,
     error,
@@ -101,7 +102,9 @@ export function KnowledgebasePluginCard({
     clearUploadFiles,
     clearUploadResults,
     uploadDocuments,
-    createDefaultCollection
+    createDefaultCollection,
+    deleteDocument,
+    deleteCollection
   } = useKnowledgebasePlugin()
 
   useEffect(() => {
@@ -119,6 +122,18 @@ export function KnowledgebasePluginCard({
       setUploadCollectionId(collections[0].id)
     }
   }, [collections, uploadCollectionId])
+
+  useEffect(() => {
+    if (!selectedCollectionId) return
+    if (!collections.some((item) => item.id === selectedCollectionId)) {
+      const fallbackCollectionId = collections[0]?.id ?? null
+      setSelectedCollectionId(fallbackCollectionId)
+      setSelectedDocumentId(null)
+      if (fallbackCollectionId) {
+        void loadDocuments(fallbackCollectionId)
+      }
+    }
+  }, [collections, loadDocuments, selectedCollectionId])
 
   const form = useMemo(() => {
     if (!runtime) return null
@@ -152,6 +167,13 @@ export function KnowledgebasePluginCard({
   const activeCollectionSet = new Set(runtime?.config.activeCollectionIds ?? [])
   const yesOrNo = (value?: boolean): string =>
     value ? t("plugin.knowledgebase.yes") : t("plugin.knowledgebase.no")
+
+  useEffect(() => {
+    if (!selectedDocumentId) return
+    if (!selectedDocuments.some((item) => item.id === selectedDocumentId)) {
+      setSelectedDocumentId(null)
+    }
+  }, [selectedDocumentId, selectedDocuments])
 
   if (loading && !runtime) {
     return (
@@ -651,6 +673,7 @@ export function KnowledgebasePluginCard({
                             <th className="pb-2 pr-3">{t("plugin.knowledgebase.name_label")}</th>
                             <th className="pb-2 pr-3">{t("plugin.knowledgebase.id_label")}</th>
                             <th className="pb-2">{t("plugin.knowledgebase.created_label")}</th>
+                            <th className="pb-2 text-right">{t("plugin.knowledgebase.delete_collection")}</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -687,6 +710,25 @@ export function KnowledgebasePluginCard({
                               <td className="py-2 pr-3 align-top">{collection.name}</td>
                               <td className="py-2 pr-3 align-top font-mono break-all">{collection.id}</td>
                               <td className="py-2 align-top">{formatTime(collection.created_at)}</td>
+                              <td className="py-2 text-right align-top">
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  className="text-status-critical"
+                                  onClick={(event) => {
+                                    event.stopPropagation()
+                                    if (!window.confirm(t("plugin.knowledgebase.delete_collection_confirm"))) {
+                                      return
+                                    }
+                                    void deleteCollection(collection.id)
+                                  }}
+                                  disabled={!!busy[`deleteCollection:${collection.id}`]}
+                                >
+                                  {busy[`deleteCollection:${collection.id}`]
+                                    ? t("plugin.knowledgebase.delete_collection_running")
+                                    : t("plugin.knowledgebase.delete_collection")}
+                                </Button>
+                              </td>
                             </tr>
                           ))}
                         </tbody>
@@ -714,6 +756,7 @@ export function KnowledgebasePluginCard({
                               <th className="pb-2 pr-3">{t("plugin.knowledgebase.id_label")}</th>
                               <th className="pb-2 pr-3">{t("plugin.knowledgebase.mime_label")}</th>
                               <th className="pb-2">{t("plugin.knowledgebase.created_label")}</th>
+                              <th className="pb-2 text-right">{t("plugin.knowledgebase.delete_document")}</th>
                             </tr>
                           </thead>
                           <tbody>
@@ -734,6 +777,25 @@ export function KnowledgebasePluginCard({
                                 <td className="py-2 pr-3 align-top font-mono break-all">{document.id}</td>
                                 <td className="py-2 pr-3 align-top">{document.mime || "-"}</td>
                                 <td className="py-2 align-top">{formatTime(document.created_at)}</td>
+                                <td className="py-2 text-right align-top">
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    className="text-status-critical"
+                                    onClick={(event) => {
+                                      event.stopPropagation()
+                                      if (!window.confirm(t("plugin.knowledgebase.delete_document_confirm"))) {
+                                        return
+                                      }
+                                      void deleteDocument(document.id)
+                                    }}
+                                    disabled={!!busy[`deleteDocument:${document.id}`]}
+                                  >
+                                    {busy[`deleteDocument:${document.id}`]
+                                      ? t("plugin.knowledgebase.delete_document_running")
+                                      : t("plugin.knowledgebase.delete_document")}
+                                  </Button>
+                                </td>
                               </tr>
                             ))}
                           </tbody>
@@ -751,6 +813,9 @@ export function KnowledgebasePluginCard({
                 {contentTab === "chunks" && (
                   <div className="rounded-md border border-border p-3 space-y-2">
                     <div className="text-sm font-medium">{t("plugin.knowledgebase.chunks")}</div>
+                    <div className="text-xs text-muted-foreground">
+                      {t("plugin.knowledgebase.chunk_delete_not_supported")}
+                    </div>
                     {!selectedDocumentId ? (
                       <div className="text-sm text-muted-foreground">
                         {t("plugin.knowledgebase.select_document_first")}
@@ -959,6 +1024,11 @@ export function KnowledgebasePluginCard({
                 {runtime.config.activeCollectionIds.length === 0 && (
                   <div className="rounded border border-border p-2 text-xs text-muted-foreground">
                     {t("plugin.knowledgebase.active_collections_hint")}
+                  </div>
+                )}
+                {staleCollectionsPruned && (
+                  <div className="rounded border border-border p-2 text-xs text-muted-foreground">
+                    {t("plugin.knowledgebase.stale_collections_pruned")}
                   </div>
                 )}
               </div>

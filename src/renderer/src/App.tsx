@@ -200,6 +200,16 @@ function MainApp(): React.JSX.Element {
     }
   }, [setAppMode])
 
+  useEffect(() => {
+    const cleanup = window.electron.ipcRenderer.on("window:maximized", (...args: unknown[]) => {
+      const isMaximized = args[0] as boolean
+      document.documentElement.classList.toggle("window-maximized", isMaximized)
+    })
+    return () => {
+      if (typeof cleanup === "function") cleanup()
+    }
+  }, [])
+
   // Listen for toast messages from main process
   useEffect(() => {
     const cleanup = window.electron.ipcRenderer.on("app:toast", (...args: unknown[]) => {

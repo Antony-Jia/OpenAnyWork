@@ -89,7 +89,8 @@ function createWindow(): void {
     minHeight: 960,
     show: false,
     frame: false, // Frameless mode
-    backgroundColor: "#0D0D0F",
+    transparent: true, // Enable transparency for rounded corners
+    backgroundColor: "#00000000",
     // titleBarStyle: "hiddenInset", // Removed for custom controls
     trafficLightPosition: { x: 16, y: 16 },
     webPreferences: {
@@ -104,6 +105,14 @@ function createWindow(): void {
     // if (mainWindow) {
     //   mainWindow.webContents.openDevTools()
     // }
+  })
+
+  mainWindow.on("maximize", () => {
+    mainWindow?.webContents.send("window:maximized", true)
+  })
+
+  mainWindow.on("unmaximize", () => {
+    mainWindow?.webContents.send("window:maximized", false)
   })
 
   mainWindow.webContents.setWindowOpenHandler((details) => {

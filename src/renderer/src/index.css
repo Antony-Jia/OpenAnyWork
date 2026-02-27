@@ -212,6 +212,26 @@
   }
 }
 
+/* Window rounded corners - applies to the main app window */
+html,
+body {
+  border-radius: 10px;
+  overflow: hidden;
+  background: transparent;
+}
+
+html.window-maximized,
+html.window-maximized body {
+  border-radius: 0;
+}
+
+html.quick-input-mode,
+html.task-popup-mode,
+html.quick-input-mode body,
+html.task-popup-mode body {
+  border-radius: 0;
+}
+
 html.quick-input-mode,
 body.quick-input-mode {
   overflow: hidden !important;
@@ -456,6 +476,11 @@ html.task-popup-mode #root {
 .app-shell {
   background-color: var(--background);
   background-image: var(--shell-gradient);
+  border-radius: 10px;
+}
+
+html.window-maximized .app-shell {
+  border-radius: 0;
 }
 
 .app-titlebar {

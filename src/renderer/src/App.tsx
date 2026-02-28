@@ -11,6 +11,7 @@ import { TitleBar } from "@/components/titlebar/TitleBar"
 import { QuickInput } from "@/components/quick-input/QuickInput"
 import { ButlerWorkspace } from "@/components/butler/ButlerWorkspace"
 import { DesktopTaskPopup } from "@/components/notifications/DesktopTaskPopup"
+import { cn } from "@/lib/utils"
 
 // Badge customization - unused in new titlebar but kept if logic needs reference
 const BADGE_MIN_SCREEN_WIDTH = 270
@@ -19,15 +20,32 @@ const LEFT_DEFAULT = 260
 const RIGHT_MIN = 250
 const RIGHT_MAX = 450
 const RIGHT_DEFAULT = 340
+const CENTER_SPLIT_MIN = 0.25
+const CENTER_SPLIT_MAX = 0.75
+const CENTER_SPLIT_DEFAULT = 0.5
+
+type CenterPane = "left" | "right"
 
 function MainApp(): React.JSX.Element {
-  const { currentThreadId, loadThreads, createThread, appMode, setAppMode } = useAppStore()
+  const { currentThreadId, threads, loadThreads, createThread, selectThread, appMode, setAppMode } =
+    useAppStore()
   const [isLoading, setIsLoading] = useState(true)
   const [leftWidth, setLeftWidth] = useState(LEFT_DEFAULT)
   const [rightWidth, setRightWidth] = useState(RIGHT_DEFAULT)
+  const [isDualCenter, setIsDualCenter] = useState(false)
+  const [activeCenterPane, setActiveCenterPane] = useState<CenterPane>("left")
+  const [leftPaneThreadId, setLeftPaneThreadId] = useState<string | null>(null)
+  const [rightPaneThreadId, setRightPaneThreadId] = useState<string | null>(null)
+  const [centerSplitRatio, setCenterSplitRatio] = useState(CENTER_SPLIT_DEFAULT)
   const [zoomLevel, setZoomLevel] = useState(1)
   const [toasts, setToasts] = useState<ToastMessage[]>([])
   const [taskCards, setTaskCards] = useState<TaskNoticeCard[]>([])
+  const centerContainerRef = useRef<HTMLDivElement>(null)
+  const centerDragStartRatioRef = useRef<number | null>(null)
+  const classicThreads = useMemo(
+    () => threads.filter((thread) => thread.metadata?.butlerMain !== true),
+    [threads]
+  )
 
   const addToast = useCallback((type: ToastMessage["type"], message: string) => {
     const id = `${Date.now()}-${Math.random().toString(36).slice(2)}`
@@ -142,14 +160,123 @@ function MainApp(): React.JSX.Element {
     [leftWidth, rightWidth]
   )
 
+  const activateCenterPane = useCallback(
+    (pane: CenterPane) => {
+      setActiveCenterPane(pane)
+      const paneThreadId = pane === "left" ? leftPaneThreadId : rightPaneThreadId
+      if (!paneThreadId && currentThreadId) {
+        if (pane === "left") {
+          setLeftPaneThreadId(currentThreadId)
+        } else {
+          setRightPaneThreadId(currentThreadId)
+        }
+        return
+      }
+      if (paneThreadId && paneThreadId !== currentThreadId) {
+        void selectThread(paneThreadId)
+      }
+    },
+    [leftPaneThreadId, rightPaneThreadId, currentThreadId, selectThread]
+  )
+
+  const handleCenterResize = useCallback(
+    (totalDelta: number) => {
+      if (!centerContainerRef.current) return
+      if (centerDragStartRatioRef.current === null) {
+        centerDragStartRatioRef.current = centerSplitRatio
+      }
+      const totalWidth = centerContainerRef.current.clientWidth
+      if (totalWidth <= 0) return
+      const ratioDelta = totalDelta / totalWidth
+      const nextRatio = Math.min(
+        CENTER_SPLIT_MAX,
+        Math.max(CENTER_SPLIT_MIN, centerDragStartRatioRef.current + ratioDelta)
+      )
+      setCenterSplitRatio(nextRatio)
+    },
+    [centerSplitRatio]
+  )
+
+  const handleToggleDualCenter = useCallback(() => {
+    if (!isDualCenter) {
+      const primary = currentThreadId ?? classicThreads[0]?.thread_id ?? null
+      const secondary =
+        classicThreads.find((thread) => thread.thread_id !== primary)?.thread_id ?? primary
+      setLeftPaneThreadId(primary)
+      setRightPaneThreadId(secondary)
+      setActiveCenterPane("left")
+      setCenterSplitRatio(CENTER_SPLIT_DEFAULT)
+      setIsDualCenter(true)
+      if (primary && primary !== currentThreadId) {
+        void selectThread(primary)
+      }
+      return
+    }
+
+    const activeThreadId = activeCenterPane === "left" ? leftPaneThreadId : rightPaneThreadId
+    setIsDualCenter(false)
+    if (activeThreadId && activeThreadId !== currentThreadId) {
+      void selectThread(activeThreadId)
+    }
+  }, [
+    isDualCenter,
+    currentThreadId,
+    classicThreads,
+    activeCenterPane,
+    leftPaneThreadId,
+    rightPaneThreadId,
+    selectThread
+  ])
+
   // Reset drag start on mouse up
   useEffect(() => {
     const handleMouseUp = (): void => {
       dragStartWidths.current = null
+      centerDragStartRatioRef.current = null
     }
     document.addEventListener("mouseup", handleMouseUp)
     return () => document.removeEventListener("mouseup", handleMouseUp)
   }, [])
+
+  useEffect(() => {
+    if (!currentThreadId) return
+    if (!isDualCenter) {
+      setLeftPaneThreadId(currentThreadId)
+      return
+    }
+    if (activeCenterPane === "left") {
+      setLeftPaneThreadId(currentThreadId)
+    } else {
+      setRightPaneThreadId(currentThreadId)
+    }
+  }, [currentThreadId, isDualCenter, activeCenterPane])
+
+  useEffect(() => {
+    const availableIds = classicThreads.map((thread) => thread.thread_id)
+    const availableSet = new Set(availableIds)
+    const fallbackId = availableIds[0] ?? null
+    const resolvedLeftId =
+      leftPaneThreadId && availableSet.has(leftPaneThreadId) ? leftPaneThreadId : fallbackId
+
+    if (leftPaneThreadId && !availableSet.has(leftPaneThreadId)) {
+      setLeftPaneThreadId(fallbackId)
+    }
+
+    if (rightPaneThreadId && !availableSet.has(rightPaneThreadId)) {
+      const secondaryId = availableIds.find((id) => id !== resolvedLeftId) ?? fallbackId
+      setRightPaneThreadId(secondaryId)
+    }
+
+    if (isDualCenter) {
+      if (!leftPaneThreadId && fallbackId) {
+        setLeftPaneThreadId(fallbackId)
+      }
+      if (!rightPaneThreadId && fallbackId) {
+        const secondaryId = availableIds.find((id) => id !== resolvedLeftId) ?? fallbackId
+        setRightPaneThreadId(secondaryId)
+      }
+    }
+  }, [classicThreads, isDualCenter, leftPaneThreadId, rightPaneThreadId])
 
   useEffect(() => {
     async function init(): Promise<void> {
@@ -290,14 +417,87 @@ function MainApp(): React.JSX.Element {
               <main className="flex flex-1 flex-col min-w-0 min-h-0 overflow-hidden bg-background/50 relative">
                 {/* Center Header with Tabs */}
                 {currentThreadId && (
-                  <div className="h-12 border-b border-border/50 flex items-center px-2.5 shrink-0 bg-background/40 backdrop-blur-md">
-                    <TabBar className="h-full border-b-0 w-full" />
+                  <div className="h-12 border-b border-border/50 flex items-center px-2.5 shrink-0 bg-background/40 backdrop-blur-md gap-2">
+                    <TabBar
+                      className="h-full border-b-0 flex-1 min-w-0"
+                      threadId={currentThreadId}
+                    />
+                    <button
+                      type="button"
+                      onClick={handleToggleDualCenter}
+                      className={cn(
+                        "h-8 shrink-0 rounded-md border px-2.5 text-[11px] font-medium transition-all",
+                        isDualCenter
+                          ? "border-accent/40 bg-accent/10 text-accent"
+                          : "border-border/60 text-muted-foreground hover:text-foreground hover:border-border"
+                      )}
+                      title={isDualCenter ? "切换为单窗" : "切换为双窗"}
+                    >
+                      {isDualCenter ? "单窗" : "双窗"}
+                    </button>
                   </div>
                 )}
 
                 <div className="flex-1 flex flex-col min-h-0">
                   {currentThreadId ? (
-                    <TabbedPanel threadId={currentThreadId} showTabBar={false} />
+                    isDualCenter ? (
+                      <div
+                        ref={centerContainerRef}
+                        className="flex flex-1 min-w-0 min-h-0 overflow-hidden p-2"
+                      >
+                        <section
+                          onMouseDownCapture={() => activateCenterPane("left")}
+                          style={{ width: `calc(${(centerSplitRatio * 100).toFixed(4)}% - 3px)` }}
+                          className={cn(
+                            "min-w-[220px] flex min-h-0 shrink-0 overflow-hidden rounded-lg border bg-background/70 transition-all",
+                            activeCenterPane === "left"
+                              ? "ring-2 ring-accent/60 glow-border border-accent/40"
+                              : "ring-1 ring-border/40 border-border/50"
+                          )}
+                        >
+                          {leftPaneThreadId ? (
+                            <TabbedPanel
+                              threadId={leftPaneThreadId}
+                              showTabBar={false}
+                              autoFocus={activeCenterPane === "left"}
+                            />
+                          ) : (
+                            <div className="flex flex-1 items-center justify-center text-xs text-muted-foreground">
+                              No thread available
+                            </div>
+                          )}
+                        </section>
+
+                        <ResizeHandle onDrag={handleCenterResize} />
+
+                        <section
+                          onMouseDownCapture={() => activateCenterPane("right")}
+                          style={{
+                            width: `calc(${((1 - centerSplitRatio) * 100).toFixed(4)}% - 3px)`
+                          }}
+                          className={cn(
+                            "min-w-[220px] flex min-h-0 shrink-0 overflow-hidden rounded-lg border bg-background/70 transition-all",
+                            activeCenterPane === "right"
+                              ? "ring-2 ring-accent/60 glow-border border-accent/40"
+                              : "ring-1 ring-border/40 border-border/50"
+                          )}
+                        >
+                          {rightPaneThreadId ? (
+                            <TabbedPanel
+                              threadId={rightPaneThreadId}
+                              showTabBar={false}
+                              autoFocus={activeCenterPane === "right"}
+                            />
+                          ) : (
+                            <div className="flex flex-1 items-center justify-center text-xs text-muted-foreground">
+                              No thread available
+                            </div>
+                          )}
+                        </section>
+                      </div>
+                    ) : (
+                      <TabbedPanel threadId={currentThreadId} showTabBar={false} />
+                    )
                   ) : (
                     <div className="flex flex-1 flex-col items-center justify-center text-muted-foreground h-full text-sm gap-3">
                       <div className="text-accent/40 text-3xl">&#9670;</div>

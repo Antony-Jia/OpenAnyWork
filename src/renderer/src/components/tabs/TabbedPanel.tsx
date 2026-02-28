@@ -6,9 +6,14 @@ import { ChatContainer } from "@/components/chat/ChatContainer"
 interface TabbedPanelProps {
   threadId: string
   showTabBar?: boolean
+  autoFocus?: boolean
 }
 
-export function TabbedPanel({ threadId, showTabBar = true }: TabbedPanelProps): React.JSX.Element {
+export function TabbedPanel({
+  threadId,
+  showTabBar = true,
+  autoFocus = true
+}: TabbedPanelProps): React.JSX.Element {
   const { activeTab, openFiles } = useCurrentThread(threadId)
 
   // Determine what to render based on active tab
@@ -26,7 +31,7 @@ export function TabbedPanel({ threadId, showTabBar = true }: TabbedPanelProps): 
       {/* Content Area */}
       <div className="flex-1 flex flex-col min-h-0">
         {isAgentTab ? (
-          <ChatContainer threadId={threadId} />
+          <ChatContainer threadId={threadId} autoFocus={autoFocus} />
         ) : activeFile ? (
           // Use key to force remount when file changes, ensuring fresh state
           <FileViewer key={activeFile.path} filePath={activeFile.path} threadId={threadId} />

@@ -122,9 +122,13 @@ function dedupeMessagesById(messages: Message[]): Message[] {
 
 interface ChatContainerProps {
   threadId: string
+  autoFocus?: boolean
 }
 
-export function ChatContainer({ threadId }: ChatContainerProps): React.JSX.Element {
+export function ChatContainer({
+  threadId,
+  autoFocus = true
+}: ChatContainerProps): React.JSX.Element {
   const { t } = useLanguage()
   const [input, setInput] = useState("")
   const [attachments, setAttachments] = useState<Attachment[]>([])
@@ -620,8 +624,9 @@ export function ChatContainer({ threadId }: ChatContainerProps): React.JSX.Eleme
 
   // Focus input on mount
   useEffect(() => {
+    if (!autoFocus) return
     inputRef.current?.focus()
-  }, [threadId])
+  }, [threadId, autoFocus])
 
   useEffect(() => {
     setAttachments([])

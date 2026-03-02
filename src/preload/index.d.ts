@@ -348,6 +348,7 @@ interface CustomAPI {
     get: (threadId?: string) => Promise<string | null>
     set: (threadId: string | undefined, path: string | null) => Promise<string | null>
     select: (threadId?: string) => Promise<string | null>
+    openPath: (threadId?: string) => Promise<{ success: boolean; error?: string }>
     loadFromDisk: (threadId: string) => Promise<{
       success: boolean
       files: Array<{

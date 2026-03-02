@@ -700,6 +700,14 @@ const api = {
     select: (threadId?: string): Promise<string | null> => {
       return ipcRenderer.invoke("workspace:select", threadId)
     },
+    openPath: (
+      threadId?: string
+    ): Promise<{
+      success: boolean
+      error?: string
+    }> => {
+      return ipcRenderer.invoke("workspace:openPath", { threadId })
+    },
     loadFromDisk: (
       threadId: string
     ): Promise<{

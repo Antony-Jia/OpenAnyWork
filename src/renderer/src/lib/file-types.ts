@@ -1,4 +1,4 @@
-export type FileType = "image" | "video" | "audio" | "pdf" | "code" | "text" | "binary"
+export type FileType = "image" | "video" | "audio" | "pdf" | "html" | "code" | "text" | "binary"
 
 interface FileTypeInfo {
   type: FileType
@@ -24,6 +24,7 @@ const VIDEO_EXTENSIONS = new Set(["mp4", "webm", "ogg", "ogv", "mov", "avi", "wm
 const AUDIO_EXTENSIONS = new Set(["mp3", "wav", "ogg", "oga", "m4a", "flac", "aac", "weba"])
 
 const PDF_EXTENSIONS = new Set(["pdf"])
+const HTML_EXTENSIONS = new Set(["html", "htm"])
 
 const CODE_EXTENSIONS = new Set([
   "ts",
@@ -52,8 +53,6 @@ const CODE_EXTENSIONS = new Set([
   "scss",
   "sass",
   "less",
-  "html",
-  "htm",
   "vue",
   "svelte",
   "md",
@@ -119,6 +118,14 @@ export function getFileType(fileName: string): FileTypeInfo {
     return {
       type: "pdf",
       mimeType: "application/pdf",
+      canPreview: true
+    }
+  }
+
+  if (HTML_EXTENSIONS.has(ext)) {
+    return {
+      type: "html",
+      mimeType: "text/html",
       canPreview: true
     }
   }

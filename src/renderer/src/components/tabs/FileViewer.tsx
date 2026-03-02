@@ -7,6 +7,7 @@ import { ImageViewer } from "./ImageViewer"
 import { MediaViewer } from "./MediaViewer"
 import { PDFViewer } from "./PDFViewer"
 import { BinaryFileViewer } from "./BinaryFileViewer"
+import { HtmlViewer } from "./HtmlViewer"
 
 interface FileViewerProps {
   filePath: string
@@ -141,6 +142,10 @@ export function FileViewer({ filePath, threadId }: FileViewerProps): React.JSX.E
 
   if (fileTypeInfo.type === "pdf" && binaryContent) {
     return <PDFViewer filePath={filePath} base64Content={binaryContent} />
+  }
+
+  if (fileTypeInfo.type === "html" && content !== undefined) {
+    return <HtmlViewer filePath={filePath} content={content} />
   }
 
   if (fileTypeInfo.type === "binary") {

@@ -72,6 +72,12 @@ When exploring codebases or reading multiple files, use pagination to prevent co
 - Small files (<500 lines)
 - Files you need to edit immediately after reading
 
+## Skill Path Discipline
+- If the conversation provides explicit skill paths (for example, SKILL.md paths), treat those paths as authoritative.
+- Do not replace those paths with same-named paths under the current workspace unless the user explicitly asks you to.
+- When a skill references relative paths, resolve them relative to that skill's directory first.
+- Only fall back to other locations when the referenced file does not exist, and state that assumption clearly.
+
 ## Working with Subagents (task tool)
 When delegating to subagents:
 - **Use filesystem for large I/O**: If input/output is large (>500 words), communicate via files

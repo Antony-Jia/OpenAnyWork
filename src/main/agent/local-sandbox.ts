@@ -13,6 +13,31 @@ import { spawn } from "node:child_process"
 import { randomUUID } from "node:crypto"
 import { FilesystemBackend, type ExecuteResponse, type SandboxBackendProtocol } from "deepagents"
 
+function countReplacementChars(value: string): number {
+  const matches = value.match(/\uFFFD/g)
+  return matches ? matches.length : 0
+}
+
+function decodeOutputChunk(data: Buffer, isWindows: boolean): string {
+  const utf8 = data.toString("utf8")
+  if (!isWindows) {
+    return utf8
+  }
+
+  const utf8ReplacementCount = countReplacementChars(utf8)
+  if (utf8ReplacementCount === 0) {
+    return utf8
+  }
+
+  try {
+    const gbk = new TextDecoder("gbk").decode(data)
+    const gbkReplacementCount = countReplacementChars(gbk)
+    return gbkReplacementCount < utf8ReplacementCount ? gbk : utf8
+  } catch {
+    return utf8
+  }
+}
+
 /**
  * Options for LocalSandbox configuration.
  */
@@ -186,7 +211,7 @@ export class LocalSandbox extends FilesystemBackend implements SandboxBackendPro
         console.log(`[LocalSandbox] stdout data received: ${data.length} bytes`)
         if (truncated) return
 
-        const chunk = data.toString()
+        const chunk = decodeOutputChunk(data, isWindows)
         const newTotal = totalBytes + chunk.length
 
         if (newTotal > this.maxOutputBytes) {
@@ -206,10 +231,10 @@ export class LocalSandbox extends FilesystemBackend implements SandboxBackendPro
       // Collect stderr with [stderr] prefix per line
       proc.stderr.on("data", (data: Buffer) => {
         console.log(`[LocalSandbox] stderr data received: ${data.length} bytes`)
-        console.log(`[LocalSandbox] stderr content: ${data.toString().substring(0, 200)}`)
+        const chunk = decodeOutputChunk(data, isWindows)
+        console.log(`[LocalSandbox] stderr content: ${chunk.substring(0, 200)}`)
         if (truncated) return
 
-        const chunk = data.toString()
         // Prefix each line with [stderr]
         const prefixedLines = chunk
           .split("\n")

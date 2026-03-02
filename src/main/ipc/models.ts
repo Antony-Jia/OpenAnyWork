@@ -1,4 +1,4 @@
-import { IpcMain, dialog, app } from "electron"
+import { IpcMain, dialog, app, shell } from "electron"
 import Store from "electron-store"
 import * as fs from "fs/promises"
 import * as path from "path"
@@ -10,6 +10,8 @@ import type {
   WorkspaceSetParams,
   WorkspaceLoadParams,
   WorkspaceFileParams,
+  WorkspaceOpenPathParams,
+  WorkspaceOpenPathResult,
   DockerMount
 } from "../types"
 import { startWatching, stopWatching } from "../services/workspace-watcher"
@@ -426,6 +428,40 @@ export function registerModelHandlers(ipcMain: IpcMain): void {
 
     return selectedPath
   })
+
+  ipcMain.handle(
+    "workspace:openPath",
+    async (_event, params?: WorkspaceOpenPathParams): Promise<WorkspaceOpenPathResult> => {
+      const threadId = params?.threadId
+      let targetPath: string | null = null
+
+      if (threadId) {
+        const { getThread } = await import("../db")
+        const thread = getThread(threadId)
+        const metadata = thread?.metadata ? JSON.parse(thread.metadata) : {}
+        targetPath = (metadata.workspacePath as string | undefined) ?? null
+      } else {
+        targetPath = store.get("workspacePath", null) as string | null
+      }
+
+      if (!targetPath) {
+        return { success: false, error: "No workspace folder linked" }
+      }
+
+      try {
+        const error = await shell.openPath(targetPath)
+        if (error) {
+          return { success: false, error }
+        }
+        return { success: true }
+      } catch (e) {
+        return {
+          success: false,
+          error: e instanceof Error ? e.message : "Unknown error"
+        }
+      }
+    }
+  )
 
   // Load files from disk into the workspace view
   ipcMain.handle("workspace:loadFromDisk", async (_event, { threadId }: WorkspaceLoadParams) => {

@@ -185,6 +185,15 @@ export interface WorkspaceFileParams {
   filePath: string
 }
 
+export interface WorkspaceOpenPathParams {
+  threadId?: string
+}
+
+export interface WorkspaceOpenPathResult {
+  success: boolean
+  error?: string
+}
+
 // Model IPC
 export interface SetApiKeyParams {
   provider: string

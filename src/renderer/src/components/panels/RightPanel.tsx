@@ -842,6 +842,7 @@ function FilesContent(): React.JSX.Element {
   const setWorkspacePath = threadState?.setWorkspacePath
   const setWorkspaceFiles = threadState?.setWorkspaceFiles
   const [syncing, setSyncing] = useState(false)
+  const [openingPath, setOpeningPath] = useState(false)
   const [syncSuccess] = useState(false)
   const { t } = useLanguage()
 
@@ -877,6 +878,21 @@ function FilesContent(): React.JSX.Element {
 
     // syncToDisk is not yet implemented
     console.warn("[FilesContent] syncToDisk is not yet implemented")
+  }
+
+  async function handleOpenWorkspacePath(): Promise<void> {
+    if (!currentThreadId || !workspacePath) return
+    setOpeningPath(true)
+    try {
+      const result = await window.api.workspace.openPath(currentThreadId)
+      if (!result.success) {
+        console.error("[FilesContent] Open workspace path error:", result.error)
+      }
+    } catch (e) {
+      console.error("[FilesContent] Open workspace path error:", e)
+    } finally {
+      setOpeningPath(false)
+    }
   }
 
   // Load workspace path and files for current thread
@@ -927,7 +943,22 @@ function FilesContent(): React.JSX.Element {
         >
           {workspacePath ? workspacePath.split("/").pop() : "No folder linked"}
         </span>
-        {
+        <div className="flex items-center gap-1">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={handleOpenWorkspacePath}
+            disabled={openingPath || !workspacePath || !currentThreadId}
+            className="h-6 px-2 text-[11px]"
+            title={workspacePath || t("panel.open_folder")}
+          >
+            {openingPath ? (
+              <Loader2 className="size-3 animate-spin" />
+            ) : (
+              <FolderOpen className="size-3" />
+            )}
+            <span className="ml-1">{t("panel.open_folder")}</span>
+          </Button>
           <Button
             variant="ghost"
             size="sm"
@@ -961,7 +992,7 @@ function FilesContent(): React.JSX.Element {
                   : t("panel.link_folder")}
             </span>
           </Button>
-        }
+        </div>
       </div>
 
       {/* File tree or empty state */}

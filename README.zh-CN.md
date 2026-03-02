@@ -29,8 +29,8 @@ OpenAnyWork 是一个面向 Deep Agent 的桌面工作台：不只是聊天，�
 ### 本地开发
 
 ```bash
-git clone https://github.com/langchain-ai/openwork.git
-cd openwork
+git clone https://github.com/Antony-Jia/OpenAnyWork
+cd OpenAnyWork
 npm install
 npm run dev
 ```

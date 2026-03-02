@@ -29,8 +29,8 @@ OpenAnyWork is a desktop workbench for Deep Agents: not just chat, but enabling 
 ### Local Development
 
 ```bash
-git clone https://github.com/langchain-ai/openwork.git
-cd openwork
+git clone https://github.com/Antony-Jia/OpenAnyWork
+cd OpenAnyWork
 npm install
 npm run dev
 ```

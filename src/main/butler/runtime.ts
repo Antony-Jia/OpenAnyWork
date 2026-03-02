@@ -5,6 +5,7 @@ import { createMiddleware } from "langchain"
 import { LocalSandbox } from "../agent/local-sandbox"
 import { getProviderState } from "../provider-config"
 import { getCheckpointer } from "../agent/runtime"
+import { getSettings } from "../settings"
 import { getOpenworkDir } from "../storage"
 import type { ProviderConfig, ProviderState, SimpleProviderId } from "../types"
 import {
@@ -146,6 +147,7 @@ async function createButlerRuntime(params: {
 
   const dispatchTools = createButlerDispatchTools({ onIntent: params.onIntent })
   const capabilityTools = getEnabledToolInstances("butler")
+  const systemPrompts = getSettings().systemPrompts
   const tools = [...dispatchTools]
   for (const toolInstance of capabilityTools) {
     if (!tools.includes(toolInstance)) {
@@ -157,7 +159,7 @@ async function createButlerRuntime(params: {
     model,
     checkpointer,
     backend,
-    systemPrompt: buildButlerSystemPrompt(),
+    systemPrompt: buildButlerSystemPrompt(systemPrompts.butlerPrefix),
     tools,
     middleware: [createButlerSafetyMiddleware()],
     subagents: [],

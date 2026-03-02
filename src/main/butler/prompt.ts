@@ -103,8 +103,8 @@ function formatPerceptionSnapshot(context: ButlerPerceptionPromptContext): strin
   ].join("\n")
 }
 
-export function buildButlerSystemPrompt(): string {
-  return `
+export function buildButlerSystemPrompt(userPrefixPrompt?: string): string {
+  const basePrompt = `
 你是 OpenAnyWork 的 Butler AI 编排器。
 你是唯一的语义路由器，禁止使用关键词匹配策略。
 
@@ -222,6 +222,9 @@ Mode 要求：
 - 禁止提及内部隐藏的思维链。
 - 禁止声称已执行任何被安全边界禁止的系统/文件操作。
 `.trim()
+
+  const prefix = userPrefixPrompt?.trim() || ""
+  return prefix ? `${prefix}\n\n${basePrompt}` : basePrompt
 }
 
 export function buildButlerPerceptionSystemPrompt(): string {

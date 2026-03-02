@@ -52,6 +52,10 @@ const defaultSettings: AppSettings = {
     serviceDigestIntervalMin: 1,
     mutedTaskIdentities: []
   },
+  systemPrompts: {
+    butlerPrefix: "",
+    agentPrefix: ""
+  },
   plugins: {
     actionbook: {
       enabled: false
@@ -142,6 +146,10 @@ function readSettings(): AppSettings {
         ...defaultSettings.vision,
         ...(parsed?.vision ?? {})
       },
+      systemPrompts: {
+        ...defaultSettings.systemPrompts,
+        ...(parsed?.systemPrompts ?? {})
+      },
       plugins: {
         ...defaultSettings.plugins,
         ...(parsed?.plugins ?? {}),
@@ -215,6 +223,10 @@ export function updateSettings(updates: Partial<AppSettings>): AppSettings {
     vision: {
       ...current.vision,
       ...(updates.vision ?? {})
+    },
+    systemPrompts: {
+      ...current.systemPrompts,
+      ...(updates.systemPrompts ?? {})
     },
     plugins: {
       ...current.plugins,

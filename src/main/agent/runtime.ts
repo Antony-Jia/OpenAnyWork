@@ -5,6 +5,7 @@ import { createDeepAgent } from "deepagents"
 import { toolRetryMiddleware, createMiddleware } from "langchain"
 import { getThreadCheckpointPath } from "../storage"
 import { getProviderState } from "../provider-config"
+import { getSettings } from "../settings"
 import { ChatOpenAI } from "@langchain/openai"
 import { ToolMessage } from "@langchain/core/messages"
 import { SqlJsSaver } from "../checkpointer/sqljs-saver"
@@ -430,6 +431,7 @@ export async function createAgentRuntime(options: CreateAgentRuntimeOptions) {
   const effectiveWorkspace = dockerConfig?.enabled
     ? normalizeDockerWorkspace(dockerConfig)
     : workspacePath
+  const systemPrompts = getSettings().systemPrompts
   const isWindows = process.platform === "win32"
   const now = new Date()
   const currentTimePrompt = `Current time: ${now.toISOString()}\nCurrent year: ${now.getFullYear()}`
@@ -440,6 +442,7 @@ export async function createAgentRuntime(options: CreateAgentRuntimeOptions) {
     isWindows,
     dockerEnabled: !!dockerConfig?.enabled,
     now,
+    userPrefixPrompt: systemPrompts.agentPrefix,
     extraSystemPrompt
   })
 

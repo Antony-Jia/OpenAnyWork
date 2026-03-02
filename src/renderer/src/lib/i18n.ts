@@ -91,6 +91,7 @@ const translations = {
     "titlebar.mcp": "MCP",
     "titlebar.plugins": "Plugins",
     "titlebar.container": "Container",
+    "titlebar.system_prompts": "System Prompts",
     "titlebar.prompts": "Prompts",
     "titlebar.memory": "Memory",
 
@@ -396,6 +397,18 @@ const translations = {
     "prompts.name_placeholder": "Prompt name",
     "prompts.content": "Detailed Content",
     "prompts.content_placeholder": "Enter prompt details...",
+    "system_prompts.title": "SYSTEM PROMPT MANAGEMENT",
+    "system_prompts.tab.butler": "Butler Orchestrator",
+    "system_prompts.tab.agent": "Agent Framework",
+    "system_prompts.warning":
+      "Warning: Changing system prompts may affect the global application and task execution.",
+    "system_prompts.butler.label": "Butler Prefix Prompt",
+    "system_prompts.agent.label": "Agent Prefix Prompt",
+    "system_prompts.placeholder": "Enter custom prefix prompt (optional)...",
+    "system_prompts.save": "Save",
+    "system_prompts.saved": "Saved",
+    "system_prompts.load_failed": "Failed to load system prompt settings",
+    "system_prompts.save_failed": "Failed to save system prompt settings",
 
     // Memory
     "memory.title": "MEMORY",
@@ -727,6 +740,7 @@ const translations = {
     "titlebar.mcp": "MCP",
     "titlebar.plugins": "插件",
     "titlebar.container": "容器",
+    "titlebar.system_prompts": "系统提示词",
     "titlebar.prompts": "提示词",
     "titlebar.memory": "记忆",
 
@@ -1028,6 +1042,17 @@ const translations = {
     "prompts.name_placeholder": "请输入名称",
     "prompts.content": "详细内容",
     "prompts.content_placeholder": "请输入详细内容...",
+    "system_prompts.title": "系统 Prompt 管理",
+    "system_prompts.tab.butler": "管家编排器",
+    "system_prompts.tab.agent": "Agent 通用框架",
+    "system_prompts.warning": "警告：修改系统 Prompt 可能影响全局应用与任务执行结果。",
+    "system_prompts.butler.label": "管家模式前置 Prompt",
+    "system_prompts.agent.label": "Agent 框架前置 Prompt",
+    "system_prompts.placeholder": "请输入自定义前置提示词（可留空）...",
+    "system_prompts.save": "保存",
+    "system_prompts.saved": "已保存",
+    "system_prompts.load_failed": "加载系统 Prompt 配置失败",
+    "system_prompts.save_failed": "保存系统 Prompt 配置失败",
 
     // Memory
     "memory.title": "记忆管理",

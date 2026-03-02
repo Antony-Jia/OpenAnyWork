@@ -4,6 +4,7 @@ import { SubagentManager } from "./SubagentManager"
 import { ToolsManager } from "./ToolsManager"
 import { SkillsManager } from "./SkillsManager"
 import { McpManager } from "./McpManager"
+import { SystemPromptManager } from "./SystemPromptManager"
 import { PromptManager } from "./PromptManager"
 import { PluginManager } from "./PluginManager"
 import { ContainerManager } from "./ContainerManager"
@@ -48,6 +49,7 @@ export function TitleBar({ threadId }: TitleBarProps): React.JSX.Element {
         <div className="h-6 w-[1px] gradient-divider-vertical mx-2.5" />
 
         <SettingsMenu threadId={threadId} />
+        <SystemPromptManager />
         <SubagentManager />
         <ToolsManager />
         <SkillsManager />

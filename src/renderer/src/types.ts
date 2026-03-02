@@ -458,6 +458,11 @@ export interface PluginSettings {
   knowledgebase: KnowledgebasePluginSettings
 }
 
+export interface SystemPromptsSettings {
+  butlerPrefix: string
+  agentPrefix: string
+}
+
 export interface AppSettings {
   ralphIterations: number
   email: EmailSettings
@@ -466,6 +471,7 @@ export interface AppSettings {
   defaultWorkspacePath?: string | null
   dockerConfig?: DockerConfig
   butler: ButlerSettings
+  systemPrompts: SystemPromptsSettings
   plugins: PluginSettings
 }
 

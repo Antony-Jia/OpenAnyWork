@@ -65,6 +65,7 @@ export function composeAgentSystemPrompt(input: ComposeAgentSystemPromptInput): 
   const mode = resolveAgentPromptMode(input.threadMode)
   const now = input.now ?? new Date()
   const sections = [
+    input.userPrefixPrompt?.trim() || "",
     buildBasePrompt(input),
     buildWorkspacePrompt(input.workspacePath),
     input.dockerEnabled ? buildDockerPrompt() : "",

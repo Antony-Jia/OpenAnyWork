@@ -13,4 +13,5 @@ export interface AgentPromptContext {
 
 export interface ComposeAgentSystemPromptInput extends AgentPromptContext {
   threadMode?: ThreadMode
+  userPrefixPrompt?: string
 }

@@ -69,6 +69,7 @@ function mapCalendarEventRow(row: Record<string, unknown>): CalendarWatchEvent {
     title: String(row.title ?? ""),
     description: normalizeOptionalText((row.description as string | null | undefined) ?? undefined),
     location: normalizeOptionalText((row.location as string | null | undefined) ?? undefined),
+    taskPrompt: normalizeOptionalText((row.task_prompt as string | null | undefined) ?? undefined),
     startAt: String(row.start_at ?? ""),
     endAt: normalizeOptionalText((row.end_at as string | null | undefined) ?? undefined),
     enabled: Boolean(row.enabled),
@@ -85,6 +86,7 @@ function mapCountdownRow(row: Record<string, unknown>): CountdownWatchItem {
     id: String(row.id ?? ""),
     title: String(row.title ?? ""),
     description: normalizeOptionalText((row.description as string | null | undefined) ?? undefined),
+    taskPrompt: normalizeOptionalText((row.task_prompt as string | null | undefined) ?? undefined),
     dueAt: String(row.due_at ?? ""),
     status: String(row.status ?? "running") as CountdownWatchStatus,
     reminderSentAt: normalizeOptionalText(
@@ -115,6 +117,7 @@ function mapMailRuleRow(row: Record<string, unknown>): MailWatchRule {
     subjectContains: normalizeOptionalText(
       (row.subject_contains as string | null | undefined) ?? undefined
     ),
+    taskPrompt: normalizeOptionalText((row.task_prompt as string | null | undefined) ?? undefined),
     enabled: Boolean(row.enabled),
     lastSeenUid,
     createdAt: String(row.created_at ?? ""),
@@ -140,6 +143,7 @@ function mapRssSubscriptionRow(row: Record<string, unknown>): RssWatchSubscripti
     id: String(row.id ?? ""),
     name: String(row.name ?? ""),
     feedUrl: String(row.feed_url ?? ""),
+    taskPrompt: normalizeOptionalText((row.task_prompt as string | null | undefined) ?? undefined),
     enabled: Boolean(row.enabled),
     lastSeenItemKey: normalizeOptionalText(
       (row.last_seen_item_key as string | null | undefined) ?? undefined
@@ -171,7 +175,7 @@ function mapRssItemRow(row: Record<string, unknown>): RssWatchItem {
 function findCalendarEventById(id: string): CalendarWatchEvent | null {
   const database = getDb()
   const stmt = database.prepare(
-    `SELECT id, title, description, location, start_at, end_at, enabled, reminder_sent_at, created_at, updated_at
+    `SELECT id, title, description, location, task_prompt, start_at, end_at, enabled, reminder_sent_at, created_at, updated_at
      FROM butler_calendar_events WHERE id = ? LIMIT 1`
   )
   stmt.bind([id])
@@ -187,7 +191,7 @@ function findCalendarEventById(id: string): CalendarWatchEvent | null {
 function findCountdownById(id: string): CountdownWatchItem | null {
   const database = getDb()
   const stmt = database.prepare(
-    `SELECT id, title, description, due_at, status, reminder_sent_at, completed_at, created_at, updated_at
+    `SELECT id, title, description, task_prompt, due_at, status, reminder_sent_at, completed_at, created_at, updated_at
      FROM butler_countdown_timers WHERE id = ? LIMIT 1`
   )
   stmt.bind([id])
@@ -203,7 +207,7 @@ function findCountdownById(id: string): CountdownWatchItem | null {
 function findMailRuleById(id: string): MailWatchRule | null {
   const database = getDb()
   const stmt = database.prepare(
-    `SELECT id, name, folder, from_contains, subject_contains, enabled, last_seen_uid, created_at, updated_at
+    `SELECT id, name, folder, from_contains, subject_contains, task_prompt, enabled, last_seen_uid, created_at, updated_at
      FROM butler_mail_watch_rules WHERE id = ? LIMIT 1`
   )
   stmt.bind([id])
@@ -219,7 +223,7 @@ function findMailRuleById(id: string): MailWatchRule | null {
 function findRssSubscriptionById(id: string): RssWatchSubscription | null {
   const database = getDb()
   const stmt = database.prepare(
-    `SELECT id, name, feed_url, enabled, last_seen_item_key, last_seen_published_at, last_pulled_at, created_at, updated_at
+    `SELECT id, name, feed_url, task_prompt, enabled, last_seen_item_key, last_seen_published_at, last_pulled_at, created_at, updated_at
      FROM butler_rss_watch_subscriptions WHERE id = ? LIMIT 1`
   )
   stmt.bind([id])
@@ -235,7 +239,7 @@ function findRssSubscriptionById(id: string): RssWatchSubscription | null {
 export function listCalendarWatchEvents(): CalendarWatchEvent[] {
   const database = getDb()
   const stmt = database.prepare(
-    `SELECT id, title, description, location, start_at, end_at, enabled, reminder_sent_at, created_at, updated_at
+    `SELECT id, title, description, location, task_prompt, start_at, end_at, enabled, reminder_sent_at, created_at, updated_at
      FROM butler_calendar_events
      ORDER BY start_at ASC`
   )
@@ -256,6 +260,7 @@ export function createCalendarWatchEvent(input: CalendarWatchEventCreateInput): 
     title: normalizeRequiredText(input.title, "title"),
     description: normalizeOptionalText(input.description),
     location: normalizeOptionalText(input.location),
+    taskPrompt: normalizeOptionalText(input.taskPrompt),
     startAt: normalizeIsoTime(input.startAt, "startAt"),
     endAt: input.endAt ? normalizeIsoTime(input.endAt, "endAt") : undefined,
     enabled: input.enabled ?? true,
@@ -265,13 +270,14 @@ export function createCalendarWatchEvent(input: CalendarWatchEventCreateInput): 
 
   database.run(
     `INSERT INTO butler_calendar_events (
-      id, title, description, location, start_at, end_at, enabled, reminder_sent_at, created_at, updated_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      id, title, description, location, task_prompt, start_at, end_at, enabled, reminder_sent_at, created_at, updated_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       event.id,
       event.title,
       event.description ?? null,
       event.location ?? null,
+      event.taskPrompt ?? null,
       event.startAt,
       event.endAt ?? null,
       event.enabled ? 1 : 0,
@@ -303,6 +309,10 @@ export function updateCalendarWatchEvent(
         : normalizeOptionalText(updates.description),
     location:
       updates.location === undefined ? existing.location : normalizeOptionalText(updates.location),
+    taskPrompt:
+      updates.taskPrompt === undefined
+        ? existing.taskPrompt
+        : normalizeOptionalText(updates.taskPrompt),
     startAt:
       updates.startAt === undefined
         ? existing.startAt
@@ -326,12 +336,13 @@ export function updateCalendarWatchEvent(
   const database = getDb()
   database.run(
     `UPDATE butler_calendar_events
-     SET title = ?, description = ?, location = ?, start_at = ?, end_at = ?, enabled = ?, reminder_sent_at = ?, updated_at = ?
+     SET title = ?, description = ?, location = ?, task_prompt = ?, start_at = ?, end_at = ?, enabled = ?, reminder_sent_at = ?, updated_at = ?
      WHERE id = ?`,
     [
       next.title,
       next.description ?? null,
       next.location ?? null,
+      next.taskPrompt ?? null,
       next.startAt,
       next.endAt ?? null,
       next.enabled ? 1 : 0,
@@ -353,7 +364,7 @@ export function deleteCalendarWatchEvent(id: string): void {
 export function listCountdownWatchItems(): CountdownWatchItem[] {
   const database = getDb()
   const stmt = database.prepare(
-    `SELECT id, title, description, due_at, status, reminder_sent_at, completed_at, created_at, updated_at
+    `SELECT id, title, description, task_prompt, due_at, status, reminder_sent_at, completed_at, created_at, updated_at
      FROM butler_countdown_timers
      ORDER BY due_at ASC`
   )
@@ -373,6 +384,7 @@ export function createCountdownWatchItem(input: CountdownWatchItemCreateInput): 
     id,
     title: normalizeRequiredText(input.title, "title"),
     description: normalizeOptionalText(input.description),
+    taskPrompt: normalizeOptionalText(input.taskPrompt),
     dueAt: normalizeIsoTime(input.dueAt, "dueAt"),
     status: "running",
     createdAt: now,
@@ -381,12 +393,13 @@ export function createCountdownWatchItem(input: CountdownWatchItemCreateInput): 
 
   database.run(
     `INSERT INTO butler_countdown_timers (
-      id, title, description, due_at, status, reminder_sent_at, completed_at, created_at, updated_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      id, title, description, task_prompt, due_at, status, reminder_sent_at, completed_at, created_at, updated_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       item.id,
       item.title,
       item.description ?? null,
+      item.taskPrompt ?? null,
       item.dueAt,
       item.status,
       null,
@@ -424,6 +437,10 @@ export function updateCountdownWatchItem(
       updates.description === undefined
         ? existing.description
         : normalizeOptionalText(updates.description),
+    taskPrompt:
+      updates.taskPrompt === undefined
+        ? existing.taskPrompt
+        : normalizeOptionalText(updates.taskPrompt),
     dueAt: updates.dueAt === undefined ? existing.dueAt : normalizeIsoTime(updates.dueAt, "dueAt"),
     status: nextStatus,
     reminderSentAt:
@@ -439,11 +456,12 @@ export function updateCountdownWatchItem(
   const database = getDb()
   database.run(
     `UPDATE butler_countdown_timers
-     SET title = ?, description = ?, due_at = ?, status = ?, reminder_sent_at = ?, completed_at = ?, updated_at = ?
+     SET title = ?, description = ?, task_prompt = ?, due_at = ?, status = ?, reminder_sent_at = ?, completed_at = ?, updated_at = ?
      WHERE id = ?`,
     [
       next.title,
       next.description ?? null,
+      next.taskPrompt ?? null,
       next.dueAt,
       next.status,
       next.reminderSentAt ?? null,
@@ -465,7 +483,7 @@ export function deleteCountdownWatchItem(id: string): void {
 export function listMailWatchRules(): MailWatchRule[] {
   const database = getDb()
   const stmt = database.prepare(
-    `SELECT id, name, folder, from_contains, subject_contains, enabled, last_seen_uid, created_at, updated_at
+    `SELECT id, name, folder, from_contains, subject_contains, task_prompt, enabled, last_seen_uid, created_at, updated_at
      FROM butler_mail_watch_rules
      ORDER BY created_at DESC`
   )
@@ -487,6 +505,7 @@ export function createMailWatchRule(input: MailWatchRuleCreateInput): MailWatchR
     folder: normalizeOptionalText(input.folder) || "INBOX",
     fromContains: normalizeOptionalText(input.fromContains),
     subjectContains: normalizeOptionalText(input.subjectContains),
+    taskPrompt: normalizeOptionalText(input.taskPrompt),
     enabled: input.enabled ?? true,
     createdAt: now,
     updatedAt: now
@@ -494,14 +513,15 @@ export function createMailWatchRule(input: MailWatchRuleCreateInput): MailWatchR
 
   database.run(
     `INSERT INTO butler_mail_watch_rules (
-      id, name, folder, from_contains, subject_contains, enabled, last_seen_uid, created_at, updated_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      id, name, folder, from_contains, subject_contains, task_prompt, enabled, last_seen_uid, created_at, updated_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       rule.id,
       rule.name,
       rule.folder,
       rule.fromContains ?? null,
       rule.subjectContains ?? null,
+      rule.taskPrompt ?? null,
       rule.enabled ? 1 : 0,
       null,
       rule.createdAt,
@@ -533,6 +553,10 @@ export function updateMailWatchRule(id: string, updates: MailWatchRuleUpdateInpu
       updates.subjectContains === undefined
         ? existing.subjectContains
         : normalizeOptionalText(updates.subjectContains),
+    taskPrompt:
+      updates.taskPrompt === undefined
+        ? existing.taskPrompt
+        : normalizeOptionalText(updates.taskPrompt),
     enabled: updates.enabled ?? existing.enabled,
     lastSeenUid:
       updates.lastSeenUid === undefined
@@ -546,13 +570,14 @@ export function updateMailWatchRule(id: string, updates: MailWatchRuleUpdateInpu
   const database = getDb()
   database.run(
     `UPDATE butler_mail_watch_rules
-     SET name = ?, folder = ?, from_contains = ?, subject_contains = ?, enabled = ?, last_seen_uid = ?, updated_at = ?
+     SET name = ?, folder = ?, from_contains = ?, subject_contains = ?, task_prompt = ?, enabled = ?, last_seen_uid = ?, updated_at = ?
      WHERE id = ?`,
     [
       next.name,
       next.folder,
       next.fromContains ?? null,
       next.subjectContains ?? null,
+      next.taskPrompt ?? null,
       next.enabled ? 1 : 0,
       next.lastSeenUid ?? null,
       next.updatedAt,
@@ -573,7 +598,7 @@ export function deleteMailWatchRule(id: string): void {
 export function listRssWatchSubscriptions(): RssWatchSubscription[] {
   const database = getDb()
   const stmt = database.prepare(
-    `SELECT id, name, feed_url, enabled, last_seen_item_key, last_seen_published_at, last_pulled_at, created_at, updated_at
+    `SELECT id, name, feed_url, task_prompt, enabled, last_seen_item_key, last_seen_published_at, last_pulled_at, created_at, updated_at
      FROM butler_rss_watch_subscriptions
      ORDER BY created_at DESC`
   )
@@ -595,6 +620,7 @@ export function createRssWatchSubscription(
     id,
     name: normalizeRequiredText(input.name, "name"),
     feedUrl: normalizeFeedUrl(input.feedUrl),
+    taskPrompt: normalizeOptionalText(input.taskPrompt),
     enabled: input.enabled ?? true,
     createdAt: now,
     updatedAt: now
@@ -602,12 +628,13 @@ export function createRssWatchSubscription(
 
   database.run(
     `INSERT INTO butler_rss_watch_subscriptions (
-      id, name, feed_url, enabled, last_seen_item_key, last_seen_published_at, last_pulled_at, created_at, updated_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      id, name, feed_url, task_prompt, enabled, last_seen_item_key, last_seen_published_at, last_pulled_at, created_at, updated_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       subscription.id,
       subscription.name,
       subscription.feedUrl,
+      subscription.taskPrompt ?? null,
       subscription.enabled ? 1 : 0,
       null,
       null,
@@ -637,6 +664,10 @@ export function updateRssWatchSubscription(
     ...existing,
     name: updates.name === undefined ? existing.name : normalizeRequiredText(updates.name, "name"),
     feedUrl: nextFeedUrl,
+    taskPrompt:
+      updates.taskPrompt === undefined
+        ? existing.taskPrompt
+        : normalizeOptionalText(updates.taskPrompt),
     enabled: updates.enabled ?? existing.enabled,
     lastSeenItemKey: feedUrlChanged
       ? undefined
@@ -665,11 +696,12 @@ export function updateRssWatchSubscription(
   const database = getDb()
   database.run(
     `UPDATE butler_rss_watch_subscriptions
-     SET name = ?, feed_url = ?, enabled = ?, last_seen_item_key = ?, last_seen_published_at = ?, last_pulled_at = ?, updated_at = ?
+     SET name = ?, feed_url = ?, task_prompt = ?, enabled = ?, last_seen_item_key = ?, last_seen_published_at = ?, last_pulled_at = ?, updated_at = ?
      WHERE id = ?`,
     [
       next.name,
       next.feedUrl,
+      next.taskPrompt ?? null,
       next.enabled ? 1 : 0,
       next.lastSeenItemKey ?? null,
       next.lastSeenPublishedAt ?? null,

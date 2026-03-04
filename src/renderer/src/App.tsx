@@ -354,7 +354,7 @@ function MainApp(): React.JSX.Element {
     const cleanup = window.electron.ipcRenderer.on("app:task-card", (...args: unknown[]) => {
       const card = args[0] as TaskNoticeCard
       if (!card?.id) return
-      if (card.noticeType !== "digest" && !card.threadId) return
+      if (card.noticeType === "task" && !card.threadId) return
       if (useAppStore.getState().appMode === "butler") return
       setTaskCards((prev) => {
         const next = prev.filter((item) => item.id !== card.id)

@@ -837,7 +837,9 @@ export class ButlerMonitorManager {
   }
 
   private async dispatchMailPerceptions(mailInserted: MailWatchMessage[]): Promise<void> {
+    const ruleById = new Map(this.listMailRules().map((rule) => [rule.id, rule]))
     for (const message of mailInserted) {
+      const mailRule = ruleById.get(message.ruleId)
       await this.dispatchPerception({
         kind: "mail_new",
         title: `新邮件提醒：${message.subject || "(无主题)"}`,
@@ -847,7 +849,8 @@ export class ButlerMonitorManager {
           `内容摘要: ${compact(message.text, 280) || "无正文"}`
         ].join("\n"),
         payload: {
-          mail: message
+          mail: message,
+          mailRule
         }
       })
     }

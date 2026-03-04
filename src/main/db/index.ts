@@ -206,6 +206,7 @@ export async function initializeDatabase(): Promise<SqlJsDatabase> {
       title TEXT NOT NULL,
       description TEXT,
       location TEXT,
+      task_prompt TEXT,
       start_at TEXT NOT NULL,
       end_at TEXT,
       enabled INTEGER NOT NULL DEFAULT 1,
@@ -220,6 +221,7 @@ export async function initializeDatabase(): Promise<SqlJsDatabase> {
       id TEXT PRIMARY KEY,
       title TEXT NOT NULL,
       description TEXT,
+      task_prompt TEXT,
       due_at TEXT NOT NULL,
       status TEXT NOT NULL,
       reminder_sent_at TEXT,
@@ -236,6 +238,7 @@ export async function initializeDatabase(): Promise<SqlJsDatabase> {
       folder TEXT NOT NULL,
       from_contains TEXT,
       subject_contains TEXT,
+      task_prompt TEXT,
       enabled INTEGER NOT NULL DEFAULT 1,
       last_seen_uid INTEGER,
       created_at TEXT NOT NULL,
@@ -261,6 +264,7 @@ export async function initializeDatabase(): Promise<SqlJsDatabase> {
       id TEXT PRIMARY KEY,
       name TEXT NOT NULL,
       feed_url TEXT NOT NULL,
+      task_prompt TEXT,
       enabled INTEGER NOT NULL DEFAULT 1,
       last_seen_item_key TEXT,
       last_seen_published_at TEXT,
@@ -343,6 +347,18 @@ export async function initializeDatabase(): Promise<SqlJsDatabase> {
   }
   if (!tableHasColumn(db, "subagents", "enabled_butler")) {
     db.run(`ALTER TABLE subagents ADD COLUMN enabled_butler INTEGER`)
+  }
+  if (!tableHasColumn(db, "butler_calendar_events", "task_prompt")) {
+    db.run(`ALTER TABLE butler_calendar_events ADD COLUMN task_prompt TEXT`)
+  }
+  if (!tableHasColumn(db, "butler_countdown_timers", "task_prompt")) {
+    db.run(`ALTER TABLE butler_countdown_timers ADD COLUMN task_prompt TEXT`)
+  }
+  if (!tableHasColumn(db, "butler_mail_watch_rules", "task_prompt")) {
+    db.run(`ALTER TABLE butler_mail_watch_rules ADD COLUMN task_prompt TEXT`)
+  }
+  if (!tableHasColumn(db, "butler_rss_watch_subscriptions", "task_prompt")) {
+    db.run(`ALTER TABLE butler_rss_watch_subscriptions ADD COLUMN task_prompt TEXT`)
   }
 
   // Backward compatibility: if legacy `enabled` exists, copy it to both scope columns.

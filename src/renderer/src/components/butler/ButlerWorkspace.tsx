@@ -692,17 +692,17 @@ export function ButlerWorkspace(): React.JSX.Element {
                                 不再提示
                               </button>
                             ) : null}
-                            <button
-                              type="button"
-                              disabled={!noticeCard.threadId}
-                              onClick={() => {
-                                if (!noticeCard.threadId) return
-                                void openTaskThread(noticeCard.threadId)
-                              }}
-                              className="text-xs text-accent hover:text-accent/80 hover:neon-text disabled:text-muted-foreground disabled:cursor-not-allowed transition-all duration-200"
-                            >
-                              查看线程
-                            </button>
+                            {noticeCard.threadId ? (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  void openTaskThread(noticeCard.threadId)
+                                }}
+                                className="text-xs text-accent hover:text-accent/80 hover:neon-text transition-all duration-200"
+                              >
+                                查看线程
+                              </button>
+                            ) : null}
                           </div>
                         </div>
                       ) : null}

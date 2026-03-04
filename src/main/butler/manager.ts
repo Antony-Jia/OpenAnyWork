@@ -59,6 +59,18 @@ interface PendingTask {
   taskId: string
 }
 
+interface PerceptionDispatchedTaskResult {
+  taskPrompt: string
+  assistantText: string
+  tasks: ButlerTask[]
+  notes: string[]
+}
+
+type PerceptionDispatchResult =
+  | { status: "skipped" }
+  | { status: "failed"; taskPrompt: string; error: string }
+  | ({ status: "dispatched" } & PerceptionDispatchedTaskResult)
+
 interface DispatchTaskCreationContext {
   originUserMessage: string
   habitAddendum: string
@@ -469,14 +481,22 @@ class ButlerManager {
       console.warn("[Butler] runButlerPerceptionTurn failed:", error)
     }
 
+    const taskPrompt = this.extractPerceptionTaskPrompt(input)
+    let dispatchResult: PerceptionDispatchResult = { status: "skipped" }
+    if (taskPrompt) {
+      dispatchResult = await this.dispatchPerceptionTask(input, taskPrompt)
+    }
+
     const finalReminder = reminderText || this.buildPerceptionFallbackText(input)
     const completedAt = nowIso()
+    const eventThreadId =
+      dispatchResult.status === "dispatched" ? dispatchResult.tasks[0]?.threadId || "" : ""
     const notice: TaskCompletionNotice = {
       id: `event:${input.id}:${completedAt}`,
-      threadId: this.mainThreadId,
+      threadId: eventThreadId,
       title: input.title,
       resultBrief: finalReminder,
-      resultDetail: this.buildPerceptionResultDetail(input, finalReminder),
+      resultDetail: this.buildPerceptionResultDetail(input, finalReminder, dispatchResult),
       completedAt,
       mode: "butler",
       source: "butler",
@@ -517,9 +537,13 @@ class ButlerManager {
     return `检测到新的监听事件：${input.title}。`
   }
 
-  private buildPerceptionResultDetail(input: ButlerPerceptionInput, reminder: string): string {
+  private buildPerceptionResultDetail(
+    input: ButlerPerceptionInput,
+    reminder: string,
+    dispatchResult: PerceptionDispatchResult
+  ): string {
     const snapshot = input.snapshot
-    return [
+    const lines = [
       `提醒: ${reminder}`,
       `事件类型: ${input.kind}`,
       `触发时间: ${input.triggeredAt}`,
@@ -530,8 +554,221 @@ class ButlerManager {
       `邮件规则: ${snapshot.mailRules.length}`,
       `最近邮件: ${snapshot.recentMails.length}`,
       `RSS订阅: ${snapshot.rssSubscriptions.length}`,
-      `最近RSS: ${snapshot.recentRssItems.length}`
+      `最近RSS: ${snapshot.recentRssItems.length}`,
+      "",
+      "[订阅任务派发]"
+    ]
+
+    if (dispatchResult.status === "skipped") {
+      lines.push("状态: skipped (未配置 taskPrompt)")
+      return lines.join("\n")
+    }
+
+    if (dispatchResult.status === "failed") {
+      lines.push("状态: failed")
+      lines.push(`taskPrompt: ${dispatchResult.taskPrompt}`)
+      lines.push(`错误: ${dispatchResult.error}`)
+      return lines.join("\n")
+    }
+
+    lines.push("状态: dispatched")
+    lines.push(`taskPrompt: ${dispatchResult.taskPrompt}`)
+    lines.push(`编排反馈: ${dispatchResult.assistantText || "none"}`)
+    lines.push(`创建任务数: ${dispatchResult.tasks.length}`)
+    lines.push(`主线程: ${dispatchResult.tasks[0]?.threadId || "none"}`)
+    if (dispatchResult.tasks.length > 0) {
+      lines.push("[已创建任务]")
+      for (const [index, task] of dispatchResult.tasks.entries()) {
+        lines.push(`${index + 1}. [${task.mode}] ${task.title} | thread=${task.threadId}`)
+      }
+    }
+    if (dispatchResult.notes.length > 0) {
+      lines.push("[调度说明]")
+      for (const note of dispatchResult.notes) {
+        lines.push(`- ${note}`)
+      }
+    }
+    return lines.join("\n")
+  }
+
+  private extractPerceptionTaskPrompt(input: ButlerPerceptionInput): string | null {
+    const payload = input.payload as Record<string, unknown>
+    const candidates: unknown[] = []
+
+    if (payload && typeof payload === "object") {
+      candidates.push(payload.taskPrompt)
+
+      const calendarEvent = payload.calendarEvent as Record<string, unknown> | undefined
+      candidates.push(calendarEvent?.taskPrompt)
+
+      const countdown = payload.countdown as Record<string, unknown> | undefined
+      candidates.push(countdown?.taskPrompt)
+
+      const mailRule = payload.mailRule as Record<string, unknown> | undefined
+      candidates.push(mailRule?.taskPrompt)
+
+      const rssSubscription = payload.rssSubscription as Record<string, unknown> | undefined
+      candidates.push(rssSubscription?.taskPrompt)
+    }
+
+    for (const candidate of candidates) {
+      if (typeof candidate !== "string") continue
+      const normalized = candidate.trim()
+      if (normalized.length > 0) return normalized
+    }
+    return null
+  }
+
+  private buildPerceptionDispatchUserMessage(
+    input: ButlerPerceptionInput,
+    taskPrompt: string
+  ): string {
+    return [
+      "这是一次订阅事件自动任务派发请求。",
+      "请基于下面 taskPrompt 规划任务，优先 single_task_first（除非确有多个独立目标）。",
+      "",
+      "[Task Prompt]",
+      taskPrompt,
+      "",
+      "[Triggered Event]",
+      `kind: ${input.kind}`,
+      `title: ${input.title}`,
+      `triggeredAt: ${input.triggeredAt}`,
+      `detail: ${input.detail || "none"}`,
+      "",
+      "[Payload]",
+      JSON.stringify(input.payload, null, 2)
     ].join("\n")
+  }
+
+  private buildPerceptionFallbackIntent(input: ButlerPerceptionInput): ButlerDispatchIntent {
+    const taskKey = `subscription_${input.kind}_${Date.now()}`
+    return {
+      mode: "default",
+      taskKey,
+      title: `订阅任务：${input.title}`,
+      initialPrompt: [
+        "补充说明：本任务由订阅事件自动触发。",
+        `事件类型: ${input.kind}`,
+        `触发时间: ${input.triggeredAt}`,
+        `事件详情: ${input.detail || "none"}`,
+        "请在执行结果中明确说明处理结论与下一步建议。"
+      ].join("\n"),
+      threadStrategy: "new_thread",
+      dependsOn: [],
+      deliverableFormat: "text"
+    }
+  }
+
+  private buildPerceptionHabitAddendum(input: ButlerPerceptionInput): string {
+    const payloadText = JSON.stringify(input.payload, null, 2)
+    const clippedPayload =
+      payloadText.length > 3000 ? `${payloadText.slice(0, 2999)}...` : payloadText
+
+    return [
+      "[Subscription Event Context]",
+      `kind: ${input.kind}`,
+      `title: ${input.title}`,
+      `triggeredAt: ${input.triggeredAt}`,
+      `detail: ${input.detail || "none"}`,
+      "",
+      "[Subscription Event Payload]",
+      clippedPayload
+    ].join("\n")
+  }
+
+  private async dispatchPerceptionTask(
+    input: ButlerPerceptionInput,
+    taskPrompt: string
+  ): Promise<PerceptionDispatchResult> {
+    const trimmedPrompt = taskPrompt.trim()
+    if (!trimmedPrompt) {
+      return { status: "skipped" }
+    }
+
+    const { capabilityCatalog, capabilitySummary } = this.getCapabilityContext()
+    const promptContextBase = this.buildPromptContextBase({
+      userMessage: this.buildPerceptionDispatchUserMessage(input, trimmedPrompt),
+      capabilityCatalog,
+      capabilitySummary
+    })
+
+    const notes: string[] = []
+    let assistantText = "已根据订阅配置派发任务。"
+    let intents: ButlerDispatchIntent[] = []
+    try {
+      const orchestrator = await runButlerOrchestratorTurn({
+        threadId: this.mainThreadId,
+        promptContext: {
+          ...promptContextBase,
+          dispatchPolicy: "single_task_first"
+        }
+      })
+      intents = orchestrator.dispatchIntents
+      if (orchestrator.assistantText?.trim()) {
+        assistantText = orchestrator.assistantText.trim()
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      notes.push(`编排调用失败，已使用默认任务回退: ${message}`)
+    }
+
+    if (intents.length === 0) {
+      intents = [this.buildPerceptionFallbackIntent(input)]
+      notes.push("编排未返回任务，已自动回退为 1 个 default 任务。")
+    }
+
+    const workspaceValidation = this.resolveIntentWorkspacePaths(intents)
+    if (workspaceValidation.kind === "invalid") {
+      return {
+        status: "failed",
+        taskPrompt: trimmedPrompt,
+        error: workspaceValidation.error
+      }
+    }
+
+    let runnableIntents = workspaceValidation.intents
+    if (workspaceValidation.kind === "missing") {
+      const creationResult = this.ensureWorkspaceDirectories(workspaceValidation.missingPaths)
+      if (!creationResult.ok) {
+        return {
+          status: "failed",
+          taskPrompt: trimmedPrompt,
+          error: `创建工作目录失败: ${creationResult.path} (${creationResult.error})`
+        }
+      }
+      notes.push(
+        `已自动创建缺失目录: ${workspaceValidation.missingPaths.join(", ")}`
+      )
+      runnableIntents = workspaceValidation.intents
+    }
+
+    const created = this.createTasksFromIntents({
+      intents: runnableIntents,
+      groupId: uuid(),
+      sourceTurnId: uuid(),
+      creation: {
+        originUserMessage: this.normalizeOriginUserMessage(trimmedPrompt),
+        habitAddendum: this.buildPerceptionHabitAddendum(input)
+      }
+    })
+
+    for (const taskId of created.readyTaskIds) {
+      this.enqueueTask(taskId)
+    }
+
+    notes.push(...created.notes)
+    this.broadcastTasks()
+    this.broadcastState()
+    void this.pumpQueue()
+
+    return {
+      status: "dispatched",
+      taskPrompt: trimmedPrompt,
+      assistantText,
+      tasks: created.tasks,
+      notes
+    }
   }
 
   private getCapabilityContext(): { capabilityCatalog: string; capabilitySummary: string } {

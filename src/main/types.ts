@@ -627,6 +627,7 @@ export interface CalendarWatchEvent {
   title: string
   description?: string
   location?: string
+  taskPrompt?: string
   startAt: string
   endAt?: string
   enabled: boolean
@@ -639,6 +640,7 @@ export interface CalendarWatchEventCreateInput {
   title: string
   description?: string
   location?: string
+  taskPrompt?: string
   startAt: string
   endAt?: string
   enabled?: boolean
@@ -648,6 +650,7 @@ export interface CalendarWatchEventUpdateInput {
   title?: string
   description?: string
   location?: string
+  taskPrompt?: string
   startAt?: string
   endAt?: string
   enabled?: boolean
@@ -660,6 +663,7 @@ export interface CountdownWatchItem {
   id: string
   title: string
   description?: string
+  taskPrompt?: string
   dueAt: string
   status: CountdownWatchStatus
   reminderSentAt?: string
@@ -671,12 +675,14 @@ export interface CountdownWatchItem {
 export interface CountdownWatchItemCreateInput {
   title: string
   description?: string
+  taskPrompt?: string
   dueAt: string
 }
 
 export interface CountdownWatchItemUpdateInput {
   title?: string
   description?: string
+  taskPrompt?: string
   dueAt?: string
   status?: CountdownWatchStatus
   reminderSentAt?: string | null
@@ -689,6 +695,7 @@ export interface MailWatchRule {
   folder: string
   fromContains?: string
   subjectContains?: string
+  taskPrompt?: string
   enabled: boolean
   lastSeenUid?: number
   createdAt: string
@@ -700,6 +707,7 @@ export interface MailWatchRuleCreateInput {
   folder?: string
   fromContains?: string
   subjectContains?: string
+  taskPrompt?: string
   enabled?: boolean
 }
 
@@ -708,6 +716,7 @@ export interface MailWatchRuleUpdateInput {
   folder?: string
   fromContains?: string
   subjectContains?: string
+  taskPrompt?: string
   enabled?: boolean
   lastSeenUid?: number | null
 }
@@ -727,6 +736,7 @@ export interface RssWatchSubscription {
   id: string
   name: string
   feedUrl: string
+  taskPrompt?: string
   enabled: boolean
   lastSeenItemKey?: string
   lastSeenPublishedAt?: string
@@ -738,12 +748,14 @@ export interface RssWatchSubscription {
 export interface RssWatchSubscriptionCreateInput {
   name: string
   feedUrl: string
+  taskPrompt?: string
   enabled?: boolean
 }
 
 export interface RssWatchSubscriptionUpdateInput {
   name?: string
   feedUrl?: string
+  taskPrompt?: string
   enabled?: boolean
   lastSeenItemKey?: string | null
   lastSeenPublishedAt?: string | null

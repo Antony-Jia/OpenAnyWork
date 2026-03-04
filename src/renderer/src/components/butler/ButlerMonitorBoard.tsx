@@ -51,20 +51,24 @@ export function ButlerMonitorBoard(): React.JSX.Element {
   const [calendarDraftEndAt, setCalendarDraftEndAt] = useState("")
   const [calendarDraftDescription, setCalendarDraftDescription] = useState("")
   const [calendarDraftLocation, setCalendarDraftLocation] = useState("")
+  const [calendarDraftTaskPrompt, setCalendarDraftTaskPrompt] = useState("")
   const [countdownDraftOpen, setCountdownDraftOpen] = useState(false)
   const [countdownEditingId, setCountdownEditingId] = useState<string | null>(null)
   const [countdownDraftTitle, setCountdownDraftTitle] = useState("")
   const [countdownDraftDueAt, setCountdownDraftDueAt] = useState("")
   const [countdownDraftDescription, setCountdownDraftDescription] = useState("")
+  const [countdownDraftTaskPrompt, setCountdownDraftTaskPrompt] = useState("")
   const [mailDraftOpen, setMailDraftOpen] = useState(false)
   const [mailDraftName, setMailDraftName] = useState("")
   const [mailDraftFolder, setMailDraftFolder] = useState("INBOX")
   const [mailDraftFromContains, setMailDraftFromContains] = useState("")
   const [mailDraftSubjectContains, setMailDraftSubjectContains] = useState("")
+  const [mailDraftTaskPrompt, setMailDraftTaskPrompt] = useState("")
   const [rssDraftOpen, setRssDraftOpen] = useState(false)
   const [rssEditingId, setRssEditingId] = useState<string | null>(null)
   const [rssDraftName, setRssDraftName] = useState("")
   const [rssDraftFeedUrl, setRssDraftFeedUrl] = useState("")
+  const [rssDraftTaskPrompt, setRssDraftTaskPrompt] = useState("")
 
   const load = useCallback(async (options?: { silent?: boolean }) => {
     const silent = options?.silent ?? false
@@ -156,6 +160,7 @@ export function ButlerMonitorBoard(): React.JSX.Element {
     setCalendarDraftEndAt("")
     setCalendarDraftDescription("")
     setCalendarDraftLocation("")
+    setCalendarDraftTaskPrompt("")
     setError(null)
   }
 
@@ -167,6 +172,7 @@ export function ButlerMonitorBoard(): React.JSX.Element {
     setCalendarDraftEndAt("")
     setCalendarDraftDescription("")
     setCalendarDraftLocation("")
+    setCalendarDraftTaskPrompt("")
   }
 
   const handleCreateCalendar = async (): Promise<void> => {
@@ -175,6 +181,7 @@ export function ButlerMonitorBoard(): React.JSX.Element {
     const endInput = calendarDraftEndAt.trim()
     const description = calendarDraftDescription.trim()
     const location = calendarDraftLocation.trim()
+    const taskPrompt = calendarDraftTaskPrompt.trim()
     if (!title) {
       setError("请填写事件标题。")
       return
@@ -191,7 +198,8 @@ export function ButlerMonitorBoard(): React.JSX.Element {
           startAt: fromInputDateTime(startInput),
           endAt: endInput ? fromInputDateTime(endInput) : undefined,
           description: description || undefined,
-          location: location || undefined
+          location: location || undefined,
+          taskPrompt: taskPrompt || undefined
         })
       } else {
         await window.api.butlerMonitor.createCalendarEvent({
@@ -199,7 +207,8 @@ export function ButlerMonitorBoard(): React.JSX.Element {
           startAt: fromInputDateTime(startInput),
           endAt: endInput ? fromInputDateTime(endInput) : undefined,
           description: description || undefined,
-          location: location || undefined
+          location: location || undefined,
+          taskPrompt: taskPrompt || undefined
         })
       }
       closeCalendarDraft()
@@ -224,6 +233,7 @@ export function ButlerMonitorBoard(): React.JSX.Element {
     setCalendarDraftEndAt(toInputDateTime(event.endAt))
     setCalendarDraftDescription(event.description || "")
     setCalendarDraftLocation(event.location || "")
+    setCalendarDraftTaskPrompt(event.taskPrompt || "")
     setError(null)
   }
 
@@ -234,6 +244,7 @@ export function ButlerMonitorBoard(): React.JSX.Element {
     setCountdownDraftTitle("")
     setCountdownDraftDueAt(toInputDateTime(now))
     setCountdownDraftDescription("")
+    setCountdownDraftTaskPrompt("")
     setError(null)
   }
 
@@ -243,12 +254,14 @@ export function ButlerMonitorBoard(): React.JSX.Element {
     setCountdownDraftTitle("")
     setCountdownDraftDueAt("")
     setCountdownDraftDescription("")
+    setCountdownDraftTaskPrompt("")
   }
 
   const handleCreateCountdown = async (): Promise<void> => {
     const title = countdownDraftTitle.trim()
     const dueAtInput = countdownDraftDueAt.trim()
     const description = countdownDraftDescription.trim()
+    const taskPrompt = countdownDraftTaskPrompt.trim()
     if (!title) {
       setError("请填写倒计时标题。")
       return
@@ -263,13 +276,15 @@ export function ButlerMonitorBoard(): React.JSX.Element {
         await window.api.butlerMonitor.updateCountdownTimer(countdownEditingId, {
           title,
           dueAt: fromInputDateTime(dueAtInput),
-          description: description || undefined
+          description: description || undefined,
+          taskPrompt: taskPrompt || undefined
         })
       } else {
         await window.api.butlerMonitor.createCountdownTimer({
           title,
           dueAt: fromInputDateTime(dueAtInput),
-          description: description || undefined
+          description: description || undefined,
+          taskPrompt: taskPrompt || undefined
         })
       }
       closeCountdownDraft()
@@ -292,6 +307,7 @@ export function ButlerMonitorBoard(): React.JSX.Element {
     setCountdownDraftTitle(timer.title)
     setCountdownDraftDueAt(toInputDateTime(timer.dueAt))
     setCountdownDraftDescription(timer.description || "")
+    setCountdownDraftTaskPrompt(timer.taskPrompt || "")
     setError(null)
   }
 
@@ -301,6 +317,7 @@ export function ButlerMonitorBoard(): React.JSX.Element {
     setMailDraftFolder("INBOX")
     setMailDraftFromContains("")
     setMailDraftSubjectContains("")
+    setMailDraftTaskPrompt("")
     setError(null)
   }
 
@@ -309,6 +326,7 @@ export function ButlerMonitorBoard(): React.JSX.Element {
     const folder = mailDraftFolder.trim()
     const fromContains = mailDraftFromContains.trim()
     const subjectContains = mailDraftSubjectContains.trim()
+    const taskPrompt = mailDraftTaskPrompt.trim()
     if (!name) {
       setError("请填写规则名称。")
       return
@@ -320,6 +338,7 @@ export function ButlerMonitorBoard(): React.JSX.Element {
         folder: folder || "INBOX",
         fromContains: fromContains || undefined,
         subjectContains: subjectContains || undefined,
+        taskPrompt: taskPrompt || undefined,
         enabled: true
       })
       setMailDraftOpen(false)
@@ -327,6 +346,7 @@ export function ButlerMonitorBoard(): React.JSX.Element {
       setMailDraftFolder("INBOX")
       setMailDraftFromContains("")
       setMailDraftSubjectContains("")
+      setMailDraftTaskPrompt("")
       await load()
     } catch (createError) {
       console.error("[ButlerMonitorBoard] create mail rule failed:", createError)
@@ -343,13 +363,16 @@ export function ButlerMonitorBoard(): React.JSX.Element {
     if (fromContains === null) return
     const subjectContains = window.prompt("主题包含 (可空)", rule.subjectContains || "")
     if (subjectContains === null) return
+    const taskPrompt = window.prompt("事件触发后任务 Prompt (可空)", rule.taskPrompt || "")
+    if (taskPrompt === null) return
 
     try {
       await window.api.butlerMonitor.updateMailRule(rule.id, {
         name: name.trim(),
         folder: folder.trim() || "INBOX",
         fromContains: fromContains.trim(),
-        subjectContains: subjectContains.trim()
+        subjectContains: subjectContains.trim(),
+        taskPrompt: taskPrompt.trim()
       })
       await load()
     } catch (updateError) {
@@ -363,6 +386,7 @@ export function ButlerMonitorBoard(): React.JSX.Element {
     setRssEditingId(null)
     setRssDraftName("")
     setRssDraftFeedUrl("")
+    setRssDraftTaskPrompt("")
     setError(null)
   }
 
@@ -371,11 +395,13 @@ export function ButlerMonitorBoard(): React.JSX.Element {
     setRssEditingId(null)
     setRssDraftName("")
     setRssDraftFeedUrl("")
+    setRssDraftTaskPrompt("")
   }
 
   const handleCreateRssSubscription = async (): Promise<void> => {
     const name = rssDraftName.trim()
     const feedUrl = rssDraftFeedUrl.trim()
+    const taskPrompt = rssDraftTaskPrompt.trim()
     if (!name) {
       setError("请填写 RSS 订阅名称。")
       return
@@ -389,12 +415,14 @@ export function ButlerMonitorBoard(): React.JSX.Element {
       if (rssEditingId) {
         await window.api.butlerMonitor.updateRssSubscription(rssEditingId, {
           name,
-          feedUrl
+          feedUrl,
+          taskPrompt: taskPrompt || undefined
         })
       } else {
         await window.api.butlerMonitor.createRssSubscription({
           name,
           feedUrl,
+          taskPrompt: taskPrompt || undefined,
           enabled: true
         })
       }
@@ -417,6 +445,7 @@ export function ButlerMonitorBoard(): React.JSX.Element {
     setRssEditingId(subscription.id)
     setRssDraftName(subscription.name)
     setRssDraftFeedUrl(subscription.feedUrl)
+    setRssDraftTaskPrompt(subscription.taskPrompt || "")
     setError(null)
   }
 
@@ -543,6 +572,12 @@ export function ButlerMonitorBoard(): React.JSX.Element {
                   onChange={(event) => setCalendarDraftLocation(event.target.value)}
                   placeholder="地点（可空）"
                 />
+                <textarea
+                  className="w-full min-h-[88px] rounded-lg border border-border/40 bg-background/50 px-2 py-2 text-xs"
+                  value={calendarDraftTaskPrompt}
+                  onChange={(event) => setCalendarDraftTaskPrompt(event.target.value)}
+                  placeholder="事件触发后任务 Prompt（可空）"
+                />
                 <div className="flex items-center justify-end gap-2">
                   <Button
                     variant="ghost"
@@ -657,6 +692,12 @@ export function ButlerMonitorBoard(): React.JSX.Element {
                   value={countdownDraftDescription}
                   onChange={(event) => setCountdownDraftDescription(event.target.value)}
                   placeholder="说明（可空）"
+                />
+                <textarea
+                  className="w-full min-h-[88px] rounded-lg border border-border/40 bg-background/50 px-2 py-2 text-xs"
+                  value={countdownDraftTaskPrompt}
+                  onChange={(event) => setCountdownDraftTaskPrompt(event.target.value)}
+                  placeholder="到点后任务 Prompt（可空）"
                 />
                 <div className="flex items-center justify-end gap-2">
                   <Button
@@ -793,12 +834,25 @@ export function ButlerMonitorBoard(): React.JSX.Element {
                     onChange={(event) => setMailDraftSubjectContains(event.target.value)}
                     placeholder="主题包含（可空）"
                   />
+                  <textarea
+                    className="w-full min-h-[88px] rounded-lg border border-border/40 bg-background/50 px-2 py-2 text-xs"
+                    value={mailDraftTaskPrompt}
+                    onChange={(event) => setMailDraftTaskPrompt(event.target.value)}
+                    placeholder="邮件触发后任务 Prompt（可空）"
+                  />
                   <div className="flex items-center justify-end gap-2">
                     <Button
                       variant="ghost"
                       size="sm"
                       className="h-7 px-3 text-xs rounded-lg"
-                      onClick={() => setMailDraftOpen(false)}
+                      onClick={() => {
+                        setMailDraftOpen(false)
+                        setMailDraftName("")
+                        setMailDraftFolder("INBOX")
+                        setMailDraftFromContains("")
+                        setMailDraftSubjectContains("")
+                        setMailDraftTaskPrompt("")
+                      }}
                     >
                       取消
                     </Button>
@@ -850,6 +904,11 @@ export function ButlerMonitorBoard(): React.JSX.Element {
                   {rule.subjectContains && (
                     <div className="text-[11px] text-muted-foreground">
                       主题包含: {rule.subjectContains}
+                    </div>
+                  )}
+                  {rule.taskPrompt && (
+                    <div className="text-[11px] text-muted-foreground whitespace-pre-wrap line-clamp-3">
+                      任务Prompt: {rule.taskPrompt}
                     </div>
                   )}
                   {typeof rule.lastSeenUid === "number" && (
@@ -946,6 +1005,12 @@ export function ButlerMonitorBoard(): React.JSX.Element {
                     onChange={(event) => setRssDraftFeedUrl(event.target.value)}
                     placeholder="RSS 地址（http/https）"
                   />
+                  <textarea
+                    className="w-full min-h-[88px] rounded-lg border border-border/40 bg-background/50 px-2 py-2 text-xs"
+                    value={rssDraftTaskPrompt}
+                    onChange={(event) => setRssDraftTaskPrompt(event.target.value)}
+                    placeholder="RSS 更新后任务 Prompt（可空）"
+                  />
                   <div className="flex items-center justify-end gap-2">
                     <Button
                       variant="ghost"
@@ -997,6 +1062,11 @@ export function ButlerMonitorBoard(): React.JSX.Element {
                   <div className="text-[11px] text-muted-foreground break-all">
                     地址: {subscription.feedUrl}
                   </div>
+                  {subscription.taskPrompt && (
+                    <div className="text-[11px] text-muted-foreground whitespace-pre-wrap line-clamp-3">
+                      任务Prompt: {subscription.taskPrompt}
+                    </div>
+                  )}
                   {subscription.lastSeenItemKey && (
                     <div className="text-[11px] text-muted-foreground break-all">
                       lastSeenItemKey: {subscription.lastSeenItemKey}

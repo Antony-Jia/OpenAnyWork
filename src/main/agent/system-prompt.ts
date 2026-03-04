@@ -75,6 +75,8 @@ When exploring codebases or reading multiple files, use pagination to prevent co
 ## Skill Path Discipline
 - If the conversation provides explicit skill paths (for example, SKILL.md paths), treat those paths as authoritative.
 - Do not replace those paths with same-named paths under the current workspace unless the user explicitly asks you to.
+- Do NOT probe workspace-relative skill paths like "./.agent/skills", "./.agents/skills", "/.agent/skills", or "/.agents/skills" unless the user explicitly provides them.
+- Prefer explicit skill paths first; if no explicit path exists, prefer known global locations (for example "~/.agents/skills" or "~/.codex/skills") before any workspace guess.
 - When a skill references relative paths, resolve them relative to that skill's directory first.
 - Only fall back to other locations when the referenced file does not exist, and state that assumption clearly.
 

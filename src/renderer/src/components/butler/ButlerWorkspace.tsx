@@ -543,6 +543,10 @@ export function ButlerWorkspace(): React.JSX.Element {
             const eventDetailExpanded =
               !!noticeCard && !digestNotice && expandedEventDetails[eventNoticeId] === true
             const taskSnapshotIdentity = taskSnapshot?.taskIdentity?.trim() || ""
+            const eventTaskThreadId = noticeCard?.threadId.trim() || ""
+            const eventFallbackThreadId = state?.mainThreadId.trim() || ""
+            const eventTargetThreadId = eventTaskThreadId || eventFallbackThreadId
+            const eventTargetIsTaskThread = eventTaskThreadId.length > 0
             return (
               <div key={round.id} className="space-y-4">
                 {!isSystemNotice && (
@@ -692,15 +696,15 @@ export function ButlerWorkspace(): React.JSX.Element {
                                 不再提示
                               </button>
                             ) : null}
-                            {noticeCard.threadId ? (
+                            {eventTargetThreadId ? (
                               <button
                                 type="button"
                                 onClick={() => {
-                                  void openTaskThread(noticeCard.threadId)
+                                  void openTaskThread(eventTargetThreadId)
                                 }}
                                 className="text-xs text-accent hover:text-accent/80 hover:neon-text transition-all duration-200"
                               >
-                                查看线程
+                                {eventTargetIsTaskThread ? "查看任务线程" : "查看管家线程"}
                               </button>
                             ) : null}
                           </div>

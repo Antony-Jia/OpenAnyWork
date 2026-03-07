@@ -17,6 +17,7 @@ import {
 import {
   appendButlerHistoryMessage,
   clearButlerHistoryMessages,
+  getRangeSummary,
   getWorkingMemorySnapshot,
   getLatestDailyProfile,
   loadButlerMessages,
@@ -34,6 +35,7 @@ import {
 } from "./capabilities"
 import { detectOversplitByModel } from "./granularity"
 import {
+  runButlerDirectReplyTurn,
   runButlerDigestTurn,
   runButlerOrchestratorTurn,
   runButlerPerceptionTurn,
@@ -89,6 +91,7 @@ interface DispatchTaskCreationContext {
   habitAddendum: string
   retryOfTaskId?: string
   retryAttempt?: number
+  preferredReuseThreadByTaskKey?: Record<string, string>
 }
 
 interface PendingDispatchOption {
@@ -138,13 +141,36 @@ interface WorkspaceMissingPendingDispatchChoiceState {
   optionReenter: PendingDispatchOption
 }
 
+interface FollowupTargetCandidate {
+  taskId: string
+  threadId: string
+  title: string
+  mode: ButlerTask["mode"]
+  status: ButlerTaskStatus
+  createdAt: string
+  score: number
+}
+
+interface FollowupTargetPendingDispatchChoiceState {
+  kind: "followup_target"
+  id: string
+  createdAt: string
+  hint: string
+  expectedResponse: "task_select"
+  promptText: string
+  followupText: string
+  candidates: FollowupTargetCandidate[]
+}
+
 type PendingDispatchChoiceState =
   | OversplitPendingDispatchChoiceState
   | RetryConfirmPendingDispatchChoiceState
   | WorkspaceMissingPendingDispatchChoiceState
+  | FollowupTargetPendingDispatchChoiceState
 
 const TASK_NOTICE_MARKER = "[TASK_NOTICE_JSON]"
 const TASK_DIGEST_MARKER = "[TASK_DIGEST_JSON]"
+const GENERIC_RECORDED_REPLY_PATTERN = /^已记录([。.!！]?)*$/u
 
 function nowIso(): string {
   return new Date().toISOString()
@@ -987,6 +1013,491 @@ class ButlerManager {
     }
   }
 
+  private isGenericRecordedReply(text: string): boolean {
+    const normalized = text.trim()
+    if (!normalized) return false
+    return (
+      GENERIC_RECORDED_REPLY_PATTERN.test(normalized) ||
+      normalized.startsWith("已记录，") ||
+      normalized.startsWith("已记录,")
+    )
+  }
+
+  private sanitizeDispatchAssistantText(text: string, fallback: string): string {
+    const normalized = text.trim()
+    if (!normalized) return fallback
+    if (this.isGenericRecordedReply(normalized)) return fallback
+    return normalized
+  }
+
+  private isUsableAssistantText(text: string): boolean {
+    const normalized = text.trim()
+    return normalized.length > 0 && !this.isGenericRecordedReply(normalized)
+  }
+
+  private buildLocalTimeQuickReply(userMessage: string): string | null {
+    const normalized = userMessage.trim().toLowerCase()
+    if (!normalized) return null
+
+    const asksDate = /(今天几号|今天日期|几月几日|日期是多少|what.*date|today.*date)/iu.test(normalized)
+    const asksTime = /(现在几点|当前时间|几点了|what.*time|time\s+now|current\s+time)/iu.test(normalized)
+    const asksWeekday = /(今天星期几|今天周几|星期几|周几|what.*day.*week|weekday)/iu.test(normalized)
+    if (!asksDate && !asksTime && !asksWeekday) {
+      return null
+    }
+
+    const now = new Date()
+    const weekdays = ["星期日", "星期一", "星期二", "星期三", "星期四", "星期五", "星期六"]
+    const weekday = weekdays[now.getDay()] || "星期未知"
+    const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || "Unknown"
+    const dateText = `${now.getFullYear()}年${now.getMonth() + 1}月${now.getDate()}日`
+    const timeText = now.toLocaleTimeString("zh-CN", { hour12: false })
+
+    if (asksDate && asksTime && asksWeekday) {
+      return `现在是 ${dateText}，${weekday}，${timeText}（时区：${timezone}）。`
+    }
+    if (asksDate && asksWeekday) {
+      return `今天是 ${dateText}，${weekday}（时区：${timezone}）。`
+    }
+    if (asksDate && asksTime) {
+      return `现在是 ${dateText} ${timeText}（时区：${timezone}）。`
+    }
+    if (asksDate) {
+      return `今天是 ${dateText}（时区：${timezone}）。`
+    }
+    if (asksWeekday) {
+      return `今天是 ${weekday}（时区：${timezone}）。`
+    }
+    return `现在时间是 ${timeText}（时区：${timezone}）。`
+  }
+
+  private shouldHandleMemoryQuickReply(userMessage: string): boolean {
+    const normalized = userMessage.trim()
+    if (!normalized) return false
+    const asksYesterday = /(昨天|yesterday)/iu.test(normalized)
+    const asksActionSummary = /(干了什么|做了什么|完成了什么|发生了什么|what\s+did\s+i\s+do)/iu.test(normalized)
+    if (asksYesterday && asksActionSummary) return true
+    if (/(对话历史|聊天记录|历史消息|history|chat\s*history)/iu.test(normalized)) return true
+    if (
+      /(最近|近期|recent)/iu.test(normalized) &&
+      /(任务|事件|历史|对话|干了什么|做了什么|发生了什么|what.*(did|done))/iu.test(normalized)
+    ) {
+      return true
+    }
+    return /(记忆|memory)/iu.test(normalized) && /(回顾|总结|查询|看看|summary|recap)/iu.test(normalized)
+  }
+
+  private buildMemoryQuickReply(userMessage: string): string | null {
+    if (!this.shouldHandleMemoryQuickReply(userMessage)) return null
+
+    const normalized = userMessage.trim()
+    const lines: string[] = []
+    const asksYesterday = /(昨天|yesterday)/iu.test(normalized)
+    const asksHistory = /(对话历史|聊天记录|历史消息|history|chat\s*history)/iu.test(normalized)
+
+    if (asksYesterday) {
+      const yesterdaySummary = getRangeSummary({ preset: "yesterday" })
+      lines.push("[昨天概览]")
+      lines.push(yesterdaySummary.eventCount > 0 ? yesterdaySummary.summaryText : "暂无昨天的有效记录。")
+      if (yesterdaySummary.highlights.length > 0) {
+        lines.push("关键点:")
+        for (const [index, item] of yesterdaySummary.highlights.slice(0, 3).entries()) {
+          lines.push(`${index + 1}. ${item}`)
+        }
+      }
+      lines.push("")
+    }
+
+    const memorySearch = searchMemory({ text: normalized, limit: 5 })
+    if (memorySearch.events.length > 0) {
+      lines.push("[相关事件]")
+      for (const [index, event] of memorySearch.events.slice(0, 4).entries()) {
+        lines.push(`${index + 1}. ${event.title}（${event.occurredAt}）: ${event.summary}`)
+      }
+      lines.push("")
+    }
+
+    if (asksHistory) {
+      const recentChatRounds = extractRecentRounds(this.messages, 6).filter((round) => round.kind === "chat")
+      if (recentChatRounds.length > 0) {
+        lines.push("[最近对话]")
+        for (const [index, round] of recentChatRounds.slice(-3).entries()) {
+          lines.push(`${index + 1}. 你: ${round.user}`)
+          if (round.assistant.trim()) {
+            lines.push(`   管家: ${round.assistant}`)
+          }
+        }
+      } else {
+        lines.push("[最近对话]")
+        lines.push("暂无可回顾的对话记录。")
+      }
+    }
+
+    const compact = lines.map((line) => line.trimEnd()).join("\n").trim()
+    if (compact) return compact
+    return "我现在还没有足够的历史记忆来回答这个问题。请告诉我你想回顾的时间范围或任务主题。"
+  }
+
+  private isFollowupContinuationCue(userMessage: string): boolean {
+    const normalized = userMessage.trim()
+    if (!normalized) return false
+    if (normalized.length > 180) return false
+    if (/^(再|另外|顺便|补充|追加|继续|再帮我|帮我再|再给我|再把|并且|还要)/u.test(normalized)) {
+      return true
+    }
+    return /(补充|再加|追加|顺便|再帮我|再给我|继续这个|继续上个)/u.test(normalized)
+  }
+
+  private tokenizeForTaskMatch(text: string): string[] {
+    const tokens = text
+      .toLowerCase()
+      .match(/[\u4e00-\u9fff]{2,}|[a-z0-9_-]{3,}/gu)
+    if (!tokens) return []
+    return Array.from(new Set(tokens)).slice(0, 30)
+  }
+
+  private overlapScore(sourceTokens: string[], targetTokens: Set<string>): number {
+    let score = 0
+    for (const token of sourceTokens) {
+      if (targetTokens.has(token)) score += 1
+    }
+    return score
+  }
+
+  private buildFollowupCandidates(params: {
+    statuses: ButlerTaskStatus[]
+    followupText: string
+    previousUserMessage?: string
+    cueDetected: boolean
+  }): FollowupTargetCandidate[] {
+    const phaseTasks = this.listTasks().filter((task) => params.statuses.includes(task.status))
+    if (phaseTasks.length === 0) return []
+
+    const followupTokens = this.tokenizeForTaskMatch(params.followupText)
+    const previousTokens = this.tokenizeForTaskMatch(params.previousUserMessage || "")
+    const normalizedPrevious = (params.previousUserMessage || "").trim().toLowerCase()
+    const scored: FollowupTargetCandidate[] = []
+
+    for (const [index, task] of phaseTasks.entries()) {
+      const corpus = [task.title, task.originUserMessage || "", task.prompt, task.resultBrief || ""]
+        .join("\n")
+        .toLowerCase()
+      const taskTokens = new Set(this.tokenizeForTaskMatch(corpus))
+      const followupOverlap = this.overlapScore(followupTokens, taskTokens)
+      const previousOverlap = this.overlapScore(previousTokens, taskTokens)
+      const previousExact = normalizedPrevious.length > 0 && corpus.includes(normalizedPrevious)
+      const hasSignal = followupOverlap > 0 || previousOverlap > 0 || previousExact
+      if (!hasSignal) continue
+
+      const recencyBoost = Math.max(0, 8 - index)
+      const score =
+        followupOverlap * 5 +
+        previousOverlap * 9 +
+        (previousExact ? 25 : 0) +
+        recencyBoost +
+        (task.status === "running" ? 12 : 0)
+      scored.push({
+        taskId: task.id,
+        threadId: task.threadId,
+        title: task.title,
+        mode: task.mode,
+        status: task.status,
+        createdAt: task.createdAt,
+        score
+      })
+    }
+
+    if (scored.length === 0 && params.cueDetected && phaseTasks.length === 1) {
+      const single = phaseTasks[0]
+      return [
+        {
+          taskId: single.id,
+          threadId: single.threadId,
+          title: single.title,
+          mode: single.mode,
+          status: single.status,
+          createdAt: single.createdAt,
+          score: 1
+        }
+      ]
+    }
+
+    scored.sort((a, b) => {
+      if (b.score !== a.score) return b.score - a.score
+      return b.createdAt.localeCompare(a.createdAt)
+    })
+    return scored.slice(0, 5)
+  }
+
+  private chooseFollowupCandidate(
+    candidates: FollowupTargetCandidate[]
+  ): { selected?: FollowupTargetCandidate; ambiguous: boolean } {
+    if (candidates.length === 0) return { ambiguous: true }
+    if (candidates.length === 1) return { selected: candidates[0], ambiguous: false }
+    const [first, second] = candidates
+    if ((first?.score ?? 0) - (second?.score ?? 0) >= 12) {
+      return { selected: first, ambiguous: false }
+    }
+    return { ambiguous: true }
+  }
+
+  private buildFallbackFollowupCandidates(limit = 3): FollowupTargetCandidate[] {
+    return this.listTasks()
+      .filter((task) => task.status === "running" || task.status === "completed")
+      .slice(0, limit)
+      .map((task) => ({
+        taskId: task.id,
+        threadId: task.threadId,
+        title: task.title,
+        mode: task.mode,
+        status: task.status,
+        createdAt: task.createdAt,
+        score: 0
+      }))
+  }
+
+  private buildFollowupTargetChoicePrompt(
+    followupText: string,
+    candidates: FollowupTargetCandidate[]
+  ): string {
+    const lines = candidates.map(
+      (candidate, index) =>
+        `${index + 1}. [${candidate.mode}/${candidate.status}] ${candidate.title} | thread=${candidate.threadId}`
+    )
+    return [
+      "这条看起来是对最近任务的补充，但我还不能唯一确定目标任务。",
+      `补充内容: ${followupText}`,
+      "",
+      "请回复序号选择要续接的任务：",
+      ...lines
+    ].join("\n")
+  }
+
+  private parseTaskSelectChoiceText(raw: string, candidateCount: number): number | null {
+    const normalized = raw.trim().toLowerCase()
+    if (!normalized || candidateCount <= 0) return null
+    const matched = normalized.match(/\d+/)
+    if (!matched) return null
+    const value = Number.parseInt(matched[0], 10)
+    if (!Number.isFinite(value)) return null
+    if (value < 1 || value > candidateCount) return null
+    return value - 1
+  }
+
+  private buildFollowupIntent(params: {
+    targetTask: ButlerTask
+    followupText: string
+    taskKey: string
+  }): ButlerDispatchIntent {
+    const { targetTask, followupText, taskKey } = params
+    const title = `${targetTask.title}（补充）`
+    const initialPrompt = [
+      "这是对同一任务的追问补充，请基于已有上下文继续执行。",
+      `新增要求: ${followupText}`,
+      "请在结果中明确说明新增内容和与原任务的衔接。"
+    ].join("\n")
+    const common = {
+      taskKey,
+      title,
+      initialPrompt,
+      threadStrategy: "reuse_last_thread" as const,
+      workspacePath: targetTask.workspacePath,
+      dependsOn: []
+    }
+
+    switch (targetTask.mode) {
+      case "ralph":
+        return {
+          ...common,
+          mode: "ralph",
+          acceptanceCriteria: ["新增补充要求已实现并通过验证。"],
+          maxIterations: targetTask.ralphMaxIterations
+        }
+      case "email":
+        return {
+          ...common,
+          mode: "email",
+          emailIntent: followupText
+        }
+      case "loop": {
+        const fallbackLoopConfig = {
+          enabled: true,
+          contentTemplate: followupText,
+          trigger: { type: "schedule" as const, cron: "*/5 * * * *" },
+          queue: { policy: "strict" as const, mergeWindowSec: 300 }
+        }
+        return {
+          ...common,
+          mode: "loop",
+          loopConfig: targetTask.loopConfig ?? fallbackLoopConfig
+        }
+      }
+      case "expert":
+        return {
+          ...common,
+          mode: "expert",
+          expertConfig:
+            targetTask.expertConfig ??
+            {
+              experts: [
+                {
+                  id: "followup_expert",
+                  role: "执行者",
+                  prompt: `在原任务上下文中实现这个补充要求：${followupText}`,
+                  agentThreadId: ""
+                }
+              ],
+              loop: { enabled: false, maxCycles: 1 }
+            }
+        }
+      default:
+        return {
+          ...common,
+          mode: "default"
+        }
+    }
+  }
+
+  private dispatchFollowupToTask(params: {
+    targetTask: ButlerTask
+    followupText: string
+    capabilitySummary: string
+  }): ButlerState {
+    const { targetTask, followupText, capabilitySummary } = params
+    const followupTaskKey = `followup_${Date.now()}`
+    const intent = this.buildFollowupIntent({
+      targetTask,
+      followupText,
+      taskKey: followupTaskKey
+    })
+    const profile = getLatestDailyProfile()
+    const followupHints = searchMemoryByTask(followupText, 3).map((item) => ({
+      threadId: item.threadId,
+      title: item.title,
+      summaryBrief: item.summaryBrief
+    }))
+    const creation: DispatchTaskCreationContext = {
+      originUserMessage: this.normalizeOriginUserMessage(
+        `${targetTask.originUserMessage || targetTask.title}\n补充要求: ${followupText}`
+      ),
+      habitAddendum: this.buildHabitAddendum({
+        profileText: profile?.profileText,
+        memoryHints: followupHints
+      }),
+      preferredReuseThreadByTaskKey: {
+        [followupTaskKey]: targetTask.threadId
+      }
+    }
+    return this.dispatchIntentsAndReply({
+      intents: [intent],
+      assistantText: `已将补充要求续接到任务「${targetTask.title}」，会在当前执行完成后继续处理。`,
+      capabilitySummary,
+      creation
+    })
+  }
+
+  private tryHandleFollowupContinuation(params: {
+    userMessage: string
+    previousUserMessage?: string
+    capabilitySummary: string
+  }): ButlerState | null {
+    const cueDetected = this.isFollowupContinuationCue(params.userMessage)
+    if (!cueDetected) return null
+
+    const hasTaskToContinue = this.listTasks().some(
+      (task) => task.status === "running" || task.status === "completed"
+    )
+    if (!hasTaskToContinue) return null
+
+    const runningCandidates = this.buildFollowupCandidates({
+      statuses: ["running"],
+      followupText: params.userMessage,
+      previousUserMessage: params.previousUserMessage,
+      cueDetected
+    })
+    if (runningCandidates.length > 0) {
+      const choice = this.chooseFollowupCandidate(runningCandidates)
+      if (choice.selected) {
+        const target = this.tasks.get(choice.selected.taskId)
+        if (target) {
+          return this.dispatchFollowupToTask({
+            targetTask: target,
+            followupText: params.userMessage,
+            capabilitySummary: params.capabilitySummary
+          })
+        }
+      }
+      const pendingChoice: FollowupTargetPendingDispatchChoiceState = {
+        kind: "followup_target",
+        id: uuid(),
+        createdAt: nowIso(),
+        hint: "检测到追问补充，请回复序号选择要续接的任务。",
+        expectedResponse: "task_select",
+        promptText: this.buildFollowupTargetChoicePrompt(
+          params.userMessage,
+          runningCandidates.slice(0, 3)
+        ),
+        followupText: params.userMessage,
+        candidates: runningCandidates.slice(0, 3)
+      }
+      this.schedulePendingDispatchChoice(pendingChoice)
+      return this.getState()
+    }
+
+    const completedCandidates = this.buildFollowupCandidates({
+      statuses: ["completed"],
+      followupText: params.userMessage,
+      previousUserMessage: params.previousUserMessage,
+      cueDetected
+    })
+    if (completedCandidates.length > 0) {
+      const choice = this.chooseFollowupCandidate(completedCandidates)
+      if (choice.selected) {
+        const target = this.tasks.get(choice.selected.taskId)
+        if (target) {
+          return this.dispatchFollowupToTask({
+            targetTask: target,
+            followupText: params.userMessage,
+            capabilitySummary: params.capabilitySummary
+          })
+        }
+      }
+      const pendingChoice: FollowupTargetPendingDispatchChoiceState = {
+        kind: "followup_target",
+        id: uuid(),
+        createdAt: nowIso(),
+        hint: "检测到追问补充，请回复序号选择要续接的任务。",
+        expectedResponse: "task_select",
+        promptText: this.buildFollowupTargetChoicePrompt(
+          params.userMessage,
+          completedCandidates.slice(0, 3)
+        ),
+        followupText: params.userMessage,
+        candidates: completedCandidates.slice(0, 3)
+      }
+      this.schedulePendingDispatchChoice(pendingChoice)
+      return this.getState()
+    }
+
+    const fallbackCandidates = this.buildFallbackFollowupCandidates(3)
+    if (fallbackCandidates.length > 0) {
+      const pendingChoice: FollowupTargetPendingDispatchChoiceState = {
+        kind: "followup_target",
+        id: uuid(),
+        createdAt: nowIso(),
+        hint: "补充目标不清晰，请回复序号选择要续接的任务。",
+        expectedResponse: "task_select",
+        promptText: this.buildFollowupTargetChoicePrompt(params.userMessage, fallbackCandidates),
+        followupText: params.userMessage,
+        candidates: fallbackCandidates
+      }
+      this.schedulePendingDispatchChoice(pendingChoice)
+      return this.getState()
+    }
+
+    return null
+  }
+
   async send(message: string): Promise<ButlerState> {
     await this.initialize()
     const trimmed = message.trim()
@@ -1006,6 +1517,30 @@ class ButlerManager {
       return this.handlePendingDispatchChoice(trimmed)
     }
 
+    const localTimeReply = this.buildLocalTimeQuickReply(trimmed)
+    if (localTimeReply) {
+      this.pushMessage({
+        id: uuid(),
+        role: "assistant",
+        content: localTimeReply,
+        ts: nowIso()
+      })
+      this.broadcastState()
+      return this.getState()
+    }
+
+    const memoryQuickReply = this.buildMemoryQuickReply(trimmed)
+    if (memoryQuickReply) {
+      this.pushMessage({
+        id: uuid(),
+        role: "assistant",
+        content: memoryQuickReply,
+        ts: nowIso()
+      })
+      this.broadcastState()
+      return this.getState()
+    }
+
     const { capabilityCatalog, capabilitySummary } = this.getCapabilityContext()
     const promptContextBase = this.buildPromptContextBase({
       userMessage: trimmed,
@@ -1021,6 +1556,15 @@ class ButlerManager {
       })
     }
 
+    const followupState = this.tryHandleFollowupContinuation({
+      userMessage: trimmed,
+      previousUserMessage: promptContextBase.previousUserMessage,
+      capabilitySummary
+    })
+    if (followupState) {
+      return followupState
+    }
+
     const orchestrator = await runButlerOrchestratorTurn({
       threadId: this.mainThreadId,
       promptContext: {
@@ -1030,22 +1574,43 @@ class ButlerManager {
     })
 
     if (orchestrator.dispatchIntents.length === 0) {
+      let directReplyText = orchestrator.assistantText.trim()
+      let shouldUseDirectReply = this.isUsableAssistantText(directReplyText)
+      if (!shouldUseDirectReply) {
+        try {
+          const directReplyTurn = await runButlerDirectReplyTurn({
+            promptContext: {
+              ...promptContextBase,
+              dispatchPolicy: "standard"
+            }
+          })
+          if (this.isUsableAssistantText(directReplyTurn.assistantText)) {
+            directReplyText = directReplyTurn.assistantText.trim()
+            shouldUseDirectReply = true
+          }
+        } catch (error) {
+          console.warn("[Butler] Direct reply fallback failed:", error)
+        }
+      }
       this.pushMessage({
         id: uuid(),
         role: "assistant",
-        content:
-          orchestrator.assistantText ||
-          (orchestrator.clarification ? "请补充关键信息。" : "已记录。"),
+        content: shouldUseDirectReply ? directReplyText : "我还缺少关键信息。请补充你的目标、范围或期望输出。",
         ts: nowIso()
       })
       this.broadcastState()
       return this.getState()
     }
 
+    const primaryAssistantText = this.sanitizeDispatchAssistantText(
+      orchestrator.assistantText,
+      "已完成任务编排并开始执行。"
+    )
+
     if (orchestrator.dispatchIntents.length <= 1) {
       return this.dispatchIntentsAndReply({
         intents: orchestrator.dispatchIntents,
-        assistantText: orchestrator.assistantText || "已完成任务编排并开始执行。",
+        assistantText: primaryAssistantText,
         capabilitySummary,
         creation
       })
@@ -1058,7 +1623,7 @@ class ButlerManager {
     if (detection.verdict === "valid_multi") {
       return this.dispatchIntentsAndReply({
         intents: orchestrator.dispatchIntents,
-        assistantText: orchestrator.assistantText || "已完成任务编排并开始执行。",
+        assistantText: primaryAssistantText,
         capabilitySummary,
         creation
       })
@@ -1081,7 +1646,10 @@ class ButlerManager {
         optionA = {
           kind: "dispatch",
           intents: replanned.dispatchIntents,
-          assistantText: replanned.assistantText || "已按方案A（单任务优先）执行。",
+          assistantText: this.sanitizeDispatchAssistantText(
+            replanned.assistantText,
+            "已按方案A（单任务优先）执行。"
+          ),
           summary: this.buildDispatchOptionSummary(replanned.dispatchIntents),
           capabilitySummary,
           creation
@@ -1111,7 +1679,10 @@ class ButlerManager {
     const optionB: PendingDispatchOption = {
       kind: "dispatch",
       intents: orchestrator.dispatchIntents,
-      assistantText: orchestrator.assistantText || "已按方案B（原始拆分）执行。",
+      assistantText: this.sanitizeDispatchAssistantText(
+        orchestrator.assistantText,
+        "已按方案B（原始拆分）执行。"
+      ),
       summary: this.buildDispatchOptionSummary(orchestrator.dispatchIntents),
       capabilitySummary,
       creation
@@ -1143,6 +1714,49 @@ class ButlerManager {
   private handlePendingDispatchChoice(choiceText: string): ButlerState {
     const pending = this.pendingDispatchChoice
     if (!pending) return this.getState()
+
+    if (pending.kind === "followup_target") {
+      const selectedIndex = this.parseTaskSelectChoiceText(choiceText, pending.candidates.length)
+      if (selectedIndex === null) {
+        this.pushMessage({
+          id: uuid(),
+          role: "assistant",
+          content: [
+            "请回复序号选择要续接的任务。",
+            ...pending.candidates.map(
+              (candidate, index) =>
+                `${index + 1}. [${candidate.mode}/${candidate.status}] ${candidate.title}`
+            )
+          ].join("\n"),
+          ts: nowIso()
+        })
+        this.broadcastState()
+        return this.getState()
+      }
+
+      const selected = pending.candidates[selectedIndex]
+      const targetTask = selected ? this.tasks.get(selected.taskId) : null
+      this.pendingDispatchChoice = null
+      if (!targetTask) {
+        this.pushMessage({
+          id: uuid(),
+          role: "assistant",
+          content: "目标任务不存在或已被清理，请重新说明要补充的任务。",
+          ts: nowIso()
+        })
+        this.broadcastState()
+        this.promoteNextQueuedDispatchChoice()
+        return this.getState()
+      }
+
+      const state = this.dispatchFollowupToTask({
+        targetTask,
+        followupText: pending.followupText,
+        capabilitySummary: this.getCapabilityContext().capabilitySummary
+      })
+      this.promoteNextQueuedDispatchChoice()
+      return state
+    }
 
     let selected: PendingDispatchOption
 
@@ -1842,8 +2456,10 @@ class ButlerManager {
 
     for (const intent of intents) {
       const requestedReuse = intent.threadStrategy === "reuse_last_thread"
-      const reusableThreadId = requestedReuse ? this.findReusableThreadId(intent.mode) : undefined
-      if (requestedReuse && !reusableThreadId) {
+      const preferredReuseThreadId = creation.preferredReuseThreadByTaskKey?.[intent.taskKey]
+      const reusableThreadId =
+        preferredReuseThreadId || (requestedReuse ? this.findReusableThreadId(intent.mode) : undefined)
+      if (requestedReuse && !reusableThreadId && !preferredReuseThreadId) {
         notes.push(`任务 ${intent.taskKey}: 未找到可复用线程，已自动改为 new_thread。`)
       }
 

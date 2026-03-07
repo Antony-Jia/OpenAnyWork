@@ -567,8 +567,8 @@ export interface ButlerPendingDispatchChoice {
   id: string
   awaiting: boolean
   createdAt: string
-  kind: "oversplit_ab" | "retry_confirm" | "workspace_missing"
-  expectedResponse: "ab" | "confirm_cancel" | "create_reenter"
+  kind: "oversplit_ab" | "retry_confirm" | "workspace_missing" | "followup_target"
+  expectedResponse: "ab" | "confirm_cancel" | "create_reenter" | "task_select"
   hint: string
 }
 

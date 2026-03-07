@@ -1,6 +1,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle
+} from "@/components/ui/dialog"
 import { useAppStore } from "@/lib/store"
 import { ButlerTaskBoard } from "./ButlerTaskBoard"
 import { ButlerMonitorBoard } from "./ButlerMonitorBoard"
@@ -48,6 +56,32 @@ function resolveTaskDetail(card: ButlerNoticeCard): string {
   const brief = card.resultBrief?.trim()
   if (brief) return brief
   return "暂无任务结果内容。"
+}
+
+interface DispatchSummary {
+  taskGroup: string | null
+  createdCount: number | null
+  taskLines: string[]
+}
+
+function parseDispatchSummary(text: string): DispatchSummary {
+  const normalized = text.trim()
+  if (!normalized) {
+    return { taskGroup: null, createdCount: null, taskLines: [] }
+  }
+
+  const groupMatch = normalized.match(/任务组:\s*([^\r\n]+)/)
+  const countMatch = normalized.match(/共创建\s*(\d+)\s*个任务/)
+  const taskLines = normalized
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter((line) => /^\d+\.\s+/.test(line))
+
+  return {
+    taskGroup: groupMatch?.[1]?.trim() || null,
+    createdCount: countMatch?.[1] ? Number.parseInt(countMatch[1], 10) : null,
+    taskLines
+  }
 }
 
 function isTaskCompletionNotice(value: unknown): value is TaskCompletionNotice {
@@ -249,6 +283,7 @@ export function ButlerWorkspace(): React.JSX.Element {
   const [rightTab, setRightTab] = useState<"tasks" | "monitor">("tasks")
   const [mutedTaskIdentities, setMutedTaskIdentities] = useState<Set<string>>(new Set())
   const scrollRef = useRef<HTMLDivElement>(null)
+  const inputRef = useRef<HTMLTextAreaElement>(null)
   const isAtBottomRef = useRef(true)
   const [expandedDigestDetails, setExpandedDigestDetails] = useState<Record<string, boolean>>({})
   const [expandedEventDetails, setExpandedEventDetails] = useState<Record<string, boolean>>({})
@@ -256,6 +291,8 @@ export function ButlerWorkspace(): React.JSX.Element {
   const [digestPreset, setDigestPreset] = useState<"0" | "1" | "5" | "60" | "custom">("1")
   const [digestCustomValue, setDigestCustomValue] = useState("1")
   const [savingDigestInterval, setSavingDigestInterval] = useState(false)
+  const [confirmClearHistoryOpen, setConfirmClearHistoryOpen] = useState(false)
+  const [confirmClearTasksOpen, setConfirmClearTasksOpen] = useState(false)
 
   const loadButlerSettings = useCallback(async (): Promise<void> => {
     try {
@@ -436,12 +473,12 @@ export function ButlerWorkspace(): React.JSX.Element {
     const message = input.trim()
     if (!message || sending) return
     setSending(true)
+    setInput("")
 
     window.api.butler
       .send(message)
       .then((nextState) => {
         setState(nextState)
-        setInput("")
         return window.api.butler.listTasks()
       })
       .then((nextTasks) => {
@@ -457,13 +494,17 @@ export function ButlerWorkspace(): React.JSX.Element {
 
   const handleClearHistory = async (): Promise<void> => {
     if (clearingHistory) return
-    const confirmed = window.confirm("确认清空聊天记录吗？")
-    if (!confirmed) return
 
     setClearingHistory(true)
     try {
       const nextState = await window.api.butler.clearHistory()
       setState(nextState)
+      setInput("")
+      setSending(false)
+      setConfirmClearHistoryOpen(false)
+      requestAnimationFrame(() => {
+        inputRef.current?.focus()
+      })
     } finally {
       setClearingHistory(false)
     }
@@ -471,13 +512,12 @@ export function ButlerWorkspace(): React.JSX.Element {
 
   const handleClearTasks = async (): Promise<void> => {
     if (clearingTasks) return
-    const confirmed = window.confirm("确认清空任务列表吗？运行中的任务不会被清理。")
-    if (!confirmed) return
 
     setClearingTasks(true)
     try {
       const nextTasks = await window.api.butler.clearTasks()
       setTasks(nextTasks)
+      setConfirmClearTasksOpen(false)
     } finally {
       setClearingTasks(false)
     }
@@ -526,8 +566,8 @@ export function ButlerWorkspace(): React.JSX.Element {
             <Button
               variant="ghost"
               size="sm"
-              disabled={clearingHistory}
-              onClick={() => void handleClearHistory()}
+              disabled={clearingHistory || sending}
+              onClick={() => setConfirmClearHistoryOpen(true)}
               className="h-7 px-3 text-xs rounded-lg"
             >
               {clearingHistory ? "清空中..." : "清空聊天"}
@@ -580,6 +620,12 @@ export function ButlerWorkspace(): React.JSX.Element {
             const eventFallbackThreadId = state?.mainThreadId.trim() || ""
             const eventTargetThreadId = eventTaskThreadId || eventFallbackThreadId
             const eventTargetIsTaskThread = eventTaskThreadId.length > 0
+            const isDispatchNotice =
+              !!taskSnapshot && "phase" in taskSnapshot && taskSnapshot.phase === "started"
+            const dispatchSummary = isDispatchNotice
+              ? parseDispatchSummary(noticeCard?.resultDetail || assistantText)
+              : { taskGroup: null, createdCount: null, taskLines: [] }
+            const primaryTitle = digestNotice?.title || noticeCard?.title || "系统通知"
             return (
               <div key={round.id} className="space-y-4">
                 {!isSystemNotice && (
@@ -603,147 +649,225 @@ export function ButlerWorkspace(): React.JSX.Element {
                         B
                       </div>
                     )}
-                    <div className="max-w-[85%] rounded-2xl rounded-tl-sm border border-border/40 bg-card/60 backdrop-blur-sm p-4 shadow-sm">
-                      <div className="mb-2 flex items-center justify-between gap-2">
-                        <div className="text-[10px] uppercase tracking-[0.15em] text-accent/70 font-bold">
-                          {isSystemNotice ? resolveRoundLabel(round) : "管家"}
-                        </div>
-                        {isSystemNotice && digestNotice ? (
-                          <button
-                            type="button"
-                            onClick={() => {
-                              toggleDigestDetails(digestNoticeId)
-                            }}
-                            className="text-[10px] text-accent hover:text-accent/80"
-                          >
-                            {digestDetailExpanded ? "收起明细" : "展开明细"}
-                          </button>
-                        ) : isSystemNotice && !digestNotice && noticeCard ? (
-                          <button
-                            type="button"
-                            onClick={() => {
-                              toggleEventDetails(eventNoticeId)
-                            }}
-                            className="text-[10px] text-accent hover:text-accent/80"
-                          >
-                            {eventDetailExpanded ? "收起明细" : "展开明细"}
-                          </button>
-                        ) : null}
-                      </div>
-                      <div className="text-sm whitespace-pre-wrap">
-                        {assistantText || "处理中..."}
-                      </div>
-                      {isSystemNotice && digestNotice && digestDetailExpanded ? (
-                        <div className="mt-3 rounded-xl border border-border/40 bg-background/40 p-3">
-                          <div className="mb-3 flex items-center justify-between gap-2">
-                            <div className="flex items-center gap-1 rounded-lg border border-border/50 bg-card/40 p-1">
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setDigestDetailTab(digestNoticeId, "overview")
-                                }}
-                                className={
-                                  digestDetailTab === "overview"
-                                    ? "rounded-md bg-accent/15 px-2 py-1 text-[11px] text-accent"
-                                    : "rounded-md px-2 py-1 text-[11px] text-muted-foreground hover:text-foreground"
-                                }
-                              >
-                                概览
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setDigestDetailTab(digestNoticeId, "tasks")
-                                }}
-                                className={
-                                  digestDetailTab === "tasks"
-                                    ? "rounded-md bg-accent/15 px-2 py-1 text-[11px] text-accent"
-                                    : "rounded-md px-2 py-1 text-[11px] text-muted-foreground hover:text-foreground"
-                                }
-                              >
-                                任务
-                              </button>
+                    <Card className="max-w-[85%] border-border/50 bg-card/75">
+                      <CardHeader className="pb-3">
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0">
+                            <div className="text-[10px] uppercase tracking-[0.15em] text-accent/70 font-bold">
+                              {isSystemNotice ? resolveRoundLabel(round) : "管家"}
                             </div>
-                            <Badge variant="info">{digestTasks.length} tasks</Badge>
+                            {isSystemNotice ? (
+                              <CardTitle
+                                className="mt-1 truncate text-sm font-semibold"
+                                title={primaryTitle}
+                              >
+                                {primaryTitle}
+                              </CardTitle>
+                            ) : null}
                           </div>
+                          {isSystemNotice && digestNotice ? (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                toggleDigestDetails(digestNoticeId)
+                              }}
+                              className="text-[10px] text-accent hover:text-accent/80"
+                            >
+                              {digestDetailExpanded ? "收起明细" : "展开明细"}
+                            </button>
+                          ) : isSystemNotice && !digestNotice && noticeCard ? (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                toggleEventDetails(eventNoticeId)
+                              }}
+                              className="text-[10px] text-accent hover:text-accent/80"
+                            >
+                              {eventDetailExpanded ? "收起明细" : "展开明细"}
+                            </button>
+                          ) : null}
+                        </div>
+                      </CardHeader>
+                      <CardContent className="space-y-3">
+                        <div className="rounded-lg border border-border/40 bg-background/45 p-3 text-sm whitespace-pre-wrap">
+                          {assistantText || "处理中..."}
+                        </div>
 
-                          {digestDetailTab === "overview" ? (
-                            <div className="space-y-2 text-xs text-muted-foreground">
-                              <div className="text-sm font-medium text-foreground">
-                                {digestNotice.title}
+                        {isSystemNotice && digestNotice && digestDetailExpanded ? (
+                          <Card className="border-border/40 bg-background/45 shadow-none">
+                            <CardContent className="space-y-3 pt-4">
+                              <div className="flex items-center justify-between gap-2">
+                                <div className="flex items-center gap-1 rounded-lg border border-border/50 bg-card/40 p-1">
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setDigestDetailTab(digestNoticeId, "overview")
+                                    }}
+                                    className={
+                                      digestDetailTab === "overview"
+                                        ? "rounded-md bg-accent/15 px-2 py-1 text-[11px] text-accent"
+                                        : "rounded-md px-2 py-1 text-[11px] text-muted-foreground hover:text-foreground"
+                                    }
+                                  >
+                                    概览
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setDigestDetailTab(digestNoticeId, "tasks")
+                                    }}
+                                    className={
+                                      digestDetailTab === "tasks"
+                                        ? "rounded-md bg-accent/15 px-2 py-1 text-[11px] text-accent"
+                                        : "rounded-md px-2 py-1 text-[11px] text-muted-foreground hover:text-foreground"
+                                    }
+                                  >
+                                    任务
+                                  </button>
+                                </div>
+                                <Badge variant="info">{digestTasks.length} tasks</Badge>
                               </div>
-                              <div>
-                                时间窗: {new Date(digestNotice.digest.windowStart).toLocaleString()}{" "}
-                                - {new Date(digestNotice.digest.windowEnd).toLocaleString()}
+
+                              {digestDetailTab === "overview" ? (
+                                <div className="space-y-2">
+                                  <div className="grid grid-cols-1 gap-2 text-xs text-muted-foreground sm:grid-cols-2">
+                                    <div className="rounded-lg border border-border/40 bg-background/50 p-2">
+                                      <div className="text-[10px] uppercase tracking-wide text-muted-foreground/80">
+                                        时间窗开始
+                                      </div>
+                                      <div className="mt-1 text-foreground">
+                                        {new Date(digestNotice.digest.windowStart).toLocaleString()}
+                                      </div>
+                                    </div>
+                                    <div className="rounded-lg border border-border/40 bg-background/50 p-2">
+                                      <div className="text-[10px] uppercase tracking-wide text-muted-foreground/80">
+                                        时间窗结束
+                                      </div>
+                                      <div className="mt-1 text-foreground">
+                                        {new Date(digestNotice.digest.windowEnd).toLocaleString()}
+                                      </div>
+                                    </div>
+                                  </div>
+                                  <div className="rounded-lg border border-border/40 bg-background/50 p-3 text-xs whitespace-pre-wrap text-muted-foreground">
+                                    {digestNotice.digest.summaryText}
+                                  </div>
+                                  <div className="text-[11px] text-muted-foreground">
+                                    更新时间：{new Date(digestNotice.completedAt).toLocaleString()}
+                                  </div>
+                                </div>
+                              ) : digestTasks.length > 0 ? (
+                                <DigestTaskCards
+                                  tasks={digestTasks}
+                                  onOpenThread={(threadId) => {
+                                    void openTaskThread(threadId)
+                                  }}
+                                  onMuteTask={(taskIdentity) => {
+                                    void muteTaskIdentity(taskIdentity)
+                                  }}
+                                />
+                              ) : (
+                                <div className="text-xs text-muted-foreground">
+                                  当前汇总任务均已静默。
+                                </div>
+                              )}
+                            </CardContent>
+                          </Card>
+                        ) : null}
+
+                        {isSystemNotice && !digestNotice && noticeCard && eventDetailExpanded ? (
+                          <Card className="border-border/40 bg-background/45 shadow-none">
+                            <CardContent className="space-y-3 pt-4">
+                              <div className="flex items-start justify-between gap-2">
+                                <div className="grid grid-cols-1 gap-2 text-xs text-muted-foreground sm:grid-cols-2">
+                                  <div className="rounded-lg border border-border/40 bg-background/50 p-2">
+                                    <div className="text-[10px] uppercase tracking-wide text-muted-foreground/80">
+                                      更新时间
+                                    </div>
+                                    <div className="mt-1 text-foreground">
+                                      {new Date(noticeCard.completedAt).toLocaleString()}
+                                    </div>
+                                  </div>
+                                  <div className="rounded-lg border border-border/40 bg-background/50 p-2">
+                                    <div className="text-[10px] uppercase tracking-wide text-muted-foreground/80">
+                                      状态
+                                    </div>
+                                    <div className="mt-1">
+                                      <Badge variant={toStatusVariant(noticeCard.status)}>
+                                        {noticeCard.status}
+                                      </Badge>
+                                    </div>
+                                  </div>
+                                </div>
                               </div>
-                              <div className="whitespace-pre-wrap">
-                                {digestNotice.digest.summaryText}
+
+                              {isDispatchNotice ? (
+                                <div className="grid grid-cols-1 gap-2 text-xs text-muted-foreground sm:grid-cols-2">
+                                  <div className="rounded-lg border border-border/40 bg-background/50 p-2">
+                                    <div className="text-[10px] uppercase tracking-wide text-muted-foreground/80">
+                                      任务组
+                                    </div>
+                                    <div className="mt-1 text-foreground">
+                                      {dispatchSummary.taskGroup || "未提供"}
+                                    </div>
+                                  </div>
+                                  <div className="rounded-lg border border-border/40 bg-background/50 p-2">
+                                    <div className="text-[10px] uppercase tracking-wide text-muted-foreground/80">
+                                      新建任务数
+                                    </div>
+                                    <div className="mt-1 text-foreground">
+                                      {dispatchSummary.createdCount ?? "未提供"}
+                                    </div>
+                                  </div>
+                                </div>
+                              ) : null}
+
+                              {isDispatchNotice && dispatchSummary.taskLines.length > 0 ? (
+                                <div className="rounded-lg border border-border/40 bg-background/50 p-3 text-xs text-muted-foreground">
+                                  <div className="mb-2 text-[10px] uppercase tracking-wide text-muted-foreground/80">
+                                    任务清单
+                                  </div>
+                                  <div className="space-y-1">
+                                    {dispatchSummary.taskLines.map((line) => (
+                                      <div key={line} className="whitespace-pre-wrap">
+                                        {line}
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              ) : null}
+
+                              <div className="max-h-44 overflow-y-auto whitespace-pre-wrap rounded-lg border border-border/40 bg-background/50 p-3 text-xs text-muted-foreground">
+                                {resolveTaskDetail(noticeCard)}
                               </div>
-                              <div>
-                                更新时间: {new Date(digestNotice.completedAt).toLocaleString()}
+                              <div className="flex justify-end">
+                                {taskSnapshotIdentity ? (
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      void muteTaskIdentity(taskSnapshotIdentity)
+                                    }}
+                                    className="mr-3 text-xs text-muted-foreground hover:text-foreground"
+                                  >
+                                    不再提示
+                                  </button>
+                                ) : null}
+                                {eventTargetThreadId ? (
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      void openTaskThread(eventTargetThreadId)
+                                    }}
+                                    className="text-xs text-accent hover:text-accent/80"
+                                  >
+                                    {eventTargetIsTaskThread ? "查看任务线程" : "查看管家线程"}
+                                  </button>
+                                ) : null}
                               </div>
-                            </div>
-                          ) : digestTasks.length > 0 ? (
-                            <DigestTaskCards
-                              tasks={digestTasks}
-                              onOpenThread={(threadId) => {
-                                void openTaskThread(threadId)
-                              }}
-                              onMuteTask={(taskIdentity) => {
-                                void muteTaskIdentity(taskIdentity)
-                              }}
-                            />
-                          ) : (
-                            <div className="text-xs text-muted-foreground">
-                              当前汇总任务均已静默。
-                            </div>
-                          )}
-                        </div>
-                      ) : isSystemNotice && !digestNotice && noticeCard && eventDetailExpanded ? (
-                        <div className="mt-3 rounded-xl border border-border/40 bg-background/40 p-3">
-                          <div className="mb-3 flex items-start justify-between gap-2">
-                            <div className="min-w-0">
-                              <div className="truncate text-sm font-medium" title={noticeCard.title}>
-                                {noticeCard.title}
-                              </div>
-                              <div className="mt-1 text-[10px] text-muted-foreground">
-                                {new Date(noticeCard.completedAt).toLocaleString()}
-                              </div>
-                            </div>
-                            <Badge variant={toStatusVariant(noticeCard.status)}>
-                              {noticeCard.status}
-                            </Badge>
-                          </div>
-                          <div className="max-h-44 overflow-y-auto whitespace-pre-wrap rounded-lg border border-border/40 bg-background/50 backdrop-blur-sm p-3 text-xs">
-                            {resolveTaskDetail(noticeCard)}
-                          </div>
-                          <div className="mt-3 flex justify-end">
-                            {taskSnapshotIdentity ? (
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  void muteTaskIdentity(taskSnapshotIdentity)
-                                }}
-                                className="mr-3 text-xs text-muted-foreground hover:text-foreground"
-                              >
-                                不再提示
-                              </button>
-                            ) : null}
-                            {eventTargetThreadId ? (
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  void openTaskThread(eventTargetThreadId)
-                                }}
-                                className="text-xs text-accent hover:text-accent/80 hover:neon-text transition-all duration-200"
-                              >
-                                {eventTargetIsTaskThread ? "查看任务线程" : "查看管家线程"}
-                              </button>
-                            ) : null}
-                          </div>
-                        </div>
-                      ) : null}
-                    </div>
+                            </CardContent>
+                          </Card>
+                        ) : null}
+                      </CardContent>
+                    </Card>
                   </div>
                 )}
               </div>
@@ -752,9 +876,9 @@ export function ButlerWorkspace(): React.JSX.Element {
         </div>
         <div className="border-t border-border/40 p-5 flex items-center gap-3 glass-panel">
           <textarea
+            ref={inputRef}
             value={input}
             onChange={(event) => setInput(event.target.value)}
-            disabled={sending}
             onKeyDown={(event) => {
               if (event.key === "Enter" && !event.shiftKey) {
                 event.preventDefault()
@@ -762,7 +886,7 @@ export function ButlerWorkspace(): React.JSX.Element {
               }
             }}
             placeholder="给管家输入需求..."
-            className="min-h-[52px] max-h-[200px] flex-1 resize-y rounded-xl border border-input bg-background/50 backdrop-blur-sm px-4 py-3 text-sm transition-all duration-300 focus:outline-none disabled:cursor-not-allowed disabled:opacity-50 cyber-input"
+            className="min-h-[52px] max-h-[200px] flex-1 resize-y rounded-xl border border-input bg-background/50 backdrop-blur-sm px-4 py-3 text-sm transition-all duration-300 focus:outline-none cyber-input"
           />
           <Button
             onClick={() => void handleSend()}
@@ -795,8 +919,8 @@ export function ButlerWorkspace(): React.JSX.Element {
               <Button
                 variant="ghost"
                 size="sm"
-                disabled={clearingTasks}
-                onClick={() => void handleClearTasks()}
+                disabled={clearingTasks || sending}
+                onClick={() => setConfirmClearTasksOpen(true)}
                 className="h-7 px-3 text-xs rounded-lg"
               >
                 {clearingTasks ? "清空中..." : "清空任务"}
@@ -817,6 +941,66 @@ export function ButlerWorkspace(): React.JSX.Element {
           )}
         </div>
       </aside>
+
+      <Dialog
+        open={confirmClearHistoryOpen}
+        onOpenChange={(open) => {
+          if (!clearingHistory) {
+            setConfirmClearHistoryOpen(open)
+          }
+        }}
+      >
+        <DialogContent className="w-[420px] max-w-[90vw]">
+          <DialogHeader>
+            <DialogTitle>确认清空聊天记录？</DialogTitle>
+          </DialogHeader>
+          <div className="text-sm text-muted-foreground">
+            仅清空管家主会话展示内容，不会删除已创建的任务线程。
+          </div>
+          <DialogFooter>
+            <Button
+              variant="ghost"
+              disabled={clearingHistory}
+              onClick={() => setConfirmClearHistoryOpen(false)}
+            >
+              取消
+            </Button>
+            <Button disabled={clearingHistory} onClick={() => void handleClearHistory()}>
+              {clearingHistory ? "清空中..." : "确认清空"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={confirmClearTasksOpen}
+        onOpenChange={(open) => {
+          if (!clearingTasks) {
+            setConfirmClearTasksOpen(open)
+          }
+        }}
+      >
+        <DialogContent className="w-[420px] max-w-[90vw]">
+          <DialogHeader>
+            <DialogTitle>确认清空任务列表？</DialogTitle>
+          </DialogHeader>
+          <div className="text-sm text-muted-foreground">
+            仅清理已结束任务，运行中的任务不会被删除。
+          </div>
+          <DialogFooter>
+            <Button
+              variant="ghost"
+              disabled={clearingTasks}
+              onClick={() => setConfirmClearTasksOpen(false)}
+            >
+              取消
+            </Button>
+            <Button disabled={clearingTasks} onClick={() => void handleClearTasks()}>
+              {clearingTasks ? "清空中..." : "确认清空"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

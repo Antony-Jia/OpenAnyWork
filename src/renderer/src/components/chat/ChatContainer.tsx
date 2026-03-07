@@ -943,8 +943,7 @@ export function ChatContainer({
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={handleKeyDown}
               placeholder={t("chat.placeholder")}
-              disabled={isLoading}
-              className="flex-1 w-full min-w-0 resize-none bg-transparent px-3 py-2 text-sm placeholder:text-muted-foreground/50 focus:outline-none disabled:opacity-50"
+              className="flex-1 w-full min-w-0 resize-none bg-transparent px-3 py-2 text-sm placeholder:text-muted-foreground/50 focus:outline-none"
               rows={1}
               style={{ minHeight: "44px", maxHeight: "200px" }}
             />

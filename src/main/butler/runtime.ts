@@ -9,6 +9,8 @@ import { getSettings } from "../settings"
 import { getOpenworkDir } from "../storage"
 import type { ProviderConfig, ProviderState, SimpleProviderId } from "../types"
 import {
+  buildButlerDirectReplySystemPrompt,
+  buildButlerDirectReplyUserPrompt,
   buildButlerDigestSystemPrompt,
   buildButlerDigestUserPrompt,
   buildButlerTaskCommentSystemPrompt,
@@ -28,7 +30,7 @@ import type {
   TaskCompletionNotice,
   TaskLifecycleNotice
 } from "../types"
-import { getEnabledToolInstances } from "../tools/service"
+import { getEnabledToolNames, resolveToolInstancesByName } from "../tools/service"
 
 export interface ButlerOrchestratorTurnInput {
   threadId: string
@@ -38,6 +40,15 @@ export interface ButlerOrchestratorTurnInput {
 export interface ButlerOrchestratorTurnResult {
   assistantText: string
   dispatchIntents: ButlerDispatchIntent[]
+  clarification: boolean
+}
+
+export interface ButlerDirectReplyTurnInput {
+  promptContext: ButlerPromptContext
+}
+
+export interface ButlerDirectReplyTurnResult {
+  assistantText: string
   clarification: boolean
 }
 
@@ -90,6 +101,12 @@ const BLOCKED_BUTLER_TOOL_NAMES = new Set([
   "task",
   "write_todos"
 ])
+const DIRECT_QUERY_TOOL_ALLOWLIST = new Set([
+  "query_calendar_events",
+  "query_countdown_timers",
+  "query_rss_items",
+  "query_mailbox"
+])
 
 function createButlerSafetyMiddleware() {
   return createMiddleware({
@@ -108,6 +125,75 @@ function createButlerSafetyMiddleware() {
       })
     }
   })
+}
+
+function getDirectButlerToolInstances(): unknown[] {
+  const enabledNames = getEnabledToolNames("butler")
+  const allowedNames = enabledNames.filter((name) => DIRECT_QUERY_TOOL_ALLOWLIST.has(name))
+  return resolveToolInstancesByName(allowedNames, "butler") ?? []
+}
+
+function extractAssistantChunkText(data: unknown): string {
+  const tuple = data as [unknown, unknown]
+  const chunk = tuple?.[0] as { id?: unknown; kwargs?: { content?: unknown } } | undefined
+  if (!chunk || typeof chunk !== "object") return ""
+  const classId = Array.isArray(chunk.id) ? chunk.id : []
+  const className = String(classId[classId.length - 1] || "")
+  if (!className.includes("AI")) return ""
+  return extractTextContent(chunk.kwargs?.content)
+}
+
+function getMessageRole(message: Record<string, unknown>): string {
+  if (typeof message._getType === "function") {
+    try {
+      return String((message._getType as () => string)())
+    } catch {
+      return ""
+    }
+  }
+  if (typeof message.type === "string") return message.type
+  const classId = Array.isArray(message.id) ? message.id : []
+  const className = String(classId[classId.length - 1] || "")
+  if (className.includes("AI")) return "ai"
+  if (className.includes("Tool")) return "tool"
+  if (className.includes("Human")) return "human"
+  return ""
+}
+
+function extractMessageContent(message: Record<string, unknown>): string {
+  if ("content" in message) {
+    return extractTextContent(message.content)
+  }
+  const kwargs = message.kwargs as { content?: unknown } | undefined
+  return extractTextContent(kwargs?.content)
+}
+
+function extractAssistantTextFromValues(data: unknown): string {
+  const state = data as { messages?: unknown[] } | undefined
+  if (!state || !Array.isArray(state.messages)) return ""
+  let latest = ""
+  for (const rawMessage of state.messages) {
+    if (!rawMessage || typeof rawMessage !== "object") continue
+    const message = rawMessage as Record<string, unknown>
+    if (getMessageRole(message) !== "ai") continue
+    const content = extractMessageContent(message).trim()
+    if (content) latest = content
+  }
+  return latest
+}
+
+function hasToolCallsInValues(data: unknown): boolean {
+  const state = data as { messages?: unknown[] } | undefined
+  if (!state || !Array.isArray(state.messages)) return false
+  for (const rawMessage of state.messages) {
+    if (!rawMessage || typeof rawMessage !== "object") continue
+    const message = rawMessage as Record<string, unknown>
+    const directCalls = message.tool_calls
+    if (Array.isArray(directCalls) && directCalls.length > 0) return true
+    const kwargs = message.kwargs as { tool_calls?: unknown[] } | undefined
+    if (Array.isArray(kwargs?.tool_calls) && kwargs.tool_calls.length > 0) return true
+  }
+  return false
 }
 
 function requireProviderState(): ProviderState {
@@ -166,7 +252,7 @@ async function createButlerRuntime(params: {
   })
 
   const dispatchTools = createButlerDispatchTools({ onIntent: params.onIntent })
-  const capabilityTools = getEnabledToolInstances("butler")
+  const capabilityTools = getDirectButlerToolInstances()
   const systemPrompts = getSettings().systemPrompts
   const tools = [...dispatchTools]
   for (const toolInstance of capabilityTools) {
@@ -238,33 +324,62 @@ export async function runButlerOrchestratorTurn(
   )
 
   let lastAssistant = ""
+  let lastValuesAssistant = ""
+  let sawToolCalls = false
   for await (const chunk of stream) {
     const [mode, data] = chunk as [string, unknown]
-    if (mode !== "messages") continue
-    const tuple = data as [{ kwargs?: { content?: unknown } }, unknown]
-    const content = tuple?.[0]?.kwargs?.content
-    if (typeof content === "string" && content.trim()) {
-      lastAssistant = content
-    } else if (Array.isArray(content)) {
-      const text = content
-        .filter(
-          (item): item is { type?: string; text?: string } => !!item && typeof item === "object"
-        )
-        .map((item) => (item.type === "text" ? (item.text ?? "") : ""))
-        .join("")
-      if (text.trim()) {
-        lastAssistant = text
+    if (mode === "messages") {
+      const chunkText = extractAssistantChunkText(data).trim()
+      if (chunkText) {
+        if (chunkText.startsWith(lastAssistant)) {
+          lastAssistant = chunkText
+        } else {
+          lastAssistant += chunkText
+        }
+      }
+      continue
+    }
+    if (mode === "values") {
+      const valuesText = extractAssistantTextFromValues(data).trim()
+      if (valuesText) {
+        lastValuesAssistant = valuesText
+      }
+      if (!sawToolCalls && hasToolCallsInValues(data)) {
+        sawToolCalls = true
       }
     }
   }
 
-  const parsed = parseButlerAssistantText(lastAssistant)
-  const assistantText =
-    parsed.assistantText || (intents.length > 0 ? "已完成任务编排并开始执行。" : "已记录。")
+  const rawAssistantText = lastAssistant.trim() || lastValuesAssistant.trim()
+  const parsed = parseButlerAssistantText(rawAssistantText)
+  const assistantText = parsed.assistantText || (intents.length > 0 ? "已完成任务编排并开始执行。" : "")
+  if (!assistantText) {
+    console.warn("[Butler] Empty assistant text after orchestration.", {
+      intents: intents.length,
+      sawToolCalls,
+      hasMessagesStreamText: !!lastAssistant.trim(),
+      hasValuesStreamText: !!lastValuesAssistant.trim()
+    })
+  }
 
   return {
     assistantText,
     dispatchIntents: intents,
+    clarification: parsed.clarification
+  }
+}
+
+export async function runButlerDirectReplyTurn(
+  input: ButlerDirectReplyTurnInput
+): Promise<ButlerDirectReplyTurnResult> {
+  const model = getModelInstance()
+  const systemPrompt = buildButlerDirectReplySystemPrompt(getSettings().systemPrompts.butlerPrefix)
+  const userPrompt = buildButlerDirectReplyUserPrompt(input.promptContext)
+  const result = await model.invoke([new SystemMessage(systemPrompt), new HumanMessage(userPrompt)])
+  const text = extractTextContent(result.content)
+  const parsed = parseButlerAssistantText(text)
+  return {
+    assistantText: parsed.assistantText,
     clarification: parsed.clarification
   }
 }

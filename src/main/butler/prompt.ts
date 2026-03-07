@@ -149,7 +149,7 @@ export function buildButlerSystemPrompt(userPrefixPrompt?: string, personaProfil
 2) 决定以下其一：
    - 直接回复（不调用工具），
    - 澄清追问（不调用工具），
-   - 直接调用日常操作工具完成请求，
+   - 直接调用只读查询工具完成请求，
    - 派发一个或多个任务（调用任务创建工具）。
 3) 任务派发时可使用以下 5 个工具：
    - create_default_task
@@ -157,20 +157,21 @@ export function buildButlerSystemPrompt(userPrefixPrompt?: string, personaProfil
    - create_email_task
    - create_loop_task
    - create_expert_task
-4) 日常操作优先直接工具调用，不必启动任务。重点工具：
-   - calendar_upsert（action=create|update）
-   - countdown_upsert（action=create|update）
+4) 允许直接调用的业务工具仅限只读查询：
    - query_calendar_events
    - query_countdown_timers
-   - pull_rss_updates
    - query_rss_items（detailLevel=summary|detailed）
    - query_mailbox（mode=today|latest）
+5) 以下场景必须优先创建任务，不要直接调用业务工具：
+   - 需要外部新鲜信息或持续跟踪（如股票最新情况、最新新闻）
+   - 需要写操作（新增/更新日历、倒计时、发送邮件、写入文件等）
+   - 需要多步骤执行、长流程、跨角色协作
 
 路由优先级（从高到低）：
-1) 能直接回答就直接回答。
-2) 关键信息缺失才澄清。
-3) 可由日常工具直接完成时，优先调用日常工具（可多次调用）。
-4) 必须长流程/跨角色/持续执行时，才创建任务。
+1) 能基于现有上下文、记忆、历史直接回答就直接回答。
+2) 仅当请求可由只读查询工具立即完成时，才直接调用查询工具。
+3) 若需外部新鲜信息、写操作或多步骤执行，优先创建任务。
+4) 信息不充分就继续澄清追问，不要使用“已记录”这类兜底回复。
 
 任务创建工具说明：
 - create_default_task：通用任务模式。适用于信息收集、内容生成、数据整理、问答等一般性任务。
@@ -254,7 +255,12 @@ Mode 要求：
 - expert：expertConfig（必填，包含 experts[] 与 loop 配置）
 
 输出规则：
-- 调用工具后，为用户提供简洁的中文摘要。
+- 最终必须输出 1 个 JSON 对象（不要代码块、不要前后缀）：
+  {"kind":"direct_reply|clarification|dispatch","text":"非空字符串","clarification":true|false}
+- text 必须是可直接展示给用户的中文回复，不能为空。
+- 当需要用户补充信息时，kind=clarification 且 clarification=true。
+- 当已创建任务或将执行任务时，kind=dispatch 且 text 说明执行摘要。
+- 当可直接回答用户问题时，kind=direct_reply 且 clarification=false。
 - 禁止提及内部隐藏的思维链。
 - 禁止声称已执行任何被安全边界禁止的系统/文件操作。
 `.trim()
@@ -263,6 +269,49 @@ Mode 要求：
   const prefix = userPrefixPrompt?.trim() || ""
   const extra = [prefix, persona ? `[Persona Configuration]\n${persona}` : ""].filter(Boolean).join("\n\n")
   return extra ? `${extra}\n\n${basePrompt}` : basePrompt
+}
+
+export function buildButlerDirectReplySystemPrompt(userPrefixPrompt?: string): string {
+  const basePrompt = `
+你是 OpenAnyWork 的 Butler 直接回复助手。
+
+目标：
+1) 仅做“直接回答或澄清追问”，不调用工具，不创建任务。
+2) 优先回答常识问答、时间问答、地理事实、上下文问答。
+3) 若信息不足，再提出最小必要澄清问题。
+
+输出格式（强约束）：
+- 仅输出 1 个 JSON 对象（不要代码块）：
+  {"kind":"direct_reply|clarification","text":"非空字符串","clarification":true|false}
+- text 必须非空且可直接展示给用户。
+- clarification=true 时，text 只能包含关键追问，不要冗长解释。
+`.trim()
+  return withOptionalPrefix(basePrompt, userPrefixPrompt)
+}
+
+export function buildButlerDirectReplyUserPrompt(context: ButlerPromptContext): string {
+  return [
+    "[User Request]",
+    context.userMessage.trim(),
+    "",
+    "[Temporal Context]",
+    `current_time_iso: ${context.currentTimeIso?.trim() || new Date().toISOString()}`,
+    `current_local_time: ${context.currentLocalTime?.trim() || new Date().toLocaleString()}`,
+    `current_weekday: ${context.currentWeekday?.trim() || "Unknown"}`,
+    `current_timezone: ${context.currentTimezone?.trim() || "Unknown"}`,
+    "",
+    "[Previous User Message]",
+    context.previousUserMessage?.trim() || "none",
+    "",
+    "[Working Memory]",
+    context.workingMemoryText?.trim() || "none",
+    "",
+    "[Long-term Recall]",
+    context.memoryRecallText?.trim() || "none",
+    "",
+    "[Instruction]",
+    "请按系统约束输出 JSON。若能直接回答就回答，不要返回空 text。"
+  ].join("\n")
 }
 
 export function buildButlerPerceptionSystemPrompt(userPrefixPrompt?: string): string {
@@ -403,6 +452,32 @@ export function parseButlerAssistantText(raw: string): {
   const trimmed = raw.trim()
   if (!trimmed) {
     return { assistantText: "", clarification: false }
+  }
+
+  const stripFence = (value: string): string => {
+    const fenced = value.match(/^```(?:json)?\s*([\s\S]*?)\s*```$/i)
+    if (fenced?.[1]) return fenced[1].trim()
+    return value
+  }
+
+  const jsonCandidate = stripFence(trimmed)
+  if (jsonCandidate.startsWith("{") || jsonCandidate.startsWith("[")) {
+    try {
+      const parsed = JSON.parse(jsonCandidate) as unknown
+      if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+        const record = parsed as Record<string, unknown>
+        const textValue = typeof record.text === "string" ? record.text.trim() : ""
+        const clarificationValue = record.clarification === true
+        if (textValue) {
+          return {
+            assistantText: textValue,
+            clarification: clarificationValue
+          }
+        }
+      }
+    } catch {
+      // fall through to legacy parsing
+    }
   }
 
   if (trimmed.startsWith(CLARIFICATION_PREFIX)) {

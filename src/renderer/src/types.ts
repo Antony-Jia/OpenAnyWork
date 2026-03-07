@@ -463,6 +463,22 @@ export interface SystemPromptsSettings {
   agentPrefix: string
 }
 
+export type ButlerCommentStyle = "concise" | "balanced" | "reflective"
+
+export type ButlerInitiativeLevel = "low" | "medium" | "high"
+
+export interface ButlerPersonaSettings {
+  name: string
+  role: string
+  relationshipToUser: string
+  tone: string
+  principles: string[]
+  dos: string[]
+  donts: string[]
+  commentStyle: ButlerCommentStyle
+  initiativeLevel: ButlerInitiativeLevel
+}
+
 export interface AppSettings {
   ralphIterations: number
   email: EmailSettings
@@ -484,6 +500,7 @@ export interface ButlerSettings {
   serviceDigestIntervalMin: number
   mutedTaskIdentities: string[]
   avatarDataUrl?: string
+  persona: ButlerPersonaSettings
 }
 
 export interface SettingsUpdateParams {
@@ -525,11 +542,25 @@ export interface ButlerTask {
   retryAttempt?: number
 }
 
+export type ButlerRoundKind = "chat" | "event_comment" | "digest_comment" | "task_comment"
+
+export type ButlerRoundSourceType =
+  | "user_message"
+  | "orchestrator"
+  | "task_lifecycle"
+  | "subscription_event"
+  | "service_digest"
+
 export interface ButlerRound {
   id: string
   user: string
   assistant: string
   ts: string
+  kind: ButlerRoundKind
+  sourceType: ButlerRoundSourceType
+  relatedThreadId?: string
+  relatedTaskId?: string
+  noticeType?: "task" | "event" | "digest"
 }
 
 export interface ButlerPendingDispatchChoice {
@@ -759,6 +790,7 @@ export interface TaskCompletionNotice {
   eventKind?: ButlerPerceptionKind
   taskIdentity?: string
   digest?: ButlerDigestPayload
+  memoryRefId?: string
 }
 
 export interface TaskStartedPayload {
@@ -781,6 +813,110 @@ export interface TaskLifecycleNotice {
   resultBrief?: string
   resultDetail?: string
   taskIdentity?: string
+  memoryRefId?: string
+}
+
+export type MemorySourceType =
+  | "butler_dialogue"
+  | "butler_comment"
+  | "task_lifecycle"
+  | "task_result"
+  | "task_thread"
+  | "subscription_event"
+  | "service_digest"
+
+export type MemoryEntityType =
+  | "fact"
+  | "preference"
+  | "habit"
+  | "interest"
+  | "tooling_pattern"
+  | "task_category"
+
+export interface WorkingMemorySnapshot {
+  id: string
+  updatedAt: string
+  budgetChars: number
+  recentOverview: string
+  last24hMessages: string
+  habits: string
+  preferences: string
+  facts: string
+  openLoops: string
+  toolingLearnings: string
+  recentTaskOutcomes: string
+  text: string
+}
+
+export interface MemoryEvent {
+  id: string
+  sourceType: MemorySourceType
+  sourceId: string
+  occurredAt: string
+  day: string
+  category: string
+  title: string
+  summary: string
+  detail: string
+  threadId?: string
+  taskId?: string
+  keywords: string[]
+  metadata?: Record<string, unknown>
+}
+
+export interface MemoryEntity {
+  id: string
+  type: MemoryEntityType
+  name: string
+  value: string
+  confidence: number
+  firstSeenAt: string
+  lastSeenAt: string
+  evidenceCount: number
+  sourceRefs: string[]
+  metadata?: Record<string, unknown>
+}
+
+export interface MemorySearchQuery {
+  text?: string
+  from?: string
+  to?: string
+  categories?: string[]
+  sourceTypes?: MemorySourceType[]
+  limit?: number
+}
+
+export interface MemorySearchResult {
+  events: MemoryEvent[]
+  entities: MemoryEntity[]
+  total: number
+  workingSnapshot?: WorkingMemorySnapshot | null
+}
+
+export type MemoryRangePreset =
+  | "today"
+  | "yesterday"
+  | "this_week"
+  | "this_month"
+  | "custom"
+
+export interface MemoryRangeSummaryQuery {
+  from?: string
+  to?: string
+  preset?: MemoryRangePreset
+  categories?: string[]
+}
+
+export interface MemoryRangeSummary {
+  id: string
+  from: string
+  to: string
+  preset?: MemoryRangePreset
+  categories: string[]
+  summaryText: string
+  highlights: string[]
+  eventCount: number
+  generatedAt: string
 }
 
 export interface MemorySummary {

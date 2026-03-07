@@ -61,7 +61,14 @@ import type {
   PromptCreateInput,
   PromptUpdateInput,
   MemorySummary,
-  DailyProfile
+  DailyProfile,
+  MemoryEntity,
+  MemoryEntityType,
+  MemoryRangeSummary,
+  MemoryRangeSummaryQuery,
+  MemorySearchQuery,
+  MemorySearchResult,
+  WorkingMemorySnapshot
 } from "../main/types"
 import type {
   ActionbookEvent,
@@ -392,6 +399,30 @@ const api = {
     },
     listDailyProfiles: (limit?: number): Promise<DailyProfile[]> => {
       return ipcRenderer.invoke("memory:listDailyProfiles", limit)
+    },
+    getWorkingSnapshot: (): Promise<WorkingMemorySnapshot> => {
+      return ipcRenderer.invoke("memory:getWorkingSnapshot")
+    },
+    clearWorkingSnapshot: (): Promise<WorkingMemorySnapshot> => {
+      return ipcRenderer.invoke("memory:clearWorkingSnapshot")
+    },
+    search: (query?: string | MemorySearchQuery): Promise<MemorySearchResult> => {
+      return ipcRenderer.invoke("memory:search", query)
+    },
+    listEntities: (
+      type?: MemoryEntityType,
+      filters?: { text?: string; limit?: number }
+    ): Promise<MemoryEntity[]> => {
+      return ipcRenderer.invoke("memory:listEntities", type, filters)
+    },
+    getRangeSummary: (query?: MemoryRangeSummaryQuery): Promise<MemoryRangeSummary> => {
+      return ipcRenderer.invoke("memory:getRangeSummary", query)
+    },
+    rebuild: (): Promise<{
+      workingSnapshot: WorkingMemorySnapshot
+      search: MemorySearchResult
+    }> => {
+      return ipcRenderer.invoke("memory:rebuild")
     },
     clearAll: (): Promise<void> => {
       return ipcRenderer.invoke("memory:clearAll")

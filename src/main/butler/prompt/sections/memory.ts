@@ -26,6 +26,15 @@ export function buildMemorySection(): ButlerPromptSectionBuilder {
   return {
     id: "memory",
     build: ({ prompt }) => [
+      "[Persona Profile]",
+      prompt.personaProfile?.trim() || "none",
+      "",
+      "[Working Memory]",
+      prompt.workingMemoryText?.trim() || "none",
+      "",
+      "[Long-term Recall]",
+      prompt.memoryRecallText?.trim() || "none",
+      "",
       "[Memory Hints]",
       formatMemoryHints(prompt.memoryHints),
       "",

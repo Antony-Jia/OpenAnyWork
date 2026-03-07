@@ -62,7 +62,14 @@ import type {
   PromptCreateInput,
   PromptUpdateInput,
   MemorySummary,
-  DailyProfile
+  DailyProfile,
+  MemoryEntity,
+  MemoryEntityType,
+  MemoryRangeSummary,
+  MemoryRangeSummaryQuery,
+  MemorySearchQuery,
+  MemorySearchResult,
+  WorkingMemorySnapshot
 } from "../main/types"
 import type {
   ActionbookEvent,
@@ -201,6 +208,15 @@ interface CustomAPI {
   memory: {
     listConversationSummaries: (limit?: number) => Promise<MemorySummary[]>
     listDailyProfiles: (limit?: number) => Promise<DailyProfile[]>
+    getWorkingSnapshot: () => Promise<WorkingMemorySnapshot>
+    clearWorkingSnapshot: () => Promise<WorkingMemorySnapshot>
+    search: (query?: string | MemorySearchQuery) => Promise<MemorySearchResult>
+    listEntities: (
+      type?: MemoryEntityType,
+      filters?: { text?: string; limit?: number }
+    ) => Promise<MemoryEntity[]>
+    getRangeSummary: (query?: MemoryRangeSummaryQuery) => Promise<MemoryRangeSummary>
+    rebuild: () => Promise<{ workingSnapshot: WorkingMemorySnapshot; search: MemorySearchResult }>
     clearAll: () => Promise<void>
   }
   models: {

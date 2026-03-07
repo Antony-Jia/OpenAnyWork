@@ -77,6 +77,8 @@ let butlerMonitorBus: ButlerMonitorBus | null = null
 let unsubscribeButlerMonitorBus: (() => void) | null = null
 let unsubscribePluginEvents: (() => void) | null = null
 let isQuitting = false
+let finalizeQuitInProgress = false
+let finalizeQuitDone = false
 
 // Simple dev check - replaces @electron-toolkit/utils is.dev
 const isDev = !app.isPackaged
@@ -456,6 +458,7 @@ app.whenReady().then(async () => {
   taskCompletionBus.start()
   taskLifecycleButlerBus = new TaskLifecycleButlerBus({
     notifyButler: (notice) => {
+      butlerManager.notifyLifecycleNotice(notice)
       butlerDigestService?.ingest(notice)
     }
   })
@@ -554,7 +557,12 @@ app.on("window-all-closed", () => {
   }
 })
 
-app.on("before-quit", () => {
+app.on("before-quit", (event) => {
+  if (finalizeQuitDone) return
+  event.preventDefault()
+  if (finalizeQuitInProgress) return
+  finalizeQuitInProgress = true
+
   isQuitting = true
   globalShortcut.unregisterAll()
   taskCompletionBus?.stop()
@@ -581,6 +589,14 @@ app.on("before-quit", () => {
   loopManager.stopAll()
   butlerManager.shutdown()
   pluginHost.shutdownNow()
-  void stopMemoryService()
-  void flushMemoryDatabase()
+
+  void (async () => {
+    try {
+      await stopMemoryService()
+      await flushMemoryDatabase()
+    } finally {
+      finalizeQuitDone = true
+      app.quit()
+    }
+  })()
 })

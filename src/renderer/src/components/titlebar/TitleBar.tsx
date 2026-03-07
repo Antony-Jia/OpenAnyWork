@@ -5,6 +5,7 @@ import { ToolsManager } from "./ToolsManager"
 import { SkillsManager } from "./SkillsManager"
 import { McpManager } from "./McpManager"
 import { SystemPromptManager } from "./SystemPromptManager"
+import { ButlerPersonaManager } from "./ButlerPersonaManager"
 import { PromptManager } from "./PromptManager"
 import { PluginManager } from "./PluginManager"
 import { ContainerManager } from "./ContainerManager"
@@ -50,6 +51,7 @@ export function TitleBar({ threadId }: TitleBarProps): React.JSX.Element {
 
         <SettingsMenu threadId={threadId} />
         <SystemPromptManager />
+        <ButlerPersonaManager />
         <SubagentManager />
         <ToolsManager />
         <SkillsManager />

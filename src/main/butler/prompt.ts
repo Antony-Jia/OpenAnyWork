@@ -1,5 +1,10 @@
 import type { ButlerDispatchIntent } from "./tools"
-import type { ButlerDigestTaskCard, ButlerPerceptionInput } from "../types"
+import type {
+  ButlerDigestTaskCard,
+  ButlerPerceptionInput,
+  TaskCompletionNotice,
+  TaskLifecycleNotice
+} from "../types"
 import { composeButlerUserPrompt } from "./prompt/composer"
 
 export type ButlerDispatchPolicy = "standard" | "single_task_first"
@@ -31,6 +36,9 @@ export interface ButlerPromptContext {
   userMessage: string
   capabilityCatalog: string
   capabilitySummary: string
+  personaProfile?: string
+  workingMemoryText?: string
+  memoryRecallText?: string
   currentTimeIso?: string
   currentLocalTime?: string
   currentWeekday?: string
@@ -46,14 +54,24 @@ export interface ButlerPromptContext {
   recentTasks: ButlerPromptRecentTask[]
 }
 
-export interface ButlerPerceptionPromptContext {
+interface ButlerSharedCommentContext {
+  personaProfile?: string
+  workingMemoryText?: string
+  memoryRecallText?: string
+}
+
+export interface ButlerPerceptionPromptContext extends ButlerSharedCommentContext {
   perception: ButlerPerceptionInput
 }
 
-export interface ButlerDigestPromptContext {
+export interface ButlerDigestPromptContext extends ButlerSharedCommentContext {
   windowStart: string
   windowEnd: string
   tasks: ButlerDigestTaskCard[]
+}
+
+export interface ButlerTaskCommentPromptContext extends ButlerSharedCommentContext {
+  notice: TaskCompletionNotice | TaskLifecycleNotice
 }
 
 const CLARIFICATION_PREFIX = "CLARIFICATION_REQUIRED:"
@@ -103,7 +121,25 @@ function formatPerceptionSnapshot(context: ButlerPerceptionPromptContext): strin
   ].join("\n")
 }
 
-export function buildButlerSystemPrompt(userPrefixPrompt?: string): string {
+function buildSharedCommentContext(context: ButlerSharedCommentContext): string[] {
+  return [
+    "[Persona Profile]",
+    context.personaProfile?.trim() || "none",
+    "",
+    "[Working Memory]",
+    context.workingMemoryText?.trim() || "none",
+    "",
+    "[Long-term Recall]",
+    context.memoryRecallText?.trim() || "none"
+  ]
+}
+
+function withOptionalPrefix(basePrompt: string, userPrefixPrompt?: string): string {
+  const prefix = userPrefixPrompt?.trim() || ""
+  return prefix ? `${prefix}\n\n${basePrompt}` : basePrompt
+}
+
+export function buildButlerSystemPrompt(userPrefixPrompt?: string, personaProfile?: string): string {
   const basePrompt = `
 你是 OpenAnyWork 的 Butler AI 编排器。
 你是唯一的语义路由器，禁止使用关键词匹配策略。
@@ -223,40 +259,63 @@ Mode 要求：
 - 禁止声称已执行任何被安全边界禁止的系统/文件操作。
 `.trim()
 
+  const persona = personaProfile?.trim()
   const prefix = userPrefixPrompt?.trim() || ""
-  return prefix ? `${prefix}\n\n${basePrompt}` : basePrompt
+  const extra = [prefix, persona ? `[Persona Configuration]\n${persona}` : ""].filter(Boolean).join("\n\n")
+  return extra ? `${extra}\n\n${basePrompt}` : basePrompt
 }
 
-export function buildButlerPerceptionSystemPrompt(): string {
-  return `
-你是 OpenAnyWork 的 Butler 事件提醒助手。
+export function buildButlerPerceptionSystemPrompt(userPrefixPrompt?: string): string {
+  const basePrompt = `
+你是 OpenAnyWork 的 Butler 事件评论助手。
 
 目标：
-1) 根据输入的监听事件（日历/倒计时/邮件/RSS）生成简洁中文提醒。
+1) 根据输入的监听事件（日历/倒计时/邮件/RSS）输出符合管家人格的中文评论。
 2) 不要调用任何工具，不要派发任务。
-3) 仅输出提醒正文，不要输出 JSON、代码块、前后缀解释。
+3) 仅输出评论正文，不要输出 JSON、代码块、前后缀解释。
 
 要求：
-- 优先说明“发生了什么”“用户现在应做什么”。
-- 1 到 3 句话，控制在 120 字内。
-- 语气明确，不夸张。
+- 结合 Persona、Working Memory、Long-term Recall 保持连续语气。
+- 优先说明“发生了什么”“这意味着什么”“建议下一步”。
+- 1 到 3 句话，控制在 160 字内。
+- 语气明确、稳定，不夸张。
 `.trim()
+  return withOptionalPrefix(basePrompt, userPrefixPrompt)
 }
 
-export function buildButlerDigestSystemPrompt(): string {
-  return `
-你是 OpenAnyWork 的 Butler 服务总结助手。
+export function buildButlerDigestSystemPrompt(userPrefixPrompt?: string): string {
+  const basePrompt = `
+你是 OpenAnyWork 的 Butler 服务评论助手。
 
 目标：
-1) 对一个时间窗口内的任务状态更新进行中文总结。
+1) 对一个时间窗口内的任务状态更新做符合管家人格的中文评论。
 2) 仅输出 1 段自然语言总结，不要输出 JSON、列表符号前缀、代码块。
-3) 总结应包含：总体进展、关键任务、异常/阻塞（若有）与下一步建议。
+3) 评论应包含：总体进展、关键任务、异常/阻塞（若有）与下一步建议。
 
 要求：
 - 字数控制在 80~220 字。
 - 表述准确，不编造。
 - 若没有失败任务，可简要说明当前风险低。
+- 结合 Persona、Working Memory、Long-term Recall 保持一致立场。
 `.trim()
+  return withOptionalPrefix(basePrompt, userPrefixPrompt)
+}
+
+export function buildButlerTaskCommentSystemPrompt(userPrefixPrompt?: string): string {
+  const basePrompt = `
+你是 OpenAnyWork 的 Butler 任务评论助手。
+
+目标：
+1) 根据任务开始/完成通知，输出符合管家人格的中文评论。
+2) 仅输出评论正文，不要输出 JSON、代码块、前后缀解释。
+
+要求：
+- 结合 Persona、Working Memory、Long-term Recall 保持连续语气。
+- started 通知强调关注点与下一步；completed 通知强调结果判断、风险与建议。
+- 1 到 3 句话，控制在 160 字内。
+- 禁止输出标签化元信息或结构化字段复述（例如 mode/thread/phase、模式/线程/阶段/摘要）。
+`.trim()
+  return withOptionalPrefix(basePrompt, userPrefixPrompt)
 }
 
 export function buildButlerUserPrompt(context: ButlerPromptContext): string {
@@ -268,6 +327,8 @@ export function buildButlerUserPrompt(context: ButlerPromptContext): string {
 export function buildButlerPerceptionUserPrompt(context: ButlerPerceptionPromptContext): string {
   const perception = context.perception
   return [
+    ...buildSharedCommentContext(context),
+    "",
     "[Triggered Event]",
     `id: ${perception.id}`,
     `kind: ${perception.kind}`,
@@ -299,6 +360,8 @@ export function buildButlerDigestUserPrompt(context: ButlerDigestPromptContext):
   )
 
   return [
+    ...buildSharedCommentContext(context),
+    "",
     "[Digest Window]",
     `windowStart: ${context.windowStart}`,
     `windowEnd: ${context.windowEnd}`,
@@ -309,6 +372,27 @@ export function buildButlerDigestUserPrompt(context: ButlerDigestPromptContext):
     "",
     "[Instruction]",
     "请输出服务总结正文。"
+  ].join("\n")
+}
+
+export function buildButlerTaskCommentUserPrompt(context: ButlerTaskCommentPromptContext): string {
+  const notice = context.notice
+  const phase = "phase" in notice ? notice.phase : "completed"
+  return [
+    ...buildSharedCommentContext(context),
+    "",
+    "[Task Notice]",
+    `phase: ${phase}`,
+    `title: ${notice.title}`,
+    `threadId: ${notice.threadId}`,
+    `mode: ${notice.mode}`,
+    `source: ${notice.source}`,
+    `at: ${"at" in notice ? notice.at : notice.completedAt}`,
+    `brief: ${notice.resultBrief || "none"}`,
+    `detail: ${notice.resultDetail || "none"}`,
+    "",
+    "[Instruction]",
+    "请输出任务评论正文。"
   ].join("\n")
 }
 

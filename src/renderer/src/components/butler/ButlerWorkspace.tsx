@@ -10,7 +10,8 @@ import type {
   ButlerDigestPayload,
   ButlerState,
   ButlerTask,
-  TaskCompletionNotice
+  TaskCompletionNotice,
+  TaskLifecycleNotice
 } from "@/types"
 
 const TASK_NOTICE_MARKER = "[TASK_NOTICE_JSON]"
@@ -39,6 +40,8 @@ interface ButlerNoticeCard {
   completedAt: string
 }
 
+type TaskNoticeSnapshot = TaskCompletionNotice | TaskLifecycleNotice
+
 function resolveTaskDetail(card: ButlerNoticeCard): string {
   const detail = card.resultDetail?.trim()
   if (detail) return detail
@@ -59,6 +62,20 @@ function isTaskCompletionNotice(value: unknown): value is TaskCompletionNotice {
     typeof record.completedAt === "string" &&
     typeof record.mode === "string" &&
     typeof record.source === "string"
+  )
+}
+
+function isTaskLifecycleNotice(value: unknown): value is TaskLifecycleNotice {
+  if (!value || typeof value !== "object") return false
+  const record = value as Record<string, unknown>
+  return (
+    typeof record.id === "string" &&
+    (record.phase === "started" || record.phase === "completed") &&
+    typeof record.threadId === "string" &&
+    typeof record.title === "string" &&
+    typeof record.mode === "string" &&
+    typeof record.source === "string" &&
+    typeof record.at === "string"
   )
 }
 
@@ -90,7 +107,7 @@ function isDigestPayload(value: unknown): value is ButlerDigestPayload {
   })
 }
 
-function extractNoticeSnapshot(text: string, marker: string): TaskCompletionNotice | null {
+function extractNoticeSnapshot(text: string, marker: string): TaskNoticeSnapshot | null {
   const markerIndex = text.lastIndexOf(marker)
   if (markerIndex < 0) return null
 
@@ -99,7 +116,9 @@ function extractNoticeSnapshot(text: string, marker: string): TaskCompletionNoti
 
   try {
     const parsed = JSON.parse(jsonText) as unknown
-    return isTaskCompletionNotice(parsed) ? parsed : null
+    if (isTaskCompletionNotice(parsed)) return parsed
+    if (isTaskLifecycleNotice(parsed)) return parsed
+    return null
   } catch {
     return null
   }
@@ -111,17 +130,21 @@ function stripNoticeSnapshot(text: string, marker: string): string {
   return text.slice(0, markerIndex).trimEnd()
 }
 
-function inferSnapshotStatus(notice: TaskCompletionNotice): ButlerTask["status"] {
+function inferSnapshotStatus(notice: TaskNoticeSnapshot): ButlerTask["status"] {
+  if ("phase" in notice && notice.phase === "started") {
+    return "running"
+  }
   const normalized = `${notice.resultBrief}\n${notice.resultDetail}`.toLowerCase()
   return normalized.includes("任务失败") || normalized.includes("错误:") ? "failed" : "completed"
 }
 
-function isDigestNotice(notice: TaskCompletionNotice | null): notice is TaskCompletionNotice & {
+function isDigestNotice(notice: TaskNoticeSnapshot | null): notice is TaskCompletionNotice & {
   noticeType: "digest"
   digest: ButlerDigestPayload
 } {
   return (
     !!notice &&
+    !("phase" in notice) &&
     notice.noticeType === "digest" &&
     isDigestPayload((notice as { digest?: unknown }).digest)
   )
@@ -134,11 +157,18 @@ function extractNoticeThreadId(text: string): string | null {
   return threadId.length > 0 ? threadId : null
 }
 
+function resolveRoundLabel(round: ButlerState["recentRounds"][number]): string {
+  if (round.kind === "event_comment") return "事件评论"
+  if (round.kind === "digest_comment") return "服务汇总"
+  if (round.kind === "task_comment") return "管家"
+  return "管家"
+}
+
 function findTaskForNotice(
   round: ButlerState["recentRounds"][number],
   tasks: ButlerTask[]
 ): ButlerTask | null {
-  const threadId = extractNoticeThreadId(round.assistant)
+  const threadId = round.relatedThreadId || extractNoticeThreadId(round.assistant)
   if (!threadId) return null
 
   const settled = tasks
@@ -174,7 +204,7 @@ function resolveNoticeCard(
   round: ButlerState["recentRounds"][number],
   assistantText: string,
   tasks: ButlerTask[],
-  snapshot: TaskCompletionNotice | null
+  snapshot: TaskNoticeSnapshot | null
 ): ButlerNoticeCard | null {
   if (snapshot) {
     const matchedTask = tasks
@@ -196,7 +226,10 @@ function resolveNoticeCard(
         snapshot.resultBrief ||
         "暂无任务结果内容。",
       completedAt:
-        snapshot.completedAt || matchedTask?.completedAt || matchedTask?.createdAt || round.ts
+        ("completedAt" in snapshot ? snapshot.completedAt : snapshot.at) ||
+        matchedTask?.completedAt ||
+        matchedTask?.createdAt ||
+        round.ts
     }
   }
 
@@ -514,7 +547,7 @@ export function ButlerWorkspace(): React.JSX.Element {
             </div>
           )}
           {rounds.map((round) => {
-            const isSystemNotice = round.user === "[系统通知]"
+            const isSystemNotice = round.kind !== "chat" || round.noticeType !== undefined
             const digestSnapshot = isSystemNotice
               ? extractNoticeSnapshot(round.assistant, TASK_DIGEST_MARKER)
               : null
@@ -573,7 +606,7 @@ export function ButlerWorkspace(): React.JSX.Element {
                     <div className="max-w-[85%] rounded-2xl rounded-tl-sm border border-border/40 bg-card/60 backdrop-blur-sm p-4 shadow-sm">
                       <div className="mb-2 flex items-center justify-between gap-2">
                         <div className="text-[10px] uppercase tracking-[0.15em] text-accent/70 font-bold">
-                          {isSystemNotice ? "系统通知" : "管家"}
+                          {isSystemNotice ? resolveRoundLabel(round) : "管家"}
                         </div>
                         {isSystemNotice && digestNotice ? (
                           <button

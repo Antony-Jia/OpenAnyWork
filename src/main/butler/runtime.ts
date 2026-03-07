@@ -11,6 +11,8 @@ import type { ProviderConfig, ProviderState, SimpleProviderId } from "../types"
 import {
   buildButlerDigestSystemPrompt,
   buildButlerDigestUserPrompt,
+  buildButlerTaskCommentSystemPrompt,
+  buildButlerTaskCommentUserPrompt,
   buildButlerSystemPrompt,
   buildButlerPerceptionSystemPrompt,
   buildButlerPerceptionUserPrompt,
@@ -20,7 +22,12 @@ import {
 } from "./prompt"
 import { composeButlerUserPrompt } from "./prompt/composer"
 import { createButlerDispatchTools, type ButlerDispatchIntent } from "./tools"
-import type { ButlerDigestTaskCard, ButlerPerceptionInput } from "../types"
+import type {
+  ButlerDigestTaskCard,
+  ButlerPerceptionInput,
+  TaskCompletionNotice,
+  TaskLifecycleNotice
+} from "../types"
 import { getEnabledToolInstances } from "../tools/service"
 
 export interface ButlerOrchestratorTurnInput {
@@ -37,6 +44,7 @@ export interface ButlerOrchestratorTurnResult {
 export interface ButlerPerceptionTurnInput {
   threadId: string
   perception: ButlerPerceptionInput
+  promptContext: Pick<ButlerPromptContext, "personaProfile" | "workingMemoryText" | "memoryRecallText">
 }
 
 export interface ButlerPerceptionTurnResult {
@@ -50,10 +58,21 @@ export interface ButlerDigestTurnInput {
     windowEnd: string
     tasks: ButlerDigestTaskCard[]
   }
+  promptContext: Pick<ButlerPromptContext, "personaProfile" | "workingMemoryText" | "memoryRecallText">
 }
 
 export interface ButlerDigestTurnResult {
   summaryText: string
+}
+
+export interface ButlerTaskCommentTurnInput {
+  threadId: string
+  notice: TaskCompletionNotice | TaskLifecycleNotice
+  promptContext: Pick<ButlerPromptContext, "personaProfile" | "workingMemoryText" | "memoryRecallText">
+}
+
+export interface ButlerTaskCommentTurnResult {
+  commentText: string
 }
 
 const DAILY_PROFILE_MARKER = "[Daily Profile]"
@@ -135,6 +154,7 @@ function getModelInstance(): ChatOpenAI {
 async function createButlerRuntime(params: {
   threadId: string
   onIntent: (intent: ButlerDispatchIntent) => void
+  personaProfile?: string
 }) {
   const model = getModelInstance()
   const checkpointer = await getCheckpointer(params.threadId)
@@ -159,7 +179,7 @@ async function createButlerRuntime(params: {
     model,
     checkpointer,
     backend,
-    systemPrompt: buildButlerSystemPrompt(systemPrompts.butlerPrefix),
+    systemPrompt: buildButlerSystemPrompt(systemPrompts.butlerPrefix, params.personaProfile),
     tools,
     middleware: [createButlerSafetyMiddleware()],
     subagents: [],
@@ -175,7 +195,8 @@ export async function runButlerOrchestratorTurn(
     threadId: input.threadId,
     onIntent: (intent) => {
       intents.push(intent)
-    }
+    },
+    personaProfile: input.promptContext.personaProfile
   })
   let userPrompt = composeButlerUserPrompt(
     {
@@ -270,9 +291,12 @@ export async function runButlerPerceptionTurn(
   input: ButlerPerceptionTurnInput
 ): Promise<ButlerPerceptionTurnResult> {
   const model = getModelInstance()
-  const systemPrompt = buildButlerPerceptionSystemPrompt()
+  const systemPrompt = buildButlerPerceptionSystemPrompt(getSettings().systemPrompts.butlerPrefix)
   const userPrompt = buildButlerPerceptionUserPrompt({
-    perception: input.perception
+    perception: input.perception,
+    personaProfile: input.promptContext.personaProfile,
+    workingMemoryText: input.promptContext.workingMemoryText,
+    memoryRecallText: input.promptContext.memoryRecallText
   })
 
   const result = await model.invoke([new SystemMessage(systemPrompt), new HumanMessage(userPrompt)])
@@ -286,16 +310,37 @@ export async function runButlerDigestTurn(
   input: ButlerDigestTurnInput
 ): Promise<ButlerDigestTurnResult> {
   const model = getModelInstance()
-  const systemPrompt = buildButlerDigestSystemPrompt()
+  const systemPrompt = buildButlerDigestSystemPrompt(getSettings().systemPrompts.butlerPrefix)
   const userPrompt = buildButlerDigestUserPrompt({
     windowStart: input.digest.windowStart,
     windowEnd: input.digest.windowEnd,
-    tasks: input.digest.tasks
+    tasks: input.digest.tasks,
+    personaProfile: input.promptContext.personaProfile,
+    workingMemoryText: input.promptContext.workingMemoryText,
+    memoryRecallText: input.promptContext.memoryRecallText
   })
 
   const result = await model.invoke([new SystemMessage(systemPrompt), new HumanMessage(userPrompt)])
   const summaryText = extractTextContent(result.content)
   return {
     summaryText: summaryText || ""
+  }
+}
+
+export async function runButlerTaskCommentTurn(
+  input: ButlerTaskCommentTurnInput
+): Promise<ButlerTaskCommentTurnResult> {
+  const model = getModelInstance()
+  const systemPrompt = buildButlerTaskCommentSystemPrompt(getSettings().systemPrompts.butlerPrefix)
+  const userPrompt = buildButlerTaskCommentUserPrompt({
+    notice: input.notice,
+    personaProfile: input.promptContext.personaProfile,
+    workingMemoryText: input.promptContext.workingMemoryText,
+    memoryRecallText: input.promptContext.memoryRecallText
+  })
+  const result = await model.invoke([new SystemMessage(systemPrompt), new HumanMessage(userPrompt)])
+  const commentText = extractTextContent(result.content)
+  return {
+    commentText: commentText || ""
   }
 }

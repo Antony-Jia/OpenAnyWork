@@ -17,11 +17,13 @@ import {
 import {
   appendButlerHistoryMessage,
   clearButlerHistoryMessages,
+  getWorkingMemorySnapshot,
   getLatestDailyProfile,
   loadButlerMessages,
   loadButlerTasks,
   persistButlerTask,
   removeButlerTasks,
+  searchMemory,
   searchMemoryByTask
 } from "../memory"
 import { broadcastThreadsChanged } from "../ipc/events"
@@ -31,7 +33,12 @@ import {
   getButlerCapabilitySnapshot
 } from "./capabilities"
 import { detectOversplitByModel } from "./granularity"
-import { runButlerDigestTurn, runButlerOrchestratorTurn, runButlerPerceptionTurn } from "./runtime"
+import {
+  runButlerDigestTurn,
+  runButlerOrchestratorTurn,
+  runButlerPerceptionTurn,
+  runButlerTaskCommentTurn
+} from "./runtime"
 import type { ButlerPromptContext } from "./prompt"
 import { createButlerTaskThread, executeButlerTask } from "./task-dispatcher"
 import { renderTaskPrompt, type ButlerDispatchIntent } from "./tools"
@@ -53,6 +60,12 @@ interface ButlerMessage {
   role: "user" | "assistant"
   content: string
   ts: string
+  kind?: ButlerRound["kind"]
+  sourceType?: ButlerRound["sourceType"]
+  relatedThreadId?: string
+  relatedTaskId?: string
+  noticeType?: ButlerRound["noticeType"]
+  metadata?: Record<string, unknown>
 }
 
 interface PendingTask {
@@ -156,19 +169,29 @@ function extractRecentRounds(messages: ButlerMessage[], limit: number): ButlerRo
           id: `${currentUser.id}:pending`,
           user: currentUser.content,
           assistant: "",
-          ts: currentUser.ts
+          ts: currentUser.ts,
+          kind: currentUser.kind ?? "chat",
+          sourceType: currentUser.sourceType ?? "user_message",
+          relatedThreadId: currentUser.relatedThreadId,
+          relatedTaskId: currentUser.relatedTaskId,
+          noticeType: currentUser.noticeType
         })
       }
       currentUser = message
       continue
     }
     if (message.role === "assistant" && currentUser) {
-      rounds.push({
-        id: `${currentUser.id}:${message.id}`,
-        user: currentUser.content,
-        assistant: message.content,
-        ts: message.ts
-      })
+        rounds.push({
+          id: `${currentUser.id}:${message.id}`,
+          user: currentUser.content,
+          assistant: message.content,
+          ts: message.ts,
+          kind: message.kind ?? "chat",
+          sourceType: message.sourceType ?? "orchestrator",
+          relatedThreadId: message.relatedThreadId ?? currentUser.relatedThreadId,
+          relatedTaskId: message.relatedTaskId ?? currentUser.relatedTaskId,
+          noticeType: message.noticeType
+        })
       currentUser = null
       continue
     }
@@ -177,7 +200,12 @@ function extractRecentRounds(messages: ButlerMessage[], limit: number): ButlerRo
         id: `notice:${message.id}`,
         user: "[系统通知]",
         assistant: message.content,
-        ts: message.ts
+        ts: message.ts,
+        kind: message.kind ?? "task_comment",
+        sourceType: message.sourceType ?? "task_lifecycle",
+        relatedThreadId: message.relatedThreadId,
+        relatedTaskId: message.relatedTaskId,
+        noticeType: message.noticeType
       })
     }
   }
@@ -186,7 +214,12 @@ function extractRecentRounds(messages: ButlerMessage[], limit: number): ButlerRo
       id: `${currentUser.id}:pending`,
       user: currentUser.content,
       assistant: "",
-      ts: currentUser.ts
+      ts: currentUser.ts,
+      kind: currentUser.kind ?? "chat",
+      sourceType: currentUser.sourceType ?? "user_message",
+      relatedThreadId: currentUser.relatedThreadId,
+      relatedTaskId: currentUser.relatedTaskId,
+      noticeType: currentUser.noticeType
     })
   }
   return rounds.slice(-limit)
@@ -226,7 +259,13 @@ class ButlerManager {
       id: entry.id,
       role: entry.role,
       content: entry.content,
-      ts: entry.ts
+      ts: entry.ts,
+      kind: entry.kind,
+      sourceType: entry.sourceType,
+      relatedThreadId: entry.relatedThreadId,
+      relatedTaskId: entry.relatedTaskId,
+      noticeType: entry.noticeType,
+      metadata: entry.metadata
     }))
 
     const orphanTaskIds: string[] = []
@@ -361,59 +400,75 @@ class ButlerManager {
     return this.listTasks()
   }
 
-  notifyCompletionNotice(notice: TaskCompletionNotice): void {
-    const content = [
-      `任务完成通知：${notice.title}`,
-      `模式: ${notice.mode} | 来源: ${notice.source}`,
-      `线程: ${notice.threadId}`,
-      `摘要: ${notice.resultBrief || "任务已完成。"}`,
-      `${TASK_NOTICE_MARKER}${JSON.stringify(notice)}`
-    ].join("\n")
+  private async pushTaskCommentNotice(
+    notice: TaskCompletionNotice | TaskLifecycleNotice
+  ): Promise<void> {
+    const seed = `${notice.title} ${notice.resultBrief || ""} ${notice.resultDetail || ""}`
+    let commentText = this.sanitizeTaskCommentText(
+      "phase" in notice && notice.phase === "started"
+        ? `我会继续跟进这个任务：${notice.title}。`
+        : notice.resultBrief || "任务已有新的结果。"
+    )
+
+    try {
+      const result = await runButlerTaskCommentTurn({
+        threadId: this.mainThreadId,
+        notice,
+        promptContext: this.buildSharedMemoryContext(seed)
+      })
+      if (result.commentText.trim()) {
+        commentText = this.sanitizeTaskCommentText(result.commentText)
+      }
+    } catch (error) {
+      console.warn("[Butler] runButlerTaskCommentTurn failed:", error)
+    }
+    if (!commentText) {
+      commentText =
+        "phase" in notice && notice.phase === "started"
+          ? `我会继续跟进这个任务：${notice.title}。`
+          : notice.resultBrief || "任务已有新的结果。"
+    }
+
+    const snapshotNotice: TaskCompletionNotice | TaskLifecycleNotice =
+      "completedAt" in notice
+        ? { ...notice, noticeType: notice.noticeType ?? "task" }
+        : {
+            ...notice,
+            resultBrief: notice.resultBrief || commentText,
+            resultDetail: notice.resultDetail || notice.resultBrief || commentText
+          }
+
+    const content = `${commentText}\n${TASK_NOTICE_MARKER}${JSON.stringify(snapshotNotice)}`
 
     this.pushMessage({
       id: uuid(),
       role: "assistant",
       content,
-      ts: nowIso()
+      ts: "completedAt" in snapshotNotice ? snapshotNotice.completedAt : snapshotNotice.at,
+      kind: "task_comment",
+      sourceType: "task_lifecycle",
+      relatedThreadId: snapshotNotice.threadId,
+      noticeType: "task",
+      metadata: {
+        taskIdentity: snapshotNotice.taskIdentity,
+        memoryRefId: snapshotNotice.memoryRefId,
+        lifecyclePhase: "phase" in snapshotNotice ? snapshotNotice.phase : "completed"
+      }
     })
     this.broadcastState()
   }
 
-  notifyLifecycleNotice(notice: TaskLifecycleNotice): void {
-    if (notice.phase === "completed") {
-      this.notifyCompletionNotice({
-        id: notice.id,
-        threadId: notice.threadId,
-        title: notice.title,
-        resultBrief: notice.resultBrief || "任务已完成。",
-        resultDetail: notice.resultDetail || notice.resultBrief || "任务已完成。",
-        completedAt: notice.at,
-        mode: notice.mode,
-        source: notice.source,
-        noticeType: "task",
-        taskIdentity: notice.taskIdentity
-      })
-      return
-    }
+  notifyCompletionNotice(notice: TaskCompletionNotice): void {
+    void this.pushTaskCommentNotice(notice)
+  }
 
-    const content = [
-      `任务启动通知：${notice.title}`,
-      `模式: ${notice.mode} | 来源: ${notice.source}`,
-      `线程: ${notice.threadId}`,
-      `摘要: ${notice.resultBrief || "任务已开始执行。"}`
-    ].join("\n")
-    this.pushMessage({
-      id: uuid(),
-      role: "assistant",
-      content,
-      ts: nowIso()
-    })
-    this.broadcastState()
+  notifyLifecycleNotice(notice: TaskLifecycleNotice): void {
+    // 生命周期通知仅用于外部聚合链路，Butler 主线程不再为每个 started/completed 事件落评论消息。
+    void notice
   }
 
   notifyDigestNotice(notice: TaskCompletionNotice): void {
     if (notice.noticeType !== "digest" || !notice.digest) {
-      this.notifyCompletionNotice(notice)
       return
     }
 
@@ -427,9 +482,19 @@ class ButlerManager {
       id: uuid(),
       role: "assistant",
       content,
-      ts: notice.completedAt || nowIso()
+      ts: notice.completedAt || nowIso(),
+      kind: "digest_comment",
+      sourceType: "service_digest",
+      relatedThreadId: notice.threadId,
+      noticeType: "digest",
+      metadata: {
+        digestId: notice.digest.id,
+        memoryRefId: notice.memoryRefId
+      }
     })
     this.broadcastState()
+
+    void this.pushTaskCommentNotice(this.buildDigestTaskCommentNotice(notice))
   }
 
   async summarizeDigest(input: {
@@ -438,9 +503,13 @@ class ButlerManager {
     tasks: ButlerDigestTaskCard[]
   }): Promise<string> {
     await this.initialize()
+    const promptContext = this.buildSharedMemoryContext(
+      input.tasks.map((task) => `${task.title} ${task.resultBrief}`).join(" ")
+    )
     const result = await runButlerDigestTurn({
       threadId: this.mainThreadId,
-      digest: input
+      digest: input,
+      promptContext
     })
     return result.summaryText.trim()
   }
@@ -472,9 +541,13 @@ class ButlerManager {
   private async processPerception(input: ButlerPerceptionInput): Promise<TaskCompletionNotice> {
     let reminderText = ""
     try {
+      const promptContext = this.buildSharedMemoryContext(
+        `${input.title} ${input.detail || ""} ${JSON.stringify(input.payload)}`
+      )
       const result = await runButlerPerceptionTurn({
         threadId: this.mainThreadId,
-        perception: input
+        perception: input,
+        promptContext
       })
       reminderText = result.reminderText.trim()
     } catch (error) {
@@ -515,7 +588,15 @@ class ButlerManager {
       id: uuid(),
       role: "assistant",
       content,
-      ts: completedAt
+      ts: completedAt,
+      kind: "event_comment",
+      sourceType: "subscription_event",
+      relatedThreadId: notice.threadId,
+      noticeType: "event",
+      metadata: {
+        eventKind: input.kind,
+        memoryRefId: notice.memoryRefId
+      }
     })
     this.broadcastState()
     return notice
@@ -779,6 +860,54 @@ class ButlerManager {
     }
   }
 
+  private buildPersonaProfileText(): string {
+    const persona = getSettings().butler.persona
+    return [
+      `name: ${persona.name}`,
+      `role: ${persona.role}`,
+      `relationship: ${persona.relationshipToUser}`,
+      `tone: ${persona.tone}`,
+      `comment_style: ${persona.commentStyle}`,
+      `initiative_level: ${persona.initiativeLevel}`,
+      "[Principles]",
+      ...(persona.principles.length > 0 ? persona.principles.map((item, index) => `${index + 1}. ${item}`) : ["none"]),
+      "",
+      "[Do]",
+      ...(persona.dos.length > 0 ? persona.dos.map((item, index) => `${index + 1}. ${item}`) : ["none"]),
+      "",
+      "[Don't]",
+      ...(persona.donts.length > 0 ? persona.donts.map((item, index) => `${index + 1}. ${item}`) : ["none"])
+    ].join("\n")
+  }
+
+  private buildLongTermRecallText(seed: string): string {
+    const result = searchMemory({ text: seed, limit: 5 })
+    const eventLines = result.events
+      .slice(0, 5)
+      .map((event, index) => `${index + 1}. [${event.category}] ${event.title}: ${event.summary}`)
+    const entityLines = result.entities
+      .slice(0, 5)
+      .map((entity, index) => `${index + 1}. (${entity.type}) ${entity.name}: ${entity.value}`)
+    return [
+      "[Relevant Events]",
+      eventLines.length > 0 ? eventLines.join("\n") : "none",
+      "",
+      "[Relevant Entities]",
+      entityLines.length > 0 ? entityLines.join("\n") : "none"
+    ].join("\n")
+  }
+
+  private buildSharedMemoryContext(seed: string): Pick<
+    ButlerPromptContext,
+    "personaProfile" | "workingMemoryText" | "memoryRecallText"
+  > {
+    return {
+      personaProfile: this.buildPersonaProfileText(),
+      workingMemoryText: getWorkingMemorySnapshot().text,
+      memoryRecallText: this.buildLongTermRecallText(seed)
+    }
+  }
+
   private normalizeOriginUserMessage(message: string): string {
     const normalized = message.trim()
     return normalized || "none"
@@ -833,11 +962,15 @@ class ButlerManager {
         threadId: task.threadId,
         createdAt: task.createdAt
       }))
+    const sharedMemoryContext = this.buildSharedMemoryContext(userMessage)
 
     return {
       userMessage,
       capabilityCatalog,
       capabilitySummary,
+      personaProfile: sharedMemoryContext.personaProfile,
+      workingMemoryText: sharedMemoryContext.workingMemoryText,
+      memoryRecallText: sharedMemoryContext.memoryRecallText,
       currentTimeIso: now.toISOString(),
       currentLocalTime: now.toLocaleString(),
       currentWeekday,
@@ -863,7 +996,9 @@ class ButlerManager {
       id: uuid(),
       role: "user",
       content: trimmed,
-      ts: nowIso()
+      ts: nowIso(),
+      kind: "chat",
+      sourceType: "user_message"
     }
     this.pushMessage(userMessage)
 
@@ -1502,17 +1637,71 @@ class ButlerManager {
       replyLines.push("[调度说明]")
       replyLines.push(...created.notes)
     }
+    const replyContent = replyLines.join("\n")
 
     this.pushMessage({
       id: uuid(),
       role: "assistant",
-      content: replyLines.join("\n"),
+      content: replyContent,
       ts: nowIso()
     })
     this.broadcastState()
 
+    void this.pushTaskCommentNotice(
+      this.buildDispatchTaskCommentNotice({
+        groupId,
+        replyContent,
+        tasks: created.tasks
+      })
+    )
+
     void this.pumpQueue()
     return this.getState()
+  }
+
+  private sanitizeTaskCommentText(text: string): string {
+    const cleaned = text
+      .replace(/^\s*(任务评论|模式|线程|阶段|摘要|phase|mode|thread)\s*[:：].*$/gim, "")
+      .replace(/\n{3,}/g, "\n\n")
+      .trim()
+    return cleaned
+  }
+
+  private buildDispatchTaskCommentNotice(params: {
+    groupId: string
+    replyContent: string
+    tasks: ButlerTask[]
+  }): TaskLifecycleNotice {
+    const { groupId, replyContent, tasks } = params
+    const taskCount = tasks.length
+    const singleTask = taskCount === 1 ? tasks[0] : undefined
+    return {
+      id: `dispatch:${groupId}:started`,
+      phase: "started",
+      threadId: singleTask?.threadId || "",
+      title: singleTask?.title || `任务组 ${groupId}`,
+      mode: "butler",
+      source: "butler",
+      at: nowIso(),
+      resultBrief: `已完成任务编排并开始执行，共创建 ${taskCount} 个任务。`,
+      resultDetail: replyContent
+    }
+  }
+
+  private buildDigestTaskCommentNotice(notice: TaskCompletionNotice): TaskLifecycleNotice {
+    const brief = notice.resultBrief || "已生成本时段任务汇总。"
+    return {
+      id: `digest:${notice.id}:completed`,
+      phase: "completed",
+      threadId: "",
+      title: notice.title || "管家服务汇总",
+      mode: "butler",
+      source: "butler",
+      at: notice.completedAt || nowIso(),
+      resultBrief: brief,
+      resultDetail: notice.resultDetail || brief,
+      memoryRefId: notice.memoryRefId
+    }
   }
 
   private getRecentRoundLimit(): number {
@@ -1551,12 +1740,23 @@ class ButlerManager {
   }
 
   private pushMessage(message: ButlerMessage): void {
-    this.messages.push(message)
+    const normalized: ButlerMessage = {
+      ...message,
+      kind: message.kind ?? "chat",
+      sourceType: message.sourceType ?? (message.role === "user" ? "user_message" : "orchestrator")
+    }
+    this.messages.push(normalized)
     appendButlerHistoryMessage({
-      id: message.id,
-      role: message.role,
-      content: message.content,
-      ts: message.ts
+      id: normalized.id,
+      role: normalized.role,
+      content: normalized.content,
+      ts: normalized.ts,
+      kind: normalized.kind,
+      sourceType: normalized.sourceType,
+      relatedThreadId: normalized.relatedThreadId,
+      relatedTaskId: normalized.relatedTaskId,
+      noticeType: normalized.noticeType,
+      metadata: normalized.metadata
     })
   }
 

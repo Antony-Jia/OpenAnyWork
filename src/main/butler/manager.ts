@@ -438,6 +438,10 @@ class ButlerManager {
     notice: TaskCompletionNotice | TaskLifecycleNotice
   ): Promise<void> {
     const seed = `${notice.title} ${notice.resultBrief || ""} ${notice.resultDetail || ""}`
+    const promptContext =
+      "completedAt" in notice && notice.noticeType === "digest"
+        ? this.buildPersonaOnlyContext()
+        : this.buildSharedMemoryContext(seed)
     let commentText = this.sanitizeTaskCommentText(
       "phase" in notice && notice.phase === "started"
         ? `我会继续跟进这个任务：${notice.title}。`
@@ -448,7 +452,7 @@ class ButlerManager {
       const result = await runButlerTaskCommentTurn({
         threadId: this.mainThreadId,
         notice,
-        promptContext: this.buildSharedMemoryContext(seed)
+        promptContext
       })
       if (result.commentText.trim()) {
         commentText = this.sanitizeTaskCommentText(result.commentText)
@@ -537,9 +541,7 @@ class ButlerManager {
     tasks: ButlerDigestTaskCard[]
   }): Promise<string> {
     await this.initialize()
-    const promptContext = this.buildSharedMemoryContext(
-      input.tasks.map((task) => `${task.title} ${task.resultBrief}`).join(" ")
-    )
+    const promptContext = this.buildPersonaOnlyContext()
     const result = await runButlerDigestTurn({
       threadId: this.mainThreadId,
       digest: input,
@@ -939,6 +941,17 @@ class ButlerManager {
       personaProfile: this.buildPersonaProfileText(),
       workingMemoryText: getWorkingMemorySnapshot().text,
       memoryRecallText: this.buildLongTermRecallText(seed)
+    }
+  }
+
+  private buildPersonaOnlyContext(): Pick<
+    ButlerPromptContext,
+    "personaProfile" | "workingMemoryText" | "memoryRecallText"
+  > {
+    return {
+      personaProfile: this.buildPersonaProfileText(),
+      workingMemoryText: undefined,
+      memoryRecallText: undefined
     }
   }
 

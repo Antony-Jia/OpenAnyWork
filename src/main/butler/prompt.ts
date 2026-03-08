@@ -359,7 +359,8 @@ export function buildButlerDigestSystemPrompt(userPrefixPrompt?: string): string
 - 字数控制在 80~220 字。
 - 表述准确，不编造。
 - 若没有失败任务，可简要说明当前风险低。
-- 结合 Persona、Working Memory、Long-term Recall 保持一致立场。
+- 结合 Persona 保持一致立场，但只允许总结当前输入时间窗内的 [Task Updates]。
+- 即使 Working Memory、Long-term Recall 中出现其他旧任务，也禁止引用、影射或补充窗口外任务。
 `.trim()
   return withOptionalPrefix(basePrompt, userPrefixPrompt)
 }
@@ -434,13 +435,17 @@ export function buildButlerDigestUserPrompt(context: ButlerDigestPromptContext):
     tasks.length > 0 ? tasks.join("\n\n") : "none",
     "",
     "[Instruction]",
-    "请输出服务总结正文。"
+    "请仅根据 [Task Updates] 输出服务总结正文，不要引用记忆中的旧任务，也不要补充时间窗口之外的任务。"
   ].join("\n")
 }
 
 export function buildButlerTaskCommentUserPrompt(context: ButlerTaskCommentPromptContext): string {
   const notice = context.notice
   const phase = "phase" in notice ? notice.phase : "completed"
+  const instruction =
+    "completedAt" in notice && notice.noticeType === "digest"
+      ? "请仅基于这条服务汇总通知输出评论，不要引用历史任务、记忆或时间窗口外的信息。"
+      : "请输出任务评论正文。"
   return [
     ...buildSharedCommentContext(context),
     "",
@@ -455,7 +460,7 @@ export function buildButlerTaskCommentUserPrompt(context: ButlerTaskCommentPromp
     `detail: ${notice.resultDetail || "none"}`,
     "",
     "[Instruction]",
-    "请输出任务评论正文。"
+    instruction
   ].join("\n")
 }
 

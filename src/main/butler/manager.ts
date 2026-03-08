@@ -46,6 +46,8 @@ import { createButlerTaskThread, executeButlerTask } from "./task-dispatcher"
 import { renderTaskPrompt, type ButlerDispatchIntent } from "./tools"
 import { notificationMuteRegistry } from "../notifications/mute-registry"
 import type {
+  ButlerExternalSendInput,
+  ButlerExternalSendResult,
   ButlerDigestTaskCard,
   ButlerPerceptionInput,
   TaskLifecycleNotice,
@@ -72,6 +74,12 @@ interface ButlerMessage {
 
 interface PendingTask {
   taskId: string
+}
+
+interface SendMessageParams {
+  rawMessage: string
+  storedMessage?: string
+  metadata?: Record<string, unknown>
 }
 
 interface PerceptionDispatchedTaskResult {
@@ -962,6 +970,14 @@ class ButlerManager {
     return sections.length > 0 ? sections.join("\n\n") : "none"
   }
 
+  private getRecentExecutionTasks(limit = 5): ButlerTask[] {
+    return this.listTasks()
+      .filter(
+        (task) => task.status === "running" || task.status === "completed" || task.status === "failed"
+      )
+      .slice(0, limit)
+  }
+
   private buildPromptContextBase(params: {
     userMessage: string
     capabilityCatalog: string
@@ -978,15 +994,15 @@ class ButlerManager {
       ? this.findPreviousUserMessage(currentUserMessageId)?.content
       : this.findLatestUserMessage()?.content
     const memoryHints = searchMemoryByTask(userMessage, 5)
-    const recentTasks = this.listTasks()
-      .slice(0, 10)
+    const recentTasks = this.getRecentExecutionTasks(5)
       .map((task) => ({
         id: task.id,
         title: task.title,
         mode: task.mode,
         status: task.status,
         threadId: task.threadId,
-        createdAt: task.createdAt
+        createdAt: task.createdAt,
+        resultBrief: task.resultBrief
       }))
     const sharedMemoryContext = this.buildSharedMemoryContext(userMessage)
 
@@ -1291,8 +1307,17 @@ class ButlerManager {
   }): ButlerDispatchIntent {
     const { targetTask, followupText, taskKey } = params
     const title = `${targetTask.title}（补充）`
+    const reuseFollowupBlock = [
+      "[Reuse Followup Message]",
+      `target_thread_id=${targetTask.threadId}`,
+      `source_task_id=${targetTask.id}`,
+      `followup_user_request=${followupText}`,
+      "dispatch_timing=after_previous_run_if_same_thread_running",
+      "[/Reuse Followup Message]"
+    ].join("\n")
     const initialPrompt = [
       "这是对同一任务的追问补充，请基于已有上下文继续执行。",
+      reuseFollowupBlock,
       `新增要求: ${followupText}`,
       "请在结果中明确说明新增内容和与原任务的衔接。"
     ].join("\n")
@@ -1301,6 +1326,7 @@ class ButlerManager {
       title,
       initialPrompt,
       threadStrategy: "reuse_last_thread" as const,
+      reuseThreadId: targetTask.threadId,
       workspacePath: targetTask.workspacePath,
       dependsOn: []
     }
@@ -1498,26 +1524,99 @@ class ButlerManager {
     return null
   }
 
-  async send(message: string): Promise<ButlerState> {
-    await this.initialize()
-    const trimmed = message.trim()
-    if (!trimmed) return this.getState()
+  private buildExternalStoredMessage(input: ButlerExternalSendInput): string {
+    const lines = [
+      "[External Source]",
+      `source=${input.source}`,
+      `sender_openid=${input.senderOpenId}`,
+      `sender_name=${input.senderName?.trim() || "unknown"}`,
+      `message_id=${input.messageId}`,
+      "[/External Source]",
+      "",
+      input.message.trim()
+    ]
+    return lines.join("\n")
+  }
+
+  private splitExternalReplyContent(content: string): {
+    assistantText: string
+    taskSummary?: string
+  } {
+    const trimmed = content.trim()
+    if (!trimmed) {
+      return { assistantText: "" }
+    }
+
+    const lines = trimmed.split("\n")
+    const taskSummaryStart = lines.findIndex(
+      (line) =>
+        /^任务组[:：]/.test(line) ||
+        /^共创建\s+\d+\s+个任务/.test(line) ||
+        /^\d+\.\s+\[[^\]]+\]\s+/.test(line)
+    )
+
+    if (taskSummaryStart <= 0) {
+      return { assistantText: trimmed }
+    }
+
+    return {
+      assistantText: lines
+        .slice(0, taskSummaryStart)
+        .join("\n")
+        .trim(),
+      taskSummary: lines
+        .slice(taskSummaryStart)
+        .join("\n")
+        .trim()
+    }
+  }
+
+  private buildExternalTaskSummary(tasks: ButlerTask[], fallback?: string): string | undefined {
+    if (fallback?.trim()) {
+      return fallback.trim()
+    }
+    if (tasks.length === 0) {
+      return undefined
+    }
+
+    const lines = [`共创建 ${tasks.length} 个任务。`]
+    for (const [index, task] of tasks.entries()) {
+      lines.push(`${index + 1}. [${task.mode}/${task.status}] ${task.title}`)
+    }
+    return lines.join("\n")
+  }
+
+  private getLatestAssistantMessage(startIndex = 0): ButlerMessage | undefined {
+    const candidates = this.messages
+      .slice(startIndex)
+      .filter((message) => message.role === "assistant")
+    return candidates[candidates.length - 1]
+  }
+
+  private async sendCore(params: SendMessageParams): Promise<ButlerState> {
+    const trimmedRaw = params.rawMessage.trim()
+    const trimmedStored = (params.storedMessage ?? params.rawMessage).trim()
+
+    if (!trimmedRaw || !trimmedStored) {
+      return this.getState()
+    }
 
     const userMessage: ButlerMessage = {
       id: uuid(),
       role: "user",
-      content: trimmed,
+      content: trimmedStored,
       ts: nowIso(),
       kind: "chat",
-      sourceType: "user_message"
+      sourceType: "user_message",
+      metadata: params.metadata
     }
     this.pushMessage(userMessage)
 
     if (this.pendingDispatchChoice) {
-      return this.handlePendingDispatchChoice(trimmed)
+      return this.handlePendingDispatchChoice(trimmedRaw)
     }
 
-    const localTimeReply = this.buildLocalTimeQuickReply(trimmed)
+    const localTimeReply = this.buildLocalTimeQuickReply(trimmedRaw)
     if (localTimeReply) {
       this.pushMessage({
         id: uuid(),
@@ -1529,7 +1628,7 @@ class ButlerManager {
       return this.getState()
     }
 
-    const memoryQuickReply = this.buildMemoryQuickReply(trimmed)
+    const memoryQuickReply = this.buildMemoryQuickReply(trimmedRaw)
     if (memoryQuickReply) {
       this.pushMessage({
         id: uuid(),
@@ -1543,13 +1642,13 @@ class ButlerManager {
 
     const { capabilityCatalog, capabilitySummary } = this.getCapabilityContext()
     const promptContextBase = this.buildPromptContextBase({
-      userMessage: trimmed,
+      userMessage: trimmedRaw,
       capabilityCatalog,
       capabilitySummary,
       currentUserMessageId: userMessage.id
     })
     const creation: DispatchTaskCreationContext = {
-      originUserMessage: this.normalizeOriginUserMessage(trimmed),
+      originUserMessage: this.normalizeOriginUserMessage(trimmedRaw),
       habitAddendum: this.buildHabitAddendum({
         profileText: promptContextBase.profileText,
         memoryHints: promptContextBase.memoryHints
@@ -1557,7 +1656,7 @@ class ButlerManager {
     }
 
     const followupState = this.tryHandleFollowupContinuation({
-      userMessage: trimmed,
+      userMessage: trimmedRaw,
       previousUserMessage: promptContextBase.previousUserMessage,
       capabilitySummary
     })
@@ -1617,7 +1716,7 @@ class ButlerManager {
     }
 
     const detection = await detectOversplitByModel({
-      userMessage: trimmed,
+      userMessage: trimmedRaw,
       intents: orchestrator.dispatchIntents
     })
     if (detection.verdict === "valid_multi") {
@@ -1709,6 +1808,39 @@ class ButlerManager {
     }
     this.schedulePendingDispatchChoice(choice)
     return this.getState()
+  }
+
+  async send(message: string): Promise<ButlerState> {
+    await this.initialize()
+    return this.sendCore({ rawMessage: message })
+  }
+
+  async sendExternal(input: ButlerExternalSendInput): Promise<ButlerExternalSendResult> {
+    await this.initialize()
+    const beforeMessageIndex = this.messages.length
+    const beforeTaskIds = new Set(this.tasks.keys())
+
+    const state = await this.sendCore({
+      rawMessage: input.message,
+      storedMessage: this.buildExternalStoredMessage(input),
+      metadata: {
+        source: input.source,
+        senderOpenId: input.senderOpenId,
+        senderName: input.senderName,
+        messageId: input.messageId
+      }
+    })
+
+    const latestAssistant = this.getLatestAssistantMessage(beforeMessageIndex)
+    const parsedReply = this.splitExternalReplyContent(latestAssistant?.content ?? "")
+    const createdTasks = this.listTasks().filter((task) => !beforeTaskIds.has(task.id))
+
+    return {
+      assistantText: parsedReply.assistantText || latestAssistant?.content?.trim() || "",
+      taskSummary: this.buildExternalTaskSummary(createdTasks, parsedReply.taskSummary),
+      pendingChoice: state.pendingDispatchChoice,
+      state
+    }
   }
 
   private handlePendingDispatchChoice(choiceText: string): ButlerState {
@@ -2453,13 +2585,42 @@ class ButlerManager {
     const { intents, groupId, sourceTurnId, creation } = params
     const createdByTaskKey = new Map<string, ButlerTask>()
     const notes: string[] = []
+    const recentExecutionTasks = this.getRecentExecutionTasks(5)
+    const recentReusableThreadIds = new Set(
+      recentExecutionTasks.map((task) => task.threadId).filter((threadId) => threadId.trim().length > 0)
+    )
+    const recentModeByThreadId = new Map(
+      recentExecutionTasks.map((task) => [task.threadId, task.mode] as const)
+    )
 
     for (const intent of intents) {
       const requestedReuse = intent.threadStrategy === "reuse_last_thread"
       const preferredReuseThreadId = creation.preferredReuseThreadByTaskKey?.[intent.taskKey]
-      const reusableThreadId =
-        preferredReuseThreadId || (requestedReuse ? this.findReusableThreadId(intent.mode) : undefined)
-      if (requestedReuse && !reusableThreadId && !preferredReuseThreadId) {
+      const normalizedIntentReuseThreadId = intent.reuseThreadId?.trim() || undefined
+      let reusableThreadId = preferredReuseThreadId
+
+      if (!reusableThreadId && requestedReuse && normalizedIntentReuseThreadId) {
+        if (recentReusableThreadIds.has(normalizedIntentReuseThreadId)) {
+          const recentMode = recentModeByThreadId.get(normalizedIntentReuseThreadId)
+          if (!recentMode || recentMode === intent.mode) {
+            reusableThreadId = normalizedIntentReuseThreadId
+          } else {
+            notes.push(
+              `任务 ${intent.taskKey}: reuseThreadId=${normalizedIntentReuseThreadId} 与当前 mode=${intent.mode} 不一致，已回退到 mode 最近线程。`
+            )
+          }
+        } else {
+          notes.push(
+            `任务 ${intent.taskKey}: reuseThreadId=${normalizedIntentReuseThreadId} 不在最近 5 条可复用任务中，已回退到 mode 最近线程。`
+          )
+        }
+      }
+
+      if (!reusableThreadId && requestedReuse) {
+        reusableThreadId = this.findReusableThreadId(intent.mode)
+      }
+
+      if (requestedReuse && !reusableThreadId) {
         notes.push(`任务 ${intent.taskKey}: 未找到可复用线程，已自动改为 new_thread。`)
       }
 

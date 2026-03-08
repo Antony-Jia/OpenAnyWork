@@ -1,0 +1,10 @@
+{
+  "appId": "your_app_id",
+  "clientSecret": "",
+  "clientSecretFile": "",
+  "markdownSupport": false,
+  "dataDir": "",
+  "downloadsDir": "",
+  "apiBaseUrl": "https://api.sgroup.qq.com",
+  "tokenUrl": "https://bots.qq.com/app/getAppAccessToken"
+}

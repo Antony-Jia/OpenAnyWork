@@ -651,6 +651,21 @@ export interface ButlerState {
   pendingDispatchChoice?: ButlerPendingDispatchChoice
 }
 
+export interface ButlerExternalSendInput {
+  source: "qqbot"
+  message: string
+  senderOpenId: string
+  senderName?: string
+  messageId: string
+}
+
+export interface ButlerExternalSendResult {
+  assistantText: string
+  taskSummary?: string
+  pendingChoice?: ButlerPendingDispatchChoice
+  state: ButlerState
+}
+
 export type ButlerPerceptionKind = "calendar_due_soon" | "countdown_due" | "mail_new" | "rss_new"
 
 export interface CalendarWatchEvent {

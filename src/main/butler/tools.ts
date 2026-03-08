@@ -10,6 +10,7 @@ interface ButlerDispatchIntentBase {
   title: string
   initialPrompt: string
   threadStrategy: ButlerThreadStrategy
+  reuseThreadId?: string
   workspacePath?: string
   dependsOn: string[]
   handoff?: ButlerTaskHandoff
@@ -59,6 +60,7 @@ const commonFieldsSchema = z.object({
   title: z.string().trim().min(1),
   initialPrompt: z.string().trim().min(1),
   threadStrategy: z.enum(["new_thread", "reuse_last_thread"]),
+  reuseThreadId: z.string().trim().min(1).optional(),
   workspacePath: z.string().trim().min(1).optional(),
   dependsOn: z.array(z.string().trim().min(1)).optional().default([]),
   handoff: z
@@ -153,6 +155,7 @@ function normalizeCommon(input: z.infer<typeof commonFieldsSchema>): ButlerDispa
     title: input.title.trim(),
     initialPrompt: input.initialPrompt.trim(),
     threadStrategy: input.threadStrategy,
+    reuseThreadId: input.reuseThreadId?.trim() || undefined,
     workspacePath: input.workspacePath?.trim() || undefined,
     dependsOn: input.dependsOn ?? [],
     handoff: input.handoff
@@ -181,6 +184,8 @@ function buildDescription(mode: Exclude<ThreadMode, "butler">): string {
     `Create a ${mode} mode task for Butler.`,
     "Use valid JSON only. taskKey must be unique within this turn.",
     "If user explicitly specifies a workspace directory, set workspacePath accordingly.",
+    'When threadStrategy is "reuse_last_thread", optionally provide reuseThreadId for precise thread reuse.',
+    "For follow-up reuse tasks, include this block inside initialPrompt: [Reuse Followup Message] ... [/Reuse Followup Message].",
     "workspacePath supports absolute path or path relative to butler.rootPath.",
     "dependsOn references other taskKey values in the same turn.",
     "Treat the original user request as locked task body; do not rewrite it in initialPrompt.",

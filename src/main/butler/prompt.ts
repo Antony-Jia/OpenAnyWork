@@ -22,6 +22,7 @@ export interface ButlerPromptRecentTask {
   status: "queued" | "running" | "completed" | "failed" | "cancelled"
   threadId: string
   createdAt: string
+  resultBrief?: string
 }
 
 export interface ButlerRetryPromptContext {
@@ -170,8 +171,10 @@ export function buildButlerSystemPrompt(userPrefixPrompt?: string, personaProfil
 路由优先级（从高到低）：
 1) 能基于现有上下文、记忆、历史直接回答就直接回答。
 2) 仅当请求可由只读查询工具立即完成时，才直接调用查询工具。
-3) 若需外部新鲜信息、写操作或多步骤执行，优先创建任务。
-4) 信息不充分就继续澄清追问，不要使用“已记录”这类兜底回复。
+3) 先判断当前请求是否是 [Recent Butler Tasks]（最近 5 条）之一的语义续写（补充、比较、扩展、细化、追问）。
+4) 命中语义续写时，优先复用任务线程，不要新开线程；仅在低置信度时才澄清。
+5) 若需外部新鲜信息、写操作或多步骤执行，优先创建任务。
+6) 信息不充分就继续澄清追问，不要使用“已记录”这类兜底回复。
 
 任务创建工具说明：
 - create_default_task：通用任务模式。适用于信息收集、内容生成、数据整理、问答等一般性任务。
@@ -210,6 +213,15 @@ export function buildButlerSystemPrompt(userPrefixPrompt?: string, personaProfil
 - 正例（应该这样做）：
   同一请求只创建 1 个 loop 任务，在 loopConfig.contentTemplate 中包含检索、去重记录、发送全流程。
 - 每个任务都应该有明确的意图和目标。
+- 对 [Recent Butler Tasks] 命中语义续写时，优先设置 threadStrategy="reuse_last_thread"。
+- 对 [Recent Butler Tasks] 命中语义续写且目标线程可确定时，优先填写 reuseThreadId。
+- 对 [Recent Butler Tasks] 命中语义续写时，initialPrompt 必须包含固定结构块：
+  [Reuse Followup Message]
+  target_thread_id=<thread_id>
+  source_task_id=<task_id>
+  followup_user_request=<原始追问>
+  dispatch_timing=after_previous_run_if_same_thread_running
+  [/Reuse Followup Message]
 - 用户任务主体必须以 [User Request] 原文为唯一事实来源，不得改写、弱化、替换。
 - initialPrompt 仅用于补充执行说明（addendum），不能重写用户任务主体。
 - 用户在请求中明确提供了工作目录时，必须在工具 JSON 中填写 workspacePath。
@@ -232,6 +244,7 @@ export function buildButlerSystemPrompt(userPrefixPrompt?: string, personaProfil
 Thread strategy：
 - "reuse_last_thread"：继续该 mode 下最近的相关线程。
 - "new_thread"：创建新线程。
+- reuseThreadId（可选）：当 threadStrategy="reuse_last_thread" 时可指定目标线程；若无效会自动回退到 mode 最近线程。
 
 Handoff：
 - method "context"：上游摘要传入下游 prompt。
@@ -243,6 +256,7 @@ JSON 字段约定（所有工具通用）：
 - title：面向用户的任务标题。
 - initialPrompt：传给 worker 的补充执行说明（addendum），不是任务主体重写正文。
 - threadStrategy："new_thread" | "reuse_last_thread"。
+- reuseThreadId：可选；仅当 threadStrategy="reuse_last_thread" 时使用，优先复用指定线程。
 - workspacePath：可选；任务工作目录。支持绝对路径或相对 butler.rootPath 的路径。
 - dependsOn：taskKey[]（可选）。
 - handoff：{ method, note?, requiredArtifacts? }（可选）。

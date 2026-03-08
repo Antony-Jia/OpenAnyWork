@@ -691,6 +691,154 @@ html.window-maximized .app-shell {
   background-color: color-mix(in srgb, var(--card) 95%, var(--accent));
 }
 
+/* ── Butler Notice Cards ── */
+.task-notice-card-shell {
+  width: 100%;
+}
+
+.butler-notice-shell {
+  position: relative;
+  overflow: hidden;
+  border-radius: calc(var(--radius-xl) + 2px);
+  border: 1px solid color-mix(in srgb, var(--accent) 24%, var(--border));
+  background:
+    linear-gradient(
+      160deg,
+      color-mix(in srgb, var(--background) 22%, transparent) 0%,
+      transparent 38%
+    ),
+    color-mix(in srgb, var(--card) 88%, transparent);
+  box-shadow:
+    0 12px 28px -18px color-mix(in srgb, var(--accent) 38%, transparent),
+    inset 0 1px 0 color-mix(in srgb, #fff 10%, transparent);
+}
+
+.butler-notice-shell::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(
+      120deg,
+      transparent 0%,
+      color-mix(in srgb, var(--accent) 8%, transparent) 42%,
+      transparent 100%
+    );
+  opacity: 0.8;
+}
+
+.butler-notice-shell > * {
+  position: relative;
+  z-index: 1;
+}
+
+.butler-notice-shell--dispatch {
+  clip-path: polygon(0 0, calc(100% - 14px) 0, 100% 14px, 100% 100%, 0 100%);
+  border-color: color-mix(in srgb, var(--status-info) 42%, var(--border));
+}
+
+.butler-notice-shell--dispatch::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 12px;
+  bottom: 12px;
+  width: 4px;
+  border-radius: 999px;
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--status-info) 86%, var(--accent)),
+    color-mix(in srgb, var(--status-nominal) 85%, var(--accent))
+  );
+  box-shadow: 0 0 12px color-mix(in srgb, var(--status-info) 45%, transparent);
+}
+
+.butler-notice-shell--digest {
+  border-color: color-mix(in srgb, var(--status-nominal) 36%, var(--border));
+  box-shadow:
+    0 14px 30px -20px color-mix(in srgb, var(--status-nominal) 35%, transparent),
+    inset 0 0 0 1px color-mix(in srgb, var(--status-info) 10%, transparent);
+}
+
+.butler-notice-shell--digest::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: 3px;
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--status-info) 60%, transparent),
+    color-mix(in srgb, var(--status-nominal) 72%, transparent),
+    color-mix(in srgb, var(--accent) 60%, transparent)
+  );
+}
+
+.butler-notice-section {
+  border-radius: calc(var(--radius-lg) - 1px);
+  border: 1px solid color-mix(in srgb, var(--border) 84%, var(--accent));
+  background: color-mix(in srgb, var(--background) 72%, transparent);
+  padding: 0.65rem 0.75rem;
+}
+
+.butler-notice-kv {
+  border-radius: calc(var(--radius-md) - 2px);
+  border: 1px solid color-mix(in srgb, var(--border) 88%, var(--accent));
+  background: color-mix(in srgb, var(--background) 78%, transparent);
+  padding: 0.5rem 0.6rem;
+}
+
+.butler-notice-kv__label {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: color-mix(in srgb, var(--muted-foreground) 90%, transparent);
+}
+
+.butler-notice-kv__value {
+  margin-top: 0.25rem;
+  color: var(--foreground);
+}
+
+.butler-notice-actions {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 0.6rem;
+  border-top: 1px dashed color-mix(in srgb, var(--border) 82%, var(--accent));
+  padding-top: 0.35rem;
+}
+
+.light .butler-notice-shell--dispatch {
+  background:
+    linear-gradient(170deg, rgba(14, 165, 233, 0.12) 0%, transparent 42%),
+    linear-gradient(6deg, rgba(16, 185, 129, 0.08) 0%, transparent 45%),
+    color-mix(in srgb, var(--card) 94%, #eaf7ff);
+}
+
+.light .butler-notice-shell--digest {
+  background:
+    linear-gradient(160deg, rgba(16, 185, 129, 0.1) 0%, transparent 35%),
+    linear-gradient(15deg, rgba(99, 102, 241, 0.09) 0%, transparent 52%),
+    color-mix(in srgb, var(--card) 95%, #eefbf5);
+}
+
+.dark .butler-notice-shell--dispatch {
+  background:
+    linear-gradient(165deg, rgba(34, 211, 238, 0.18) 0%, transparent 44%),
+    linear-gradient(10deg, rgba(52, 211, 153, 0.11) 0%, transparent 48%),
+    color-mix(in srgb, var(--card) 84%, #020c12);
+}
+
+.dark .butler-notice-shell--digest {
+  background:
+    linear-gradient(160deg, rgba(52, 211, 153, 0.16) 0%, transparent 36%),
+    linear-gradient(25deg, rgba(99, 102, 241, 0.13) 0%, transparent 54%),
+    color-mix(in srgb, var(--card) 86%, #020b12);
+}
+
 /* ── Pulse Ring (for live status indicators) ── */
 .pulse-ring {
   animation: pulse-ring 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;

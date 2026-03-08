@@ -1,0 +1,79 @@
+[
+  {
+    "eventType": "C2C_MESSAGE_CREATE",
+    "scene": "c2c",
+    "messageId": "evt-text-001",
+    "senderOpenId": "user-openid-text",
+    "senderName": "Alice",
+    "text": "你好，给我一个文本确认。",
+    "timestamp": "2026-03-08T04:00:00.000Z",
+    "replyTarget": {
+      "scene": "c2c",
+      "userId": "user-openid-text",
+      "replyToMessageId": "evt-text-001"
+    }
+  },
+  {
+    "eventType": "C2C_MESSAGE_CREATE",
+    "scene": "c2c",
+    "messageId": "evt-image-001",
+    "senderOpenId": "user-openid-image",
+    "senderName": "Bob",
+    "text": "请看看这张图。",
+    "timestamp": "2026-03-08T04:01:00.000Z",
+    "replyTarget": {
+      "scene": "c2c",
+      "userId": "user-openid-image",
+      "replyToMessageId": "evt-image-001"
+    },
+    "attachments": [
+      {
+        "contentType": "image/png",
+        "fileName": "input-image.png",
+        "localPath": "media/input-image.png"
+      }
+    ]
+  },
+  {
+    "eventType": "GROUP_AT_MESSAGE_CREATE",
+    "scene": "group",
+    "messageId": "evt-file-001",
+    "senderOpenId": "user-openid-file",
+    "senderName": "Carol",
+    "text": "这里有个文档，请处理。",
+    "timestamp": "2026-03-08T04:02:00.000Z",
+    "replyTarget": {
+      "scene": "group",
+      "groupId": "group-openid-001",
+      "replyToMessageId": "evt-file-001"
+    },
+    "attachments": [
+      {
+        "contentType": "text/plain",
+        "fileName": "request.txt",
+        "localPath": "media/request.txt"
+      }
+    ]
+  },
+  {
+    "eventType": "C2C_MESSAGE_CREATE",
+    "scene": "c2c",
+    "messageId": "evt-voice-001",
+    "senderOpenId": "user-openid-voice",
+    "senderName": "Dave",
+    "text": "这是一条语音，请演示失败回退。",
+    "timestamp": "2026-03-08T04:03:00.000Z",
+    "replyTarget": {
+      "scene": "c2c",
+      "userId": "user-openid-voice",
+      "replyToMessageId": "evt-voice-001"
+    },
+    "attachments": [
+      {
+        "contentType": "audio/silk",
+        "fileName": "voice-fail.silk",
+        "localPath": "media/voice-fail.silk"
+      }
+    ]
+  }
+]

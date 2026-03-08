@@ -17,9 +17,18 @@ function formatRecentTasks(tasks: ButlerPromptRecentTask[]): string {
   if (tasks.length === 0) return "none"
   return tasks
     .map((task, index) => {
-      return `${index + 1}. [${task.mode}/${task.status}] ${task.title} | thread=${task.threadId} | createdAt=${task.createdAt}`
+      return [
+        `${index + 1}.`,
+        `task_id=${task.id}`,
+        `mode=${task.mode}`,
+        `status=${task.status}`,
+        `thread_id=${task.threadId}`,
+        `created_at=${task.createdAt}`,
+        `title=${task.title}`,
+        `result_brief=${task.resultBrief || "none"}`
+      ].join("\n")
     })
-    .join("\n")
+    .join("\n\n")
 }
 
 export function buildMemorySection(): ButlerPromptSectionBuilder {

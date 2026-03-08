@@ -64,6 +64,7 @@ import { ButlerDigestService } from "./notifications/butler-digest-service"
 import { notificationMuteRegistry } from "./notifications/mute-registry"
 import { registerPluginsIpc } from "./plugins/ipc"
 import { pluginHost } from "./plugins/core/host"
+import { startQQBotBridgeService, stopQQBotBridgeService } from "./integrations/qqbot"
 
 let mainWindow: BrowserWindow | null = null
 let quickInputWindow: BrowserWindow | null = null
@@ -464,6 +465,7 @@ app.whenReady().then(async () => {
   })
   taskLifecycleButlerBus.start()
   butlerMonitorManager?.start()
+  await startQQBotBridgeService()
 
   ipcMain.on("app:show-main", () => {
     showMainWindow()
@@ -589,6 +591,7 @@ app.on("before-quit", (event) => {
   loopManager.stopAll()
   butlerManager.shutdown()
   pluginHost.shutdownNow()
+  void stopQQBotBridgeService()
 
   void (async () => {
     try {

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { cn } from "@/lib/utils"
 import {
   Dialog,
   DialogContent,
@@ -64,6 +65,21 @@ interface DispatchSummary {
   taskLines: string[]
 }
 
+interface DispatchDetailField {
+  label: string
+  value: string
+}
+
+interface DispatchStructuredPayload {
+  title: string
+  detailFields: DispatchDetailField[]
+  queryItems: string[]
+  outputItems: string[]
+  progressLines: string[]
+  capabilityLine: string
+  summary: DispatchSummary
+}
+
 function parseDispatchSummary(text: string): DispatchSummary {
   const normalized = text.trim()
   if (!normalized) {
@@ -81,6 +97,112 @@ function parseDispatchSummary(text: string): DispatchSummary {
     taskGroup: groupMatch?.[1]?.trim() || null,
     createdCount: countMatch?.[1] ? Number.parseInt(countMatch[1], 10) : null,
     taskLines
+  }
+}
+
+function parseDispatchStructuredPayload(text: string): DispatchStructuredPayload | null {
+  const normalized = text.trim()
+  if (!normalized) return null
+
+  const lines = normalized
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0)
+  if (lines.length === 0) return null
+
+  const looksLikeDispatch =
+    lines.some((line) => line.includes("已成功创建查询任务")) ||
+    lines.some((line) => line.includes("任务详情")) ||
+    lines.some((line) => line.includes("查询内容"))
+  if (!looksLikeDispatch) return null
+
+  let section: "none" | "details" | "query" | "output" = "none"
+  let title = "已成功创建查询任务"
+  const detailFields: DispatchDetailField[] = []
+  const queryItems: string[] = []
+  const outputItems: string[] = []
+  const progressLines: string[] = []
+  let capabilityLine = ""
+  const summarySeedLines: string[] = []
+
+  for (const rawLine of lines) {
+    const line = rawLine.replace(/\*\*/g, "").trim()
+    if (!line) continue
+
+    if (/^✅?\s*已成功创建.*任务/.test(line)) {
+      title = line.replace(/^✅\s*/, "").trim()
+      continue
+    }
+    if (/^任务详情[：:]?$/.test(line)) {
+      section = "details"
+      continue
+    }
+    if (/^查询内容[：:]?$/.test(line)) {
+      section = "query"
+      continue
+    }
+    if (/^输出格式[：:]?$/.test(line) && !line.startsWith("-")) {
+      section = "output"
+      continue
+    }
+
+    if (
+      /^任务组[：:]/.test(line) ||
+      /^共创建\s*\d+\s*个任务/.test(line) ||
+      /^\d+\.\s+\[/.test(line)
+    ) {
+      summarySeedLines.push(line)
+      section = "none"
+      continue
+    }
+
+    if (line.startsWith("能力目录已同步")) {
+      capabilityLine = line
+      section = "none"
+      continue
+    }
+
+    if (/任务已启动|正在为您|将同时覆盖|提供客观准确/.test(line)) {
+      progressLines.push(line)
+      section = "none"
+      continue
+    }
+
+    if (section === "details" && line.startsWith("-")) {
+      const detail = line.replace(/^-\s*/, "").trim()
+      const kv = detail.match(/^([^：:]+)[：:]\s*(.+)$/)
+      if (kv) {
+        detailFields.push({
+          label: kv[1].trim(),
+          value: kv[2].trim()
+        })
+      } else {
+        detailFields.push({ label: "说明", value: detail })
+      }
+      continue
+    }
+
+    if (section === "query") {
+      const item = line.replace(/^\d+\.\s*/, "").trim()
+      if (item) queryItems.push(item)
+      continue
+    }
+
+    if (section === "output" && line.startsWith("-")) {
+      const item = line.replace(/^-\s*/, "").trim()
+      if (item) outputItems.push(item)
+      continue
+    }
+  }
+
+  return {
+    title,
+    detailFields,
+    queryItems,
+    outputItems,
+    progressLines,
+    capabilityLine,
+    summary: parseDispatchSummary(summarySeedLines.join("\n"))
   }
 }
 
@@ -287,6 +409,7 @@ export function ButlerWorkspace(): React.JSX.Element {
   const isAtBottomRef = useRef(true)
   const [expandedDigestDetails, setExpandedDigestDetails] = useState<Record<string, boolean>>({})
   const [expandedEventDetails, setExpandedEventDetails] = useState<Record<string, boolean>>({})
+  const [collapsedStyledNotices, setCollapsedStyledNotices] = useState<Record<string, boolean>>({})
   const [digestDetailTabs, setDigestDetailTabs] = useState<Record<string, DigestDetailTab>>({})
   const [digestPreset, setDigestPreset] = useState<"0" | "1" | "5" | "60" | "custom">("1")
   const [digestCustomValue, setDigestCustomValue] = useState("1")
@@ -431,6 +554,13 @@ export function ButlerWorkspace(): React.JSX.Element {
 
   const toggleEventDetails = useCallback((noticeId: string): void => {
     setExpandedEventDetails((prev) => ({
+      ...prev,
+      [noticeId]: !prev[noticeId]
+    }))
+  }, [])
+
+  const toggleStyledNoticeCollapse = useCallback((noticeId: string): void => {
+    setCollapsedStyledNotices((prev) => ({
       ...prev,
       [noticeId]: !prev[noticeId]
     }))
@@ -617,15 +747,32 @@ export function ButlerWorkspace(): React.JSX.Element {
               !!noticeCard && !digestNotice && expandedEventDetails[eventNoticeId] === true
             const taskSnapshotIdentity = taskSnapshot?.taskIdentity?.trim() || ""
             const eventTaskThreadId = noticeCard?.threadId.trim() || ""
-            const eventFallbackThreadId = state?.mainThreadId.trim() || ""
-            const eventTargetThreadId = eventTaskThreadId || eventFallbackThreadId
-            const eventTargetIsTaskThread = eventTaskThreadId.length > 0
+            const eventTargetThreadId = eventTaskThreadId
             const isDispatchNotice =
               !!taskSnapshot && "phase" in taskSnapshot && taskSnapshot.phase === "started"
-            const dispatchSummary = isDispatchNotice
-              ? parseDispatchSummary(noticeCard?.resultDetail || assistantText)
-              : { taskGroup: null, createdCount: null, taskLines: [] }
-            const primaryTitle = digestNotice?.title || noticeCard?.title || "系统通知"
+            const dispatchStructured = parseDispatchStructuredPayload(assistantText)
+            const hasStructuredDispatch = dispatchStructured !== null
+            const noticeVariant =
+              isSystemNotice && digestNotice
+                ? "digest"
+                : (isSystemNotice && isDispatchNotice) || hasStructuredDispatch
+                  ? "dispatch"
+                  : "default"
+            const dispatchSummary =
+              noticeVariant === "dispatch"
+                ? dispatchStructured?.summary ||
+                  parseDispatchSummary(noticeCard?.resultDetail || assistantText)
+                : { taskGroup: null, createdCount: null, taskLines: [] }
+            const styledNotice = noticeVariant === "digest" || noticeVariant === "dispatch"
+            const styledNoticeId = noticeVariant === "digest" ? digestNoticeId : eventNoticeId
+            const styledNoticeCollapsed =
+              styledNotice && collapsedStyledNotices[styledNoticeId] === true
+            const digestPrimaryThreadId = digestTasks.find((task) => task.threadId.trim())?.threadId || ""
+            const primaryTitle =
+              digestNotice?.title ||
+              noticeCard?.title ||
+              dispatchStructured?.title ||
+              (noticeVariant === "dispatch" ? "已成功创建查询任务" : "系统通知")
             return (
               <div key={round.id} className="space-y-4">
                 {!isSystemNotice && (
@@ -649,14 +796,27 @@ export function ButlerWorkspace(): React.JSX.Element {
                         B
                       </div>
                     )}
-                    <Card className="max-w-[85%] border-border/50 bg-card/75">
+                    <Card
+                      className={cn(
+                        "max-w-[85%] border-border/50 bg-card/75",
+                        styledNotice && "butler-notice-shell",
+                        noticeVariant === "dispatch" && "butler-notice-shell--dispatch",
+                        noticeVariant === "digest" && "butler-notice-shell--digest"
+                      )}
+                    >
                       <CardHeader className="pb-3">
                         <div className="flex items-start justify-between gap-2">
                           <div className="min-w-0">
                             <div className="text-[10px] uppercase tracking-[0.15em] text-accent/70 font-bold">
-                              {isSystemNotice ? resolveRoundLabel(round) : "管家"}
+                              {noticeVariant === "dispatch"
+                                ? "任务编排"
+                                : noticeVariant === "digest"
+                                  ? "服务汇总"
+                                  : isSystemNotice
+                                    ? resolveRoundLabel(round)
+                                    : "管家"}
                             </div>
-                            {isSystemNotice ? (
+                            {isSystemNotice || noticeVariant === "dispatch" ? (
                               <CardTitle
                                 className="mt-1 truncate text-sm font-semibold"
                                 title={primaryTitle}
@@ -665,35 +825,243 @@ export function ButlerWorkspace(): React.JSX.Element {
                               </CardTitle>
                             ) : null}
                           </div>
-                          {isSystemNotice && digestNotice ? (
-                            <button
-                              type="button"
-                              onClick={() => {
-                                toggleDigestDetails(digestNoticeId)
-                              }}
-                              className="text-[10px] text-accent hover:text-accent/80"
-                            >
-                              {digestDetailExpanded ? "收起明细" : "展开明细"}
-                            </button>
-                          ) : isSystemNotice && !digestNotice && noticeCard ? (
-                            <button
-                              type="button"
-                              onClick={() => {
-                                toggleEventDetails(eventNoticeId)
-                              }}
-                              className="text-[10px] text-accent hover:text-accent/80"
-                            >
-                              {eventDetailExpanded ? "收起明细" : "展开明细"}
-                            </button>
-                          ) : null}
+                          <div className="flex items-center gap-2">
+                            {noticeVariant === "dispatch" ? (
+                              <Badge variant="info">已创建</Badge>
+                            ) : noticeVariant === "digest" ? (
+                              <Badge variant="nominal">{digestTasks.length} 项更新</Badge>
+                            ) : null}
+                            {styledNotice ? (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  toggleStyledNoticeCollapse(styledNoticeId)
+                                }}
+                                className="text-[10px] text-accent hover:text-accent/80"
+                              >
+                                {styledNoticeCollapsed ? "展开卡片" : "折叠卡片"}
+                              </button>
+                            ) : null}
+                            {isSystemNotice && digestNotice ? (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  toggleDigestDetails(digestNoticeId)
+                                }}
+                                className="text-[10px] text-accent hover:text-accent/80"
+                                disabled={styledNoticeCollapsed}
+                              >
+                                {digestDetailExpanded ? "收起明细" : "展开明细"}
+                              </button>
+                            ) : isSystemNotice && !digestNotice && noticeCard && !isDispatchNotice ? (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  toggleEventDetails(eventNoticeId)
+                                }}
+                                className="text-[10px] text-accent hover:text-accent/80"
+                              >
+                                {eventDetailExpanded ? "收起明细" : "展开明细"}
+                              </button>
+                            ) : null}
+                          </div>
                         </div>
                       </CardHeader>
                       <CardContent className="space-y-3">
-                        <div className="rounded-lg border border-border/40 bg-background/45 p-3 text-sm whitespace-pre-wrap">
+                        {styledNotice && styledNoticeCollapsed ? (
+                          <div className="text-xs text-muted-foreground">已折叠，点击“展开卡片”查看详情。</div>
+                        ) : null}
+
+                        {!styledNoticeCollapsed &&
+                        !(noticeVariant === "dispatch" && dispatchStructured) ? (
+                        <div
+                          className={cn(
+                            "rounded-lg border border-border/40 bg-background/45 p-3 text-sm whitespace-pre-wrap",
+                            styledNotice && "butler-notice-section"
+                          )}
+                        >
                           {assistantText || "处理中..."}
                         </div>
+                        ) : null}
 
-                        {isSystemNotice && digestNotice && digestDetailExpanded ? (
+                        {!styledNoticeCollapsed && noticeVariant === "dispatch" ? (
+                          <>
+                            {dispatchStructured?.detailFields.length ? (
+                              <div className="butler-notice-section space-y-2">
+                                <div className="text-[10px] uppercase tracking-wide text-muted-foreground/80">
+                                  任务详情
+                                </div>
+                                <div className="grid grid-cols-1 gap-2 text-xs text-muted-foreground sm:grid-cols-2">
+                                  {dispatchStructured.detailFields.map((field) => (
+                                    <div
+                                      key={`${field.label}:${field.value}`}
+                                      className="butler-notice-kv"
+                                    >
+                                      <div className="butler-notice-kv__label">{field.label}</div>
+                                      <div className="butler-notice-kv__value">{field.value}</div>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            ) : null}
+
+                            {dispatchStructured?.queryItems.length ? (
+                              <div className="butler-notice-section text-xs text-muted-foreground">
+                                <div className="mb-2 text-[10px] uppercase tracking-wide text-muted-foreground/80">
+                                  查询内容
+                                </div>
+                                <div className="space-y-1">
+                                  {dispatchStructured.queryItems.map((item) => (
+                                    <div key={item} className="whitespace-pre-wrap">
+                                      {item}
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            ) : null}
+
+                            {dispatchStructured?.outputItems.length ? (
+                              <div className="butler-notice-section text-xs text-muted-foreground">
+                                <div className="mb-2 text-[10px] uppercase tracking-wide text-muted-foreground/80">
+                                  输出格式
+                                </div>
+                                <div className="space-y-1">
+                                  {dispatchStructured.outputItems.map((item) => (
+                                    <div key={item} className="whitespace-pre-wrap">
+                                      {item}
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            ) : null}
+
+                            {dispatchStructured?.progressLines.length ? (
+                              <div className="butler-notice-section text-xs text-muted-foreground">
+                                <div className="space-y-1">
+                                  {dispatchStructured.progressLines.map((line) => (
+                                    <div key={line} className="whitespace-pre-wrap">
+                                      {line}
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            ) : null}
+
+                            <div className="butler-notice-section grid grid-cols-1 gap-2 text-xs text-muted-foreground sm:grid-cols-2">
+                              <div className="butler-notice-kv">
+                                <div className="butler-notice-kv__label">任务组</div>
+                                <div className="butler-notice-kv__value">
+                                  {dispatchSummary.taskGroup || "未提供"}
+                                </div>
+                              </div>
+                              <div className="butler-notice-kv">
+                                <div className="butler-notice-kv__label">新建任务数</div>
+                                <div className="butler-notice-kv__value">
+                                  {dispatchSummary.createdCount ?? "未提供"}
+                                </div>
+                              </div>
+                            </div>
+
+                            {dispatchSummary.taskLines.length > 0 ? (
+                              <div className="butler-notice-section text-xs text-muted-foreground">
+                                <div className="mb-2 text-[10px] uppercase tracking-wide text-muted-foreground/80">
+                                  任务清单
+                                </div>
+                                <div className="space-y-1">
+                                  {dispatchSummary.taskLines.map((line) => (
+                                    <div key={line} className="whitespace-pre-wrap">
+                                      {line}
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            ) : null}
+
+                            {!dispatchStructured ? (
+                              <div className="butler-notice-section max-h-44 overflow-y-auto whitespace-pre-wrap text-xs text-muted-foreground">
+                                {resolveTaskDetail(noticeCard || {
+                                  threadId: "",
+                                  title: "",
+                                  status: "queued",
+                                  resultBrief: assistantText,
+                                  resultDetail: assistantText,
+                                  completedAt: round.ts
+                                })}
+                              </div>
+                            ) : null}
+
+                            {dispatchStructured?.capabilityLine ? (
+                              <div className="butler-notice-section text-xs text-muted-foreground whitespace-pre-wrap">
+                                {dispatchStructured.capabilityLine}
+                              </div>
+                            ) : null}
+
+                            <div className="butler-notice-actions">
+                              {taskSnapshotIdentity ? (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    void muteTaskIdentity(taskSnapshotIdentity)
+                                  }}
+                                  className="mr-3 text-xs text-muted-foreground hover:text-foreground"
+                                >
+                                  不再提示
+                                </button>
+                              ) : null}
+                              {eventTargetThreadId ? (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    void openTaskThread(eventTargetThreadId)
+                                  }}
+                                  className="text-xs text-accent hover:text-accent/80"
+                                >
+                                  查看任务线程
+                                </button>
+                              ) : null}
+                            </div>
+                          </>
+                        ) : null}
+
+                        {!styledNoticeCollapsed && noticeVariant === "digest" && digestNotice ? (
+                          <div className="butler-notice-section space-y-2">
+                            <div className="grid grid-cols-1 gap-2 text-xs text-muted-foreground sm:grid-cols-2">
+                              <div className="butler-notice-kv">
+                                <div className="butler-notice-kv__label">时间窗开始</div>
+                                <div className="butler-notice-kv__value">
+                                  {new Date(digestNotice.digest.windowStart).toLocaleString()}
+                                </div>
+                              </div>
+                              <div className="butler-notice-kv">
+                                <div className="butler-notice-kv__label">时间窗结束</div>
+                                <div className="butler-notice-kv__value">
+                                  {new Date(digestNotice.digest.windowEnd).toLocaleString()}
+                                </div>
+                              </div>
+                            </div>
+                            <div className="rounded-lg border border-border/40 bg-background/50 p-3 text-xs whitespace-pre-wrap text-muted-foreground">
+                              {digestNotice.digest.summaryText}
+                            </div>
+                            <div className="text-[11px] text-muted-foreground">
+                              更新时间：{new Date(digestNotice.completedAt).toLocaleString()}
+                            </div>
+                            {digestPrimaryThreadId ? (
+                              <div className="butler-notice-actions">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    void openTaskThread(digestPrimaryThreadId)
+                                  }}
+                                  className="text-xs text-accent hover:text-accent/80"
+                                >
+                                  查看任务线程
+                                </button>
+                              </div>
+                            ) : null}
+                          </div>
+                        ) : null}
+
+                        {!styledNoticeCollapsed && isSystemNotice && digestNotice && digestDetailExpanded ? (
                           <Card className="border-border/40 bg-background/45 shadow-none">
                             <CardContent className="space-y-3 pt-4">
                               <div className="flex items-center justify-between gap-2">
@@ -774,7 +1142,12 @@ export function ButlerWorkspace(): React.JSX.Element {
                           </Card>
                         ) : null}
 
-                        {isSystemNotice && !digestNotice && noticeCard && eventDetailExpanded ? (
+                        {!styledNoticeCollapsed &&
+                        isSystemNotice &&
+                        !digestNotice &&
+                        !isDispatchNotice &&
+                        noticeCard &&
+                        eventDetailExpanded ? (
                           <Card className="border-border/40 bg-background/45 shadow-none">
                             <CardContent className="space-y-3 pt-4">
                               <div className="flex items-start justify-between gap-2">
@@ -800,42 +1173,6 @@ export function ButlerWorkspace(): React.JSX.Element {
                                 </div>
                               </div>
 
-                              {isDispatchNotice ? (
-                                <div className="grid grid-cols-1 gap-2 text-xs text-muted-foreground sm:grid-cols-2">
-                                  <div className="rounded-lg border border-border/40 bg-background/50 p-2">
-                                    <div className="text-[10px] uppercase tracking-wide text-muted-foreground/80">
-                                      任务组
-                                    </div>
-                                    <div className="mt-1 text-foreground">
-                                      {dispatchSummary.taskGroup || "未提供"}
-                                    </div>
-                                  </div>
-                                  <div className="rounded-lg border border-border/40 bg-background/50 p-2">
-                                    <div className="text-[10px] uppercase tracking-wide text-muted-foreground/80">
-                                      新建任务数
-                                    </div>
-                                    <div className="mt-1 text-foreground">
-                                      {dispatchSummary.createdCount ?? "未提供"}
-                                    </div>
-                                  </div>
-                                </div>
-                              ) : null}
-
-                              {isDispatchNotice && dispatchSummary.taskLines.length > 0 ? (
-                                <div className="rounded-lg border border-border/40 bg-background/50 p-3 text-xs text-muted-foreground">
-                                  <div className="mb-2 text-[10px] uppercase tracking-wide text-muted-foreground/80">
-                                    任务清单
-                                  </div>
-                                  <div className="space-y-1">
-                                    {dispatchSummary.taskLines.map((line) => (
-                                      <div key={line} className="whitespace-pre-wrap">
-                                        {line}
-                                      </div>
-                                    ))}
-                                  </div>
-                                </div>
-                              ) : null}
-
                               <div className="max-h-44 overflow-y-auto whitespace-pre-wrap rounded-lg border border-border/40 bg-background/50 p-3 text-xs text-muted-foreground">
                                 {resolveTaskDetail(noticeCard)}
                               </div>
@@ -859,7 +1196,7 @@ export function ButlerWorkspace(): React.JSX.Element {
                                     }}
                                     className="text-xs text-accent hover:text-accent/80"
                                   >
-                                    {eventTargetIsTaskThread ? "查看任务线程" : "查看管家线程"}
+                                    查看任务线程
                                   </button>
                                 ) : null}
                               </div>

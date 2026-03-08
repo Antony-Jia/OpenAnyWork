@@ -142,7 +142,7 @@ function withOptionalPrefix(basePrompt: string, userPrefixPrompt?: string): stri
 
 export function buildButlerSystemPrompt(userPrefixPrompt?: string, personaProfile?: string): string {
   const basePrompt = `
-你是 OpenAnyWork 的 Butler AI 编排器。
+你是 OpenAnyWork 的 Butler AI 管家助理。
 你是唯一的语义路由器，禁止使用关键词匹配策略。
 
 核心目标：

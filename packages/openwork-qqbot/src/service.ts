@@ -1,6 +1,6 @@
 import { DefaultQQApiClient } from "./api.js"
 import { MemoryQQDedupeStore } from "./dedupe-store.js"
-import { MockQQGateway } from "./gateway.js"
+import { DefaultQQGateway } from "./gateway.js"
 import { DefaultQQMediaPipeline } from "./media-pipeline.js"
 import { DefaultQQReplyRenderer } from "./reply-renderer.js"
 import { MemoryQQSessionStore } from "./session-store.js"
@@ -50,13 +50,13 @@ export class QQBotService {
   private readonly logger: QQBotLogger
 
   constructor(private readonly options: QQBotServiceOptions) {
+    this.logger = options.logger ?? defaultLogger()
     this.apiClient = options.apiClient ?? new DefaultQQApiClient(options.config)
-    this.gateway = options.gateway ?? new MockQQGateway()
+    this.gateway = options.gateway ?? new DefaultQQGateway(options.config, this.logger)
     this.sessionStore = options.sessionStore ?? new MemoryQQSessionStore()
     this.dedupeStore = options.dedupeStore ?? new MemoryQQDedupeStore()
     this.mediaPipeline = options.mediaPipeline ?? new DefaultQQMediaPipeline(options.config)
     this.replyRenderer = options.replyRenderer ?? new DefaultQQReplyRenderer()
-    this.logger = options.logger ?? defaultLogger()
     this.gateway.setListener((event) => this.handleEvent(event))
   }
 

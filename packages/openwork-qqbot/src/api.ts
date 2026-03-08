@@ -145,7 +145,7 @@ export class DefaultQQApiClient implements QQApiClient {
   }
 
   async getAccessToken(): Promise<string> {
-    if (this.accessToken && this.accessToken.expiresAt > Date.now() + 60_000) {
+    if (this.accessToken && this.accessToken.expiresAt > Date.now() + 5 * 60_000) {
       return this.accessToken.value
     }
 
@@ -195,19 +195,32 @@ export class DefaultQQApiClient implements QQApiClient {
     const response = await fetch(`${this.apiBaseUrl}${path}`, {
       method,
       headers: {
-        authorization: `QQBot ${accessToken}`,
-        "content-type": "application/json"
+        Authorization: `QQBot ${accessToken}`,
+        "Content-Type": "application/json",
+        "X-Union-Appid": this.config.appId
       },
       body: body === undefined ? undefined : JSON.stringify(body)
     })
 
     const raw = await response.text()
-    const data = raw ? (JSON.parse(raw) as T & { message?: string }) : ({} as T)
+    let data: T & { message?: string } = {} as T & { message?: string }
+    if (raw) {
+      try {
+        data = JSON.parse(raw) as T & { message?: string }
+      } catch {
+        if (!response.ok) {
+          throw new Error(
+            `QQ API request failed [${method} ${path}]: ${response.status} ${response.statusText} ${raw}`
+          )
+        }
+        throw new Error(`QQ API request failed to parse response [${method} ${path}]`)
+      }
+    }
     if (!response.ok) {
       const message =
         typeof (data as { message?: unknown }).message === "string"
           ? (data as { message: string }).message
-          : response.statusText
+          : raw || response.statusText
       throw new Error(`QQ API request failed [${method} ${path}]: ${message}`)
     }
     return data as T

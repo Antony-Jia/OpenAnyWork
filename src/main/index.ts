@@ -377,9 +377,16 @@ app.whenReady().then(async () => {
   registerAttachmentHandlers(ipcMain)
   registerMcpHandlers(ipcMain)
   registerSettingsHandlers(ipcMain, {
-    onSettingsUpdated: () => {
+    onSettingsUpdated: async (next, previous) => {
       butlerMonitorManager?.refreshIntervals()
       butlerDigestService?.refreshInterval()
+      if (
+        next.qq.appId !== previous.qq.appId ||
+        next.qq.clientSecret !== previous.qq.clientSecret
+      ) {
+        await stopQQBotBridgeService()
+        await startQQBotBridgeService()
+      }
     }
   })
   registerSpeechHandlers(ipcMain)

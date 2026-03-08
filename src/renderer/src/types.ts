@@ -463,6 +463,11 @@ export interface SystemPromptsSettings {
   agentPrefix: string
 }
 
+export interface QQSettings {
+  appId: string
+  clientSecret: string
+}
+
 export type ButlerCommentStyle = "concise" | "balanced" | "reflective"
 
 export type ButlerInitiativeLevel = "low" | "medium" | "high"
@@ -482,6 +487,7 @@ export interface ButlerPersonaSettings {
 export interface AppSettings {
   ralphIterations: number
   email: EmailSettings
+  qq: QQSettings
   speech: SpeechSettings
   vision: VisionSettings
   defaultWorkspacePath?: string | null

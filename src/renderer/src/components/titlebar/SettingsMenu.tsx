@@ -20,7 +20,9 @@ interface SettingsMenuProps {
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 export function SettingsMenu(_props: SettingsMenuProps): React.JSX.Element {
   const [open, setOpen] = useState(false)
-  const [activeTab, setActiveTab] = useState<"general" | "provider" | "ralph" | "email">("general")
+  const [activeTab, setActiveTab] = useState<"general" | "provider" | "ralph" | "qq" | "email">(
+    "general"
+  )
   const { language, setLanguage, theme, setTheme, t } = useLanguage()
 
   // Provider configuration state
@@ -64,6 +66,8 @@ export function SettingsMenu(_props: SettingsMenuProps): React.JSX.Element {
   const [butlerMonitorScanIntervalSec, setButlerMonitorScanIntervalSec] = useState("30")
   const [butlerMonitorPullIntervalSec, setButlerMonitorPullIntervalSec] = useState("60")
   const [butlerAvatarDataUrl, setButlerAvatarDataUrl] = useState("")
+  const [qqAppId, setQqAppId] = useState("")
+  const [qqClientSecret, setQqClientSecret] = useState("")
 
   // Load current config on mount
   useEffect(() => {
@@ -116,6 +120,8 @@ export function SettingsMenu(_props: SettingsMenuProps): React.JSX.Element {
           setButlerMonitorScanIntervalSec(String(settings.butler?.monitorScanIntervalSec ?? 30))
           setButlerMonitorPullIntervalSec(String(settings.butler?.monitorPullIntervalSec ?? 60))
           setButlerAvatarDataUrl(settings.butler?.avatarDataUrl || "")
+          setQqAppId(settings.qq?.appId || "")
+          setQqClientSecret(settings.qq?.clientSecret || "")
           setVisionPreprocessInterceptEnabled(settings.vision?.preprocessInterceptEnabled !== false)
           setVisionToolCallingEnabled(settings.vision?.toolCallingEnabled !== false)
         }
@@ -254,6 +260,10 @@ export function SettingsMenu(_props: SettingsMenuProps): React.JSX.Element {
                 ? imapPollIntervalValue
                 : 60
           },
+          qq: {
+            appId: qqAppId.trim(),
+            clientSecret: qqClientSecret.trim()
+          },
           vision: {
             preprocessInterceptEnabled: visionPreprocessInterceptEnabled,
             toolCallingEnabled: visionToolCallingEnabled
@@ -300,7 +310,9 @@ export function SettingsMenu(_props: SettingsMenuProps): React.JSX.Element {
     imapUser,
     imapPass,
     imapPollIntervalSec,
-    taskTag
+    taskTag,
+    qqAppId,
+    qqClientSecret
   ])
 
   const handleSelectDefaultWorkspace = useCallback(async () => {
@@ -357,6 +369,7 @@ export function SettingsMenu(_props: SettingsMenuProps): React.JSX.Element {
                 { id: "general", label: t("settings.tabs.general") },
                 { id: "provider", label: t("settings.tabs.provider") },
                 { id: "ralph", label: t("settings.tabs.ralph") },
+                { id: "qq", label: t("settings.tabs.qq") },
                 { id: "email", label: t("settings.tabs.email") }
               ] as const
             ).map((tab) => (
@@ -823,6 +836,45 @@ export function SettingsMenu(_props: SettingsMenuProps): React.JSX.Element {
                     min={1}
                     value={ralphIterations}
                     onChange={(e) => setRalphIterations(e.target.value)}
+                    className="w-full h-8 px-2.5 text-[13px] bg-muted/50 border border-border rounded-md focus:outline-none focus:ring-1 focus:ring-ring"
+                  />
+                </div>
+              </div>
+            )}
+
+            {activeTab === "qq" && (
+              <div className="px-4 py-3 pb-6 border-b border-border/70 space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">
+                    {t("settings.qq.title")}
+                  </span>
+                  {settingsSaved ? (
+                    <span className="text-[10px] text-green-500">{t("settings.saved")}</span>
+                  ) : null}
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-[10px] text-muted-foreground block">
+                    {t("settings.qq.app_id")}
+                  </label>
+                  <input
+                    type="text"
+                    value={qqAppId}
+                    onChange={(e) => setQqAppId(e.target.value)}
+                    placeholder={t("settings.qq.app_id")}
+                    className="w-full h-8 px-2.5 text-[13px] bg-muted/50 border border-border rounded-md focus:outline-none focus:ring-1 focus:ring-ring"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-[10px] text-muted-foreground block">
+                    {t("settings.qq.client_secret")}
+                  </label>
+                  <input
+                    type="password"
+                    value={qqClientSecret}
+                    onChange={(e) => setQqClientSecret(e.target.value)}
+                    placeholder={t("settings.qq.client_secret")}
                     className="w-full h-8 px-2.5 text-[13px] bg-muted/50 border border-border rounded-md focus:outline-none focus:ring-1 focus:ring-ring"
                   />
                 </div>

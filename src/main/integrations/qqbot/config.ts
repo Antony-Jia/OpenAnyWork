@@ -1,6 +1,7 @@
 import { existsSync, readFileSync } from "node:fs"
 import { join } from "node:path"
 import { getEnvFilePath, getOpenworkDir } from "../../storage"
+import { getSettings } from "../../settings"
 import type { QQBotConfig } from "../../../../packages/openwork-qqbot/src/index.js"
 
 interface QQBotFileConfig {
@@ -65,11 +66,16 @@ export function loadQQBotBridgeConfig(): ResolvedQQBotBridgeConfig {
   const configFilePath = join(getOpenworkDir(), "qqbot.config.json")
   const env = { ...parseEnvFile(), ...process.env }
   const fileConfig = readFileConfig(configFilePath)
+  const settings = getSettings()
+  const settingsQQ = settings.qq
 
   const enabled = fileConfig.enabled !== false
-  const appId = env.OPENWORK_QQBOT_APP_ID || fileConfig.appId || ""
+  const appId = env.OPENWORK_QQBOT_APP_ID || settingsQQ.appId || fileConfig.appId || ""
   const clientSecret =
-    env.OPENWORK_QQBOT_CLIENT_SECRET || fileConfig.clientSecret || ""
+    env.OPENWORK_QQBOT_CLIENT_SECRET ||
+    settingsQQ.clientSecret ||
+    fileConfig.clientSecret ||
+    ""
 
   if (!enabled) {
     return {

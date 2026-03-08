@@ -5,7 +5,7 @@ import type { AppSettings } from "../types"
 import type { SettingsUpdateParams } from "../types"
 
 interface SettingsHandlerOptions {
-  onSettingsUpdated?: (settings: AppSettings) => void
+  onSettingsUpdated?: (next: AppSettings, previous: AppSettings) => void | Promise<void>
 }
 
 export function registerSettingsHandlers(
@@ -17,9 +17,10 @@ export function registerSettingsHandlers(
   })
 
   ipcMain.handle("settings:update", async (_event, payload: SettingsUpdateParams) => {
+    const previous = getSettings()
     const next = updateSettings(payload.updates)
     updateEmailPollingInterval(next.email?.pollIntervalSec)
-    options.onSettingsUpdated?.(next)
+    await options.onSettingsUpdated?.(next, previous)
     return next
   })
 }

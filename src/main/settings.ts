@@ -26,6 +26,10 @@ const defaultSettings: AppSettings = {
     taskTag: "<OpenworkTask>",
     pollIntervalSec: 60
   },
+  qq: {
+    appId: "",
+    clientSecret: ""
+  },
   speech: {
     stt: {
       url: "",
@@ -145,6 +149,10 @@ function readSettings(): AppSettings {
           ...(parsed?.email?.imap ?? {})
         }
       },
+      qq: {
+        ...defaultSettings.qq,
+        ...(parsed?.qq ?? {})
+      },
       speech: {
         ...defaultSettings.speech,
         ...(parsed?.speech ?? {}),
@@ -222,6 +230,10 @@ export function updateSettings(updates: Partial<AppSettings>): AppSettings {
         ...current.email.imap,
         ...(updates.email?.imap ?? {})
       }
+    },
+    qq: {
+      ...current.qq,
+      ...(updates.qq ?? {})
     },
     speech: {
       ...current.speech,

@@ -504,7 +504,7 @@ export function ButlerWorkspace(): React.JSX.Element {
   const isAtBottomRef = useRef(true)
   const [expandedDigestDetails, setExpandedDigestDetails] = useState<Record<string, boolean>>({})
   const [expandedEventDetails, setExpandedEventDetails] = useState<Record<string, boolean>>({})
-  const [collapsedStyledNotices, setCollapsedStyledNotices] = useState<Record<string, boolean>>({})
+  const [collapsedCards, setCollapsedCards] = useState<Record<string, boolean>>({})
   const [digestDetailTabs, setDigestDetailTabs] = useState<Record<string, DigestDetailTab>>({})
   const [digestPreset, setDigestPreset] = useState<"0" | "1" | "5" | "60" | "custom">("1")
   const [digestCustomValue, setDigestCustomValue] = useState("1")
@@ -654,12 +654,63 @@ export function ButlerWorkspace(): React.JSX.Element {
     }))
   }, [])
 
-  const toggleStyledNoticeCollapse = useCallback((noticeId: string): void => {
-    setCollapsedStyledNotices((prev) => ({
+  const toggleCardCollapse = useCallback((cardId: string): void => {
+    setCollapsedCards((prev) => ({
       ...prev,
-      [noticeId]: !prev[noticeId]
+      [cardId]: !prev[cardId]
     }))
   }, [])
+
+  const collapsibleCardIds = useMemo(() => {
+    const ids = new Set<string>()
+
+    for (const round of rounds) {
+      const isSystemNotice = round.kind !== "chat" || round.noticeType !== undefined
+      const externalSource =
+        !isSystemNotice && round.externalSource?.source === "qqbot"
+          ? round.externalSource
+          : !isSystemNotice
+            ? parseLegacyExternalSource(round.user)
+            : null
+      const assistantText = isSystemNotice
+        ? stripNoticeSnapshot(
+            stripNoticeSnapshot(round.assistant, TASK_DIGEST_MARKER),
+            TASK_NOTICE_MARKER
+          )
+        : round.assistant
+      const hasAssistantContent = assistantText.trim().length > 0
+
+      if (externalSource) {
+        ids.add(`qq:${round.id}`)
+      }
+      if (isSystemNotice || hasAssistantContent) {
+        ids.add(`assistant:${round.id}`)
+      }
+    }
+
+    return [...ids]
+  }, [rounds])
+
+  const allCardsCollapsed = useMemo(() => {
+    return (
+      collapsibleCardIds.length > 0 &&
+      collapsibleCardIds.every((cardId) => collapsedCards[cardId] === true)
+    )
+  }, [collapsibleCardIds, collapsedCards])
+
+  const handleToggleCollapseAllCards = useCallback((): void => {
+    setCollapsedCards((prev) => {
+      const shouldCollapse = !(
+        collapsibleCardIds.length > 0 &&
+        collapsibleCardIds.every((cardId) => prev[cardId] === true)
+      )
+      const next = { ...prev }
+      for (const cardId of collapsibleCardIds) {
+        next[cardId] = shouldCollapse
+      }
+      return next
+    })
+  }, [collapsibleCardIds])
 
   const setDigestDetailTab = useCallback((noticeId: string, tab: DigestDetailTab): void => {
     setDigestDetailTabs((prev) => ({
@@ -756,6 +807,15 @@ export function ButlerWorkspace(): React.JSX.Element {
             Butler AI
           </span>
           <div className="flex items-center gap-2">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleToggleCollapseAllCards}
+              disabled={collapsibleCardIds.length === 0}
+              className="h-7 px-3 text-xs rounded-lg"
+            >
+              {allCardsCollapsed ? "展开所有卡片" : "折叠所有卡片"}
+            </Button>
             <div className="text-[11px] text-muted-foreground">服务频率</div>
             <select
               value={digestPreset}
@@ -865,9 +925,10 @@ export function ButlerWorkspace(): React.JSX.Element {
                   parseDispatchSummary(noticeCard?.resultDetail || assistantText)
                 : { taskGroup: null, createdCount: null, taskLines: [] }
             const styledNotice = noticeVariant === "digest" || noticeVariant === "dispatch"
-            const styledNoticeId = noticeVariant === "digest" ? digestNoticeId : eventNoticeId
-            const styledNoticeCollapsed =
-              styledNotice && collapsedStyledNotices[styledNoticeId] === true
+            const qqCardId = `qq:${round.id}`
+            const assistantCardId = `assistant:${round.id}`
+            const qqCardCollapsed = collapsedCards[qqCardId] === true
+            const assistantCardCollapsed = collapsedCards[assistantCardId] === true
             const digestPrimaryThreadId =
               digestTasks.find((task) => task.threadId.trim())?.threadId || ""
             const primaryTitle =
@@ -891,84 +952,103 @@ export function ButlerWorkspace(): React.JSX.Element {
                                 {externalSource.senderName?.trim() || "unknown"}
                               </CardTitle>
                             </div>
-                            <Badge variant="info">{externalSource.messageType}</Badge>
+                            <div className="flex items-center gap-2">
+                              <Badge variant="info">{externalSource.messageType}</Badge>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  toggleCardCollapse(qqCardId)
+                                }}
+                                className="text-[10px] text-accent hover:text-accent/80"
+                              >
+                                {qqCardCollapsed ? "展开卡片" : "折叠卡片"}
+                              </button>
+                            </div>
                           </div>
                         </CardHeader>
                         <CardContent className="space-y-3 text-xs">
-                          <div className="grid grid-cols-1 gap-2 text-muted-foreground sm:grid-cols-2">
-                            <div className="butler-notice-kv">
-                              <div className="butler-notice-kv__label">来源</div>
-                              <div className="butler-notice-kv__value">QQ Bot</div>
+                          {qqCardCollapsed ? (
+                            <div className="text-xs text-muted-foreground">
+                              已折叠，点击“展开卡片”查看 QQ 消息详情。
                             </div>
-                            <div className="butler-notice-kv">
-                              <div className="butler-notice-kv__label">OpenID</div>
-                              <div className="butler-notice-kv__value break-all">
-                                {externalSource.senderOpenId}
+                          ) : (
+                            <>
+                              <div className="grid grid-cols-1 gap-2 text-muted-foreground sm:grid-cols-2">
+                                <div className="butler-notice-kv">
+                                  <div className="butler-notice-kv__label">来源</div>
+                                  <div className="butler-notice-kv__value">QQ Bot</div>
+                                </div>
+                                <div className="butler-notice-kv">
+                                  <div className="butler-notice-kv__label">OpenID</div>
+                                  <div className="butler-notice-kv__value break-all">
+                                    {externalSource.senderOpenId}
+                                  </div>
+                                </div>
+                                <div className="butler-notice-kv">
+                                  <div className="butler-notice-kv__label">消息 ID</div>
+                                  <div className="butler-notice-kv__value break-all">
+                                    {externalSource.messageId}
+                                  </div>
+                                </div>
+                                <div className="butler-notice-kv">
+                                  <div className="butler-notice-kv__label">时间</div>
+                                  <div className="butler-notice-kv__value">
+                                    {new Date(externalSource.timestamp).toLocaleString()}
+                                  </div>
+                                </div>
+                                <div className="butler-notice-kv sm:col-span-2">
+                                  <div className="butler-notice-kv__label">回复目标</div>
+                                  <div className="butler-notice-kv__value break-all">
+                                    {describeExternalReplyTarget(externalSource.replyTarget)}
+                                  </div>
+                                </div>
                               </div>
-                            </div>
-                            <div className="butler-notice-kv">
-                              <div className="butler-notice-kv__label">消息 ID</div>
-                              <div className="butler-notice-kv__value break-all">
-                                {externalSource.messageId}
-                              </div>
-                            </div>
-                            <div className="butler-notice-kv">
-                              <div className="butler-notice-kv__label">时间</div>
-                              <div className="butler-notice-kv__value">
-                                {new Date(externalSource.timestamp).toLocaleString()}
-                              </div>
-                            </div>
-                            <div className="butler-notice-kv sm:col-span-2">
-                              <div className="butler-notice-kv__label">回复目标</div>
-                              <div className="butler-notice-kv__value break-all">
-                                {describeExternalReplyTarget(externalSource.replyTarget)}
-                              </div>
-                            </div>
-                          </div>
 
-                          <div className="butler-notice-section text-muted-foreground">
-                            <div className="mb-2 text-[10px] uppercase tracking-wide text-muted-foreground/80">
-                              正文
-                            </div>
-                            <div className="whitespace-pre-wrap rounded-lg border border-border/40 bg-background/50 p-3">
-                              {externalSource.originalText || "(empty)"}
-                            </div>
-                          </div>
+                              <div className="butler-notice-section text-muted-foreground">
+                                <div className="mb-2 text-[10px] uppercase tracking-wide text-muted-foreground/80">
+                                  正文
+                                </div>
+                                <div className="whitespace-pre-wrap rounded-lg border border-border/40 bg-background/50 p-3">
+                                  {externalSource.originalText || "(empty)"}
+                                </div>
+                              </div>
 
-                          <div className="grid grid-cols-1 gap-3 text-muted-foreground sm:grid-cols-2">
-                            <div className="butler-notice-section">
-                              <div className="mb-2 text-[10px] uppercase tracking-wide text-muted-foreground/80">
-                                附件
+                              <div className="grid grid-cols-1 gap-3 text-muted-foreground sm:grid-cols-2">
+                                <div className="butler-notice-section">
+                                  <div className="mb-2 text-[10px] uppercase tracking-wide text-muted-foreground/80">
+                                    附件
+                                  </div>
+                                  <div className="space-y-1">
+                                    {externalSource.attachmentPaths.length > 0 ? (
+                                      externalSource.attachmentPaths.map((item) => (
+                                        <div key={item} className="whitespace-pre-wrap break-all">
+                                          {item}
+                                        </div>
+                                      ))
+                                    ) : (
+                                      <div>none</div>
+                                    )}
+                                  </div>
+                                </div>
+                                <div className="butler-notice-section">
+                                  <div className="mb-2 text-[10px] uppercase tracking-wide text-muted-foreground/80">
+                                    语音转写
+                                  </div>
+                                  <div className="space-y-1">
+                                    {externalSource.voiceNotes.length > 0 ? (
+                                      externalSource.voiceNotes.map((item) => (
+                                        <div key={item} className="whitespace-pre-wrap break-all">
+                                          {item}
+                                        </div>
+                                      ))
+                                    ) : (
+                                      <div>none</div>
+                                    )}
+                                  </div>
+                                </div>
                               </div>
-                              <div className="space-y-1">
-                                {externalSource.attachmentPaths.length > 0 ? (
-                                  externalSource.attachmentPaths.map((item) => (
-                                    <div key={item} className="whitespace-pre-wrap break-all">
-                                      {item}
-                                    </div>
-                                  ))
-                                ) : (
-                                  <div>none</div>
-                                )}
-                              </div>
-                            </div>
-                            <div className="butler-notice-section">
-                              <div className="mb-2 text-[10px] uppercase tracking-wide text-muted-foreground/80">
-                                语音转写
-                              </div>
-                              <div className="space-y-1">
-                                {externalSource.voiceNotes.length > 0 ? (
-                                  externalSource.voiceNotes.map((item) => (
-                                    <div key={item} className="whitespace-pre-wrap break-all">
-                                      {item}
-                                    </div>
-                                  ))
-                                ) : (
-                                  <div>none</div>
-                                )}
-                              </div>
-                            </div>
-                          </div>
+                            </>
+                          )}
                         </CardContent>
                       </Card>
                     ) : (
@@ -1027,17 +1107,15 @@ export function ButlerWorkspace(): React.JSX.Element {
                             ) : noticeVariant === "digest" ? (
                               <Badge variant="nominal">{digestTasks.length} 项更新</Badge>
                             ) : null}
-                            {styledNotice ? (
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  toggleStyledNoticeCollapse(styledNoticeId)
-                                }}
-                                className="text-[10px] text-accent hover:text-accent/80"
-                              >
-                                {styledNoticeCollapsed ? "展开卡片" : "折叠卡片"}
-                              </button>
-                            ) : null}
+                            <button
+                              type="button"
+                              onClick={() => {
+                                toggleCardCollapse(assistantCardId)
+                              }}
+                              className="text-[10px] text-accent hover:text-accent/80"
+                            >
+                              {assistantCardCollapsed ? "展开卡片" : "折叠卡片"}
+                            </button>
                             {isSystemNotice && digestNotice ? (
                               <button
                                 type="button"
@@ -1045,7 +1123,7 @@ export function ButlerWorkspace(): React.JSX.Element {
                                   toggleDigestDetails(digestNoticeId)
                                 }}
                                 className="text-[10px] text-accent hover:text-accent/80"
-                                disabled={styledNoticeCollapsed}
+                                disabled={assistantCardCollapsed}
                               >
                                 {digestDetailExpanded ? "收起明细" : "展开明细"}
                               </button>
@@ -1067,13 +1145,13 @@ export function ButlerWorkspace(): React.JSX.Element {
                         </div>
                       </CardHeader>
                       <CardContent className="space-y-3">
-                        {styledNotice && styledNoticeCollapsed ? (
+                        {assistantCardCollapsed ? (
                           <div className="text-xs text-muted-foreground">
                             已折叠，点击“展开卡片”查看详情。
                           </div>
                         ) : null}
 
-                        {!styledNoticeCollapsed &&
+                        {!assistantCardCollapsed &&
                         !(noticeVariant === "dispatch" && dispatchStructured) ? (
                           <div
                             className={cn(
@@ -1085,7 +1163,7 @@ export function ButlerWorkspace(): React.JSX.Element {
                           </div>
                         ) : null}
 
-                        {!styledNoticeCollapsed && noticeVariant === "dispatch" ? (
+                        {!assistantCardCollapsed && noticeVariant === "dispatch" ? (
                           <>
                             {dispatchStructured?.detailFields.length ? (
                               <div className="butler-notice-section space-y-2">
@@ -1226,7 +1304,7 @@ export function ButlerWorkspace(): React.JSX.Element {
                           </>
                         ) : null}
 
-                        {!styledNoticeCollapsed && noticeVariant === "digest" && digestNotice ? (
+                        {!assistantCardCollapsed && noticeVariant === "digest" && digestNotice ? (
                           <div className="butler-notice-section space-y-2">
                             <div className="grid grid-cols-1 gap-2 text-xs text-muted-foreground sm:grid-cols-2">
                               <div className="butler-notice-kv">
@@ -1264,7 +1342,7 @@ export function ButlerWorkspace(): React.JSX.Element {
                           </div>
                         ) : null}
 
-                        {!styledNoticeCollapsed &&
+                        {!assistantCardCollapsed &&
                         isSystemNotice &&
                         digestNotice &&
                         digestDetailExpanded ? (
@@ -1348,7 +1426,7 @@ export function ButlerWorkspace(): React.JSX.Element {
                           </Card>
                         ) : null}
 
-                        {!styledNoticeCollapsed &&
+                        {!assistantCardCollapsed &&
                         isSystemNotice &&
                         !digestNotice &&
                         !isDispatchNotice &&

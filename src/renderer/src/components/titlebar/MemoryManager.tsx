@@ -379,20 +379,6 @@ export function MemoryManager(): React.JSX.Element {
               <DialogTitle className="text-sm uppercase tracking-[0.2em] text-muted-foreground">
                 Butler Memory
               </DialogTitle>
-              <div className="flex items-center gap-2">
-                <Button variant="ghost" size="sm" onClick={() => void loadData()} disabled={loading || clearing || rebuilding}>
-                  <RefreshCw className={cn("size-3.5", loading && "animate-spin")} />
-                  Refresh
-                </Button>
-                <Button variant="ghost" size="sm" onClick={() => void handleRebuild()} disabled={loading || clearing || rebuilding}>
-                  <DatabaseZap className={cn("size-3.5", rebuilding && "animate-pulse")} />
-                  Rebuild
-                </Button>
-                <Button variant="destructive" size="sm" onClick={() => void handleClearAll()} disabled={loading || clearing || rebuilding}>
-                  <Trash2 className="size-3.5" />
-                  {clearing ? "Clearing..." : "Clear All"}
-                </Button>
-              </div>
             </div>
           </DialogHeader>
 
@@ -430,6 +416,36 @@ export function MemoryManager(): React.JSX.Element {
             ) : (
               renderLegacy()
             )}
+          </div>
+
+          <div className="flex items-center justify-end gap-2 border-t border-border px-6 py-4">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => void loadData()}
+              disabled={loading || clearing || rebuilding}
+            >
+              <RefreshCw className={cn("size-3.5", loading && "animate-spin")} />
+              Refresh
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => void handleRebuild()}
+              disabled={loading || clearing || rebuilding}
+            >
+              <DatabaseZap className={cn("size-3.5", rebuilding && "animate-pulse")} />
+              Rebuild
+            </Button>
+            <Button
+              variant="destructive"
+              size="sm"
+              onClick={() => void handleClearAll()}
+              disabled={loading || clearing || rebuilding}
+            >
+              <Trash2 className="size-3.5" />
+              {clearing ? "Clearing..." : "Clear All"}
+            </Button>
           </div>
         </div>
       </DialogContent>

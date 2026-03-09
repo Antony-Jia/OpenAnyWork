@@ -18,6 +18,7 @@ import { normalizeStoredExpertConfig } from "../expert/config"
 import { getSettings } from "../settings"
 import { ensureRalphPlan, runRalphWorkflow } from "../ralph/workflow"
 import type {
+  QQExternalSourceInfo,
   ButlerTask,
   ButlerTaskHandoff,
   ExpertConfig,
@@ -45,6 +46,7 @@ interface CreateButlerTaskInput {
   originUserMessage?: string
   retryOfTaskId?: string
   retryAttempt?: number
+  externalSource?: QQExternalSourceInfo
 }
 
 interface ExecuteResult {
@@ -94,6 +96,11 @@ export function createButlerTaskThread(input: CreateButlerTaskInput): ButlerTask
     nonInterruptible: true,
     disableApprovals: true
   }
+  if (input.externalSource) {
+    metadata.externalSource = input.externalSource
+  } else {
+    delete metadata.externalSource
+  }
   const normalizedExpertConfig =
     input.mode === "expert"
       ? normalizeStoredExpertConfig(input.expertConfig ?? metadataBase.expert)
@@ -141,7 +148,8 @@ export function createButlerTaskThread(input: CreateButlerTaskInput): ButlerTask
     sourceTurnId: input.sourceTurnId,
     originUserMessage: input.originUserMessage,
     retryOfTaskId: input.retryOfTaskId,
-    retryAttempt: input.retryAttempt
+    retryAttempt: input.retryAttempt,
+    externalSource: input.externalSource
   }
 }
 

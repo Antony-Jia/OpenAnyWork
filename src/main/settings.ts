@@ -27,6 +27,7 @@ const defaultSettings: AppSettings = {
     pollIntervalSec: 60
   },
   qq: {
+    enabled: false,
     appId: "",
     clientSecret: ""
   },

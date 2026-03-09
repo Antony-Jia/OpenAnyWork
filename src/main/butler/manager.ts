@@ -50,6 +50,7 @@ import type {
   ButlerExternalSendResult,
   ButlerDigestTaskCard,
   ButlerPerceptionInput,
+  QQExternalSourceInfo,
   TaskLifecycleNotice,
   ButlerRound,
   ButlerTask,
@@ -100,6 +101,7 @@ interface DispatchTaskCreationContext {
   retryOfTaskId?: string
   retryAttempt?: number
   preferredReuseThreadByTaskKey?: Record<string, string>
+  externalSource?: QQExternalSourceInfo
 }
 
 interface PendingDispatchOption {
@@ -180,6 +182,8 @@ const TASK_NOTICE_MARKER = "[TASK_NOTICE_JSON]"
 const TASK_DIGEST_MARKER = "[TASK_DIGEST_JSON]"
 const GENERIC_RECORDED_REPLY_PATTERN = /^已记录([。.!！]?)*$/u
 
+type ButlerMessageListener = (message: ButlerMessage) => void
+
 function nowIso(): string {
   return new Date().toISOString()
 }
@@ -193,10 +197,47 @@ function parseMetadata(raw: string | null): Record<string, unknown> {
   }
 }
 
+function isQQMessageScene(value: unknown): value is QQExternalSourceInfo["messageType"] {
+  return value === "c2c" || value === "group" || value === "guild" || value === "dm"
+}
+
+function isQQReplyTargetInfo(value: unknown): value is QQExternalSourceInfo["replyTarget"] {
+  if (!value || typeof value !== "object") return false
+  const record = value as Record<string, unknown>
+  return isQQMessageScene(record.scene)
+}
+
+function isQQExternalSourceInfo(value: unknown): value is QQExternalSourceInfo {
+  if (!value || typeof value !== "object") return false
+  const record = value as Record<string, unknown>
+  return (
+    record.source === "qqbot" &&
+    typeof record.senderOpenId === "string" &&
+    typeof record.messageId === "string" &&
+    isQQMessageScene(record.messageType) &&
+    typeof record.timestamp === "string" &&
+    isQQReplyTargetInfo(record.replyTarget) &&
+    typeof record.originalText === "string" &&
+    Array.isArray(record.attachmentPaths) &&
+    Array.isArray(record.voiceNotes)
+  )
+}
+
+function readExternalSourceFromMetadata(
+  metadata?: Record<string, unknown>
+): QQExternalSourceInfo | undefined {
+  const direct = metadata?.externalSource
+  if (isQQExternalSourceInfo(direct)) {
+    return direct
+  }
+  return undefined
+}
+
 function extractRecentRounds(messages: ButlerMessage[], limit: number): ButlerRound[] {
   const rounds: ButlerRound[] = []
   let currentUser: ButlerMessage | null = null
   for (const message of messages) {
+    const externalSource = readExternalSourceFromMetadata(message.metadata)
     if (message.role === "user") {
       if (currentUser) {
         rounds.push({
@@ -208,24 +249,26 @@ function extractRecentRounds(messages: ButlerMessage[], limit: number): ButlerRo
           sourceType: currentUser.sourceType ?? "user_message",
           relatedThreadId: currentUser.relatedThreadId,
           relatedTaskId: currentUser.relatedTaskId,
-          noticeType: currentUser.noticeType
+          noticeType: currentUser.noticeType,
+          externalSource: readExternalSourceFromMetadata(currentUser.metadata)
         })
       }
       currentUser = message
       continue
     }
     if (message.role === "assistant" && currentUser) {
-        rounds.push({
-          id: `${currentUser.id}:${message.id}`,
-          user: currentUser.content,
-          assistant: message.content,
-          ts: message.ts,
-          kind: message.kind ?? "chat",
-          sourceType: message.sourceType ?? "orchestrator",
-          relatedThreadId: message.relatedThreadId ?? currentUser.relatedThreadId,
-          relatedTaskId: message.relatedTaskId ?? currentUser.relatedTaskId,
-          noticeType: message.noticeType
-        })
+      rounds.push({
+        id: `${currentUser.id}:${message.id}`,
+        user: currentUser.content,
+        assistant: message.content,
+        ts: message.ts,
+        kind: message.kind ?? "chat",
+        sourceType: message.sourceType ?? "orchestrator",
+        relatedThreadId: message.relatedThreadId ?? currentUser.relatedThreadId,
+        relatedTaskId: message.relatedTaskId ?? currentUser.relatedTaskId,
+        noticeType: message.noticeType,
+        externalSource: readExternalSourceFromMetadata(currentUser.metadata)
+      })
       currentUser = null
       continue
     }
@@ -239,7 +282,8 @@ function extractRecentRounds(messages: ButlerMessage[], limit: number): ButlerRo
         sourceType: message.sourceType ?? "task_lifecycle",
         relatedThreadId: message.relatedThreadId,
         relatedTaskId: message.relatedTaskId,
-        noticeType: message.noticeType
+        noticeType: message.noticeType,
+        externalSource
       })
     }
   }
@@ -253,7 +297,8 @@ function extractRecentRounds(messages: ButlerMessage[], limit: number): ButlerRo
       sourceType: currentUser.sourceType ?? "user_message",
       relatedThreadId: currentUser.relatedThreadId,
       relatedTaskId: currentUser.relatedTaskId,
-      noticeType: currentUser.noticeType
+      noticeType: currentUser.noticeType,
+      externalSource: readExternalSourceFromMetadata(currentUser.metadata)
     })
   }
   return rounds.slice(-limit)
@@ -283,6 +328,7 @@ class ButlerManager {
     resolve: (notice: TaskCompletionNotice) => void
   }> = []
   private perceptionQueueRunning = false
+  private readonly messageListeners = new Set<ButlerMessageListener>()
 
   async initialize(): Promise<void> {
     if (this.initialized) return
@@ -362,6 +408,13 @@ class ButlerManager {
 
   listTasks(): ButlerTask[] {
     return Array.from(this.tasks.values()).sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+  }
+
+  onMessageAppended(listener: ButlerMessageListener): () => void {
+    this.messageListeners.add(listener)
+    return () => {
+      this.messageListeners.delete(listener)
+    }
   }
 
   async clearHistory(): Promise<ButlerState> {
@@ -631,7 +684,10 @@ class ButlerManager {
       noticeType: "event",
       metadata: {
         eventKind: input.kind,
-        memoryRefId: notice.memoryRefId
+        memoryRefId: notice.memoryRefId,
+        ...(dispatchResult.status === "dispatched" && dispatchResult.tasks[0]?.externalSource
+          ? { externalSource: dispatchResult.tasks[0].externalSource }
+          : {})
       }
     })
     this.broadcastState()
@@ -854,9 +910,7 @@ class ButlerManager {
           error: `创建工作目录失败: ${creationResult.path} (${creationResult.error})`
         }
       }
-      notes.push(
-        `已自动创建缺失目录: ${workspaceValidation.missingPaths.join(", ")}`
-      )
+      notes.push(`已自动创建缺失目录: ${workspaceValidation.missingPaths.join(", ")}`)
       runnableIntents = workspaceValidation.intents
     }
 
@@ -906,13 +960,19 @@ class ButlerManager {
       `comment_style: ${persona.commentStyle}`,
       `initiative_level: ${persona.initiativeLevel}`,
       "[Principles]",
-      ...(persona.principles.length > 0 ? persona.principles.map((item, index) => `${index + 1}. ${item}`) : ["none"]),
+      ...(persona.principles.length > 0
+        ? persona.principles.map((item, index) => `${index + 1}. ${item}`)
+        : ["none"]),
       "",
       "[Do]",
-      ...(persona.dos.length > 0 ? persona.dos.map((item, index) => `${index + 1}. ${item}`) : ["none"]),
+      ...(persona.dos.length > 0
+        ? persona.dos.map((item, index) => `${index + 1}. ${item}`)
+        : ["none"]),
       "",
       "[Don't]",
-      ...(persona.donts.length > 0 ? persona.donts.map((item, index) => `${index + 1}. ${item}`) : ["none"])
+      ...(persona.donts.length > 0
+        ? persona.donts.map((item, index) => `${index + 1}. ${item}`)
+        : ["none"])
     ].join("\n")
   }
 
@@ -933,10 +993,9 @@ class ButlerManager {
     ].join("\n")
   }
 
-  private buildSharedMemoryContext(seed: string): Pick<
-    ButlerPromptContext,
-    "personaProfile" | "workingMemoryText" | "memoryRecallText"
-  > {
+  private buildSharedMemoryContext(
+    seed: string
+  ): Pick<ButlerPromptContext, "personaProfile" | "workingMemoryText" | "memoryRecallText"> {
     return {
       personaProfile: this.buildPersonaProfileText(),
       workingMemoryText: getWorkingMemorySnapshot().text,
@@ -986,7 +1045,8 @@ class ButlerManager {
   private getRecentExecutionTasks(limit = 5): ButlerTask[] {
     return this.listTasks()
       .filter(
-        (task) => task.status === "running" || task.status === "completed" || task.status === "failed"
+        (task) =>
+          task.status === "running" || task.status === "completed" || task.status === "failed"
       )
       .slice(0, limit)
   }
@@ -1000,23 +1060,30 @@ class ButlerManager {
     const { userMessage, capabilityCatalog, capabilitySummary, currentUserMessageId } = params
     const profile = getLatestDailyProfile()
     const now = new Date()
-    const weekdayLabels = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]
+    const weekdayLabels = [
+      "Sunday",
+      "Monday",
+      "Tuesday",
+      "Wednesday",
+      "Thursday",
+      "Friday",
+      "Saturday"
+    ]
     const currentWeekday = weekdayLabels[now.getDay()] || "Unknown"
     const currentTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone || "Unknown"
     const previousUserMessage = currentUserMessageId
       ? this.findPreviousUserMessage(currentUserMessageId)?.content
       : this.findLatestUserMessage()?.content
     const memoryHints = searchMemoryByTask(userMessage, 5)
-    const recentTasks = this.getRecentExecutionTasks(5)
-      .map((task) => ({
-        id: task.id,
-        title: task.title,
-        mode: task.mode,
-        status: task.status,
-        threadId: task.threadId,
-        createdAt: task.createdAt,
-        resultBrief: task.resultBrief
-      }))
+    const recentTasks = this.getRecentExecutionTasks(5).map((task) => ({
+      id: task.id,
+      title: task.title,
+      mode: task.mode,
+      status: task.status,
+      threadId: task.threadId,
+      createdAt: task.createdAt,
+      resultBrief: task.resultBrief
+    }))
     const sharedMemoryContext = this.buildSharedMemoryContext(userMessage)
 
     return {
@@ -1068,9 +1135,15 @@ class ButlerManager {
     const normalized = userMessage.trim().toLowerCase()
     if (!normalized) return null
 
-    const asksDate = /(今天几号|今天日期|几月几日|日期是多少|what.*date|today.*date)/iu.test(normalized)
-    const asksTime = /(现在几点|当前时间|几点了|what.*time|time\s+now|current\s+time)/iu.test(normalized)
-    const asksWeekday = /(今天星期几|今天周几|星期几|周几|what.*day.*week|weekday)/iu.test(normalized)
+    const asksDate = /(今天几号|今天日期|几月几日|日期是多少|what.*date|today.*date)/iu.test(
+      normalized
+    )
+    const asksTime = /(现在几点|当前时间|几点了|what.*time|time\s+now|current\s+time)/iu.test(
+      normalized
+    )
+    const asksWeekday = /(今天星期几|今天周几|星期几|周几|what.*day.*week|weekday)/iu.test(
+      normalized
+    )
     if (!asksDate && !asksTime && !asksWeekday) {
       return null
     }
@@ -1104,7 +1177,8 @@ class ButlerManager {
     const normalized = userMessage.trim()
     if (!normalized) return false
     const asksYesterday = /(昨天|yesterday)/iu.test(normalized)
-    const asksActionSummary = /(干了什么|做了什么|完成了什么|发生了什么|what\s+did\s+i\s+do)/iu.test(normalized)
+    const asksActionSummary =
+      /(干了什么|做了什么|完成了什么|发生了什么|what\s+did\s+i\s+do)/iu.test(normalized)
     if (asksYesterday && asksActionSummary) return true
     if (/(对话历史|聊天记录|历史消息|history|chat\s*history)/iu.test(normalized)) return true
     if (
@@ -1113,7 +1187,9 @@ class ButlerManager {
     ) {
       return true
     }
-    return /(记忆|memory)/iu.test(normalized) && /(回顾|总结|查询|看看|summary|recap)/iu.test(normalized)
+    return (
+      /(记忆|memory)/iu.test(normalized) && /(回顾|总结|查询|看看|summary|recap)/iu.test(normalized)
+    )
   }
 
   private buildMemoryQuickReply(userMessage: string): string | null {
@@ -1127,7 +1203,9 @@ class ButlerManager {
     if (asksYesterday) {
       const yesterdaySummary = getRangeSummary({ preset: "yesterday" })
       lines.push("[昨天概览]")
-      lines.push(yesterdaySummary.eventCount > 0 ? yesterdaySummary.summaryText : "暂无昨天的有效记录。")
+      lines.push(
+        yesterdaySummary.eventCount > 0 ? yesterdaySummary.summaryText : "暂无昨天的有效记录。"
+      )
       if (yesterdaySummary.highlights.length > 0) {
         lines.push("关键点:")
         for (const [index, item] of yesterdaySummary.highlights.slice(0, 3).entries()) {
@@ -1147,7 +1225,9 @@ class ButlerManager {
     }
 
     if (asksHistory) {
-      const recentChatRounds = extractRecentRounds(this.messages, 6).filter((round) => round.kind === "chat")
+      const recentChatRounds = extractRecentRounds(this.messages, 6).filter(
+        (round) => round.kind === "chat"
+      )
       if (recentChatRounds.length > 0) {
         lines.push("[最近对话]")
         for (const [index, round] of recentChatRounds.slice(-3).entries()) {
@@ -1162,7 +1242,10 @@ class ButlerManager {
       }
     }
 
-    const compact = lines.map((line) => line.trimEnd()).join("\n").trim()
+    const compact = lines
+      .map((line) => line.trimEnd())
+      .join("\n")
+      .trim()
     if (compact) return compact
     return "我现在还没有足够的历史记忆来回答这个问题。请告诉我你想回顾的时间范围或任务主题。"
   }
@@ -1178,9 +1261,7 @@ class ButlerManager {
   }
 
   private tokenizeForTaskMatch(text: string): string[] {
-    const tokens = text
-      .toLowerCase()
-      .match(/[\u4e00-\u9fff]{2,}|[a-z0-9_-]{3,}/gu)
+    const tokens = text.toLowerCase().match(/[\u4e00-\u9fff]{2,}|[a-z0-9_-]{3,}/gu)
     if (!tokens) return []
     return Array.from(new Set(tokens)).slice(0, 30)
   }
@@ -1258,9 +1339,10 @@ class ButlerManager {
     return scored.slice(0, 5)
   }
 
-  private chooseFollowupCandidate(
-    candidates: FollowupTargetCandidate[]
-  ): { selected?: FollowupTargetCandidate; ambiguous: boolean } {
+  private chooseFollowupCandidate(candidates: FollowupTargetCandidate[]): {
+    selected?: FollowupTargetCandidate
+    ambiguous: boolean
+  } {
     if (candidates.length === 0) return { ambiguous: true }
     if (candidates.length === 1) return { selected: candidates[0], ambiguous: false }
     const [first, second] = candidates
@@ -1375,19 +1457,17 @@ class ButlerManager {
         return {
           ...common,
           mode: "expert",
-          expertConfig:
-            targetTask.expertConfig ??
-            {
-              experts: [
-                {
-                  id: "followup_expert",
-                  role: "执行者",
-                  prompt: `在原任务上下文中实现这个补充要求：${followupText}`,
-                  agentThreadId: ""
-                }
-              ],
-              loop: { enabled: false, maxCycles: 1 }
-            }
+          expertConfig: targetTask.expertConfig ?? {
+            experts: [
+              {
+                id: "followup_expert",
+                role: "执行者",
+                prompt: `在原任务上下文中实现这个补充要求：${followupText}`,
+                agentThreadId: ""
+              }
+            ],
+            loop: { enabled: false, maxCycles: 1 }
+          }
         }
       default:
         return {
@@ -1423,6 +1503,7 @@ class ButlerManager {
         profileText: profile?.profileText,
         memoryHints: followupHints
       }),
+      externalSource: targetTask.externalSource,
       preferredReuseThreadByTaskKey: {
         [followupTaskKey]: targetTask.threadId
       }
@@ -1538,13 +1619,27 @@ class ButlerManager {
   }
 
   private buildExternalStoredMessage(input: ButlerExternalSendInput): string {
+    const external = input.externalSource
     const lines = [
-      "[External Source]",
-      `source=${input.source}`,
-      `sender_openid=${input.senderOpenId}`,
-      `sender_name=${input.senderName?.trim() || "unknown"}`,
-      `message_id=${input.messageId}`,
-      "[/External Source]",
+      "[External Message]",
+      `source: ${input.source}`,
+      `senderOpenId: ${external.senderOpenId}`,
+      `senderName: ${external.senderName?.trim() || "unknown"}`,
+      `messageId: ${external.messageId}`,
+      `messageType: ${external.messageType}`,
+      `timestamp: ${external.timestamp}`,
+      `replyTarget: ${JSON.stringify(external.replyTarget)}`,
+      "originalText:",
+      external.originalText || "(empty)",
+      "attachments:",
+      ...(external.attachmentPaths.length > 0
+        ? external.attachmentPaths.map((item) => `- ${item}`)
+        : ["- none"]),
+      "voiceNotes:",
+      ...(external.voiceNotes.length > 0
+        ? external.voiceNotes.map((item) => `- ${item}`)
+        : ["- none"]),
+      "[/External Message]",
       "",
       input.message.trim()
     ]
@@ -1573,14 +1668,8 @@ class ButlerManager {
     }
 
     return {
-      assistantText: lines
-        .slice(0, taskSummaryStart)
-        .join("\n")
-        .trim(),
-      taskSummary: lines
-        .slice(taskSummaryStart)
-        .join("\n")
-        .trim()
+      assistantText: lines.slice(0, taskSummaryStart).join("\n").trim(),
+      taskSummary: lines.slice(taskSummaryStart).join("\n").trim()
     }
   }
 
@@ -1665,7 +1754,8 @@ class ButlerManager {
       habitAddendum: this.buildHabitAddendum({
         profileText: promptContextBase.profileText,
         memoryHints: promptContextBase.memoryHints
-      })
+      }),
+      externalSource: readExternalSourceFromMetadata(params.metadata)
     }
 
     const followupState = this.tryHandleFollowupContinuation({
@@ -1707,7 +1797,9 @@ class ButlerManager {
       this.pushMessage({
         id: uuid(),
         role: "assistant",
-        content: shouldUseDirectReply ? directReplyText : "我还缺少关键信息。请补充你的目标、范围或期望输出。",
+        content: shouldUseDirectReply
+          ? directReplyText
+          : "我还缺少关键信息。请补充你的目标、范围或期望输出。",
         ts: nowIso()
       })
       this.broadcastState()
@@ -1838,9 +1930,10 @@ class ButlerManager {
       storedMessage: this.buildExternalStoredMessage(input),
       metadata: {
         source: input.source,
-        senderOpenId: input.senderOpenId,
-        senderName: input.senderName,
-        messageId: input.messageId
+        senderOpenId: input.externalSource.senderOpenId,
+        senderName: input.externalSource.senderName,
+        messageId: input.externalSource.messageId,
+        externalSource: input.externalSource
       }
     })
 
@@ -2045,28 +2138,10 @@ class ButlerManager {
     const normalized = raw.trim().toLowerCase().replace(/\s+/g, "")
     if (!normalized) return null
 
-    const create = new Set([
-      "创建",
-      "帮我创建",
-      "create",
-      "yes",
-      "y",
-      "确认",
-      "同意",
-      "可以创建"
-    ])
+    const create = new Set(["创建", "帮我创建", "create", "yes", "y", "确认", "同意", "可以创建"])
     if (create.has(normalized)) return "create"
 
-    const reenter = new Set([
-      "重输",
-      "重新输入",
-      "reenter",
-      "no",
-      "n",
-      "取消",
-      "不用",
-      "我重输"
-    ])
+    const reenter = new Set(["重输", "重新输入", "reenter", "no", "n", "取消", "不用", "我重输"])
     if (reenter.has(normalized)) return "reenter"
 
     return null
@@ -2517,6 +2592,13 @@ class ButlerManager {
       noticeType: normalized.noticeType,
       metadata: normalized.metadata
     })
+    for (const listener of this.messageListeners) {
+      try {
+        listener(normalized)
+      } catch (error) {
+        console.warn("[Butler] message listener failed:", error)
+      }
+    }
   }
 
   private findPreviousUserMessage(currentMessageId: string): ButlerMessage | null {
@@ -2600,7 +2682,9 @@ class ButlerManager {
     const notes: string[] = []
     const recentExecutionTasks = this.getRecentExecutionTasks(5)
     const recentReusableThreadIds = new Set(
-      recentExecutionTasks.map((task) => task.threadId).filter((threadId) => threadId.trim().length > 0)
+      recentExecutionTasks
+        .map((task) => task.threadId)
+        .filter((threadId) => threadId.trim().length > 0)
     )
     const recentModeByThreadId = new Map(
       recentExecutionTasks.map((task) => [task.threadId, task.mode] as const)
@@ -2657,7 +2741,8 @@ class ButlerManager {
         reuseThreadId: reusableThreadId,
         originUserMessage: creation.originUserMessage,
         retryOfTaskId: creation.retryOfTaskId,
-        retryAttempt: creation.retryAttempt
+        retryAttempt: creation.retryAttempt,
+        externalSource: creation.externalSource
       })
 
       this.tasks.set(task.id, task)
@@ -2989,7 +3074,8 @@ class ButlerManager {
           memoryHints: promptContextBase.memoryHints
         }),
         retryOfTaskId: task.id,
-        retryAttempt: rootAttempt + 1
+        retryAttempt: rootAttempt + 1,
+        externalSource: task.externalSource
       }
       const optionConfirm: PendingDispatchOption = {
         kind: "dispatch",

@@ -64,7 +64,12 @@ import { ButlerDigestService } from "./notifications/butler-digest-service"
 import { notificationMuteRegistry } from "./notifications/mute-registry"
 import { registerPluginsIpc } from "./plugins/ipc"
 import { pluginHost } from "./plugins/core/host"
-import { startQQBotBridgeService, stopQQBotBridgeService } from "./integrations/qqbot"
+import {
+  notifyQQBotLifecycleNotice,
+  refreshQQBotBridgeDigestInterval,
+  startQQBotBridgeService,
+  stopQQBotBridgeService
+} from "./integrations/qqbot"
 
 let mainWindow: BrowserWindow | null = null
 let quickInputWindow: BrowserWindow | null = null
@@ -380,7 +385,9 @@ app.whenReady().then(async () => {
     onSettingsUpdated: async (next, previous) => {
       butlerMonitorManager?.refreshIntervals()
       butlerDigestService?.refreshInterval()
+      refreshQQBotBridgeDigestInterval()
       if (
+        next.qq.enabled !== previous.qq.enabled ||
         next.qq.appId !== previous.qq.appId ||
         next.qq.clientSecret !== previous.qq.clientSecret
       ) {
@@ -468,6 +475,7 @@ app.whenReady().then(async () => {
     notifyButler: (notice) => {
       butlerManager.notifyLifecycleNotice(notice)
       butlerDigestService?.ingest(notice)
+      notifyQQBotLifecycleNotice(notice)
     }
   })
   taskLifecycleButlerBus.start()

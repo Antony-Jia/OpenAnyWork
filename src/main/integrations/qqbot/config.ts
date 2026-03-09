@@ -69,18 +69,15 @@ export function loadQQBotBridgeConfig(): ResolvedQQBotBridgeConfig {
   const settings = getSettings()
   const settingsQQ = settings.qq
 
-  const enabled = fileConfig.enabled !== false
+  const enabled = settingsQQ.enabled ?? fileConfig.enabled !== false
   const appId = env.OPENWORK_QQBOT_APP_ID || settingsQQ.appId || fileConfig.appId || ""
   const clientSecret =
-    env.OPENWORK_QQBOT_CLIENT_SECRET ||
-    settingsQQ.clientSecret ||
-    fileConfig.clientSecret ||
-    ""
+    env.OPENWORK_QQBOT_CLIENT_SECRET || settingsQQ.clientSecret || fileConfig.clientSecret || ""
 
   if (!enabled) {
     return {
       enabled: false,
-      reason: "disabled in qqbot config",
+      reason: "disabled in qqbot settings/config",
       configFilePath
     }
   }
@@ -104,10 +101,8 @@ export function loadQQBotBridgeConfig(): ResolvedQQBotBridgeConfig {
         env.OPENWORK_QQBOT_MARKDOWN_SUPPORT,
         fileConfig.markdownSupport ?? false
       ),
-      imageServerBaseUrl:
-        env.OPENWORK_QQBOT_IMAGE_SERVER_BASE_URL || fileConfig.imageServerBaseUrl,
-      mediaCacheDir:
-        fileConfig.mediaCacheDir || join(getOpenworkDir(), "qqbot-media"),
+      imageServerBaseUrl: env.OPENWORK_QQBOT_IMAGE_SERVER_BASE_URL || fileConfig.imageServerBaseUrl,
+      mediaCacheDir: fileConfig.mediaCacheDir || join(getOpenworkDir(), "qqbot-media"),
       stt:
         env.OPENWORK_QQBOT_STT_BASE_URL || fileConfig.stt?.baseUrl
           ? {

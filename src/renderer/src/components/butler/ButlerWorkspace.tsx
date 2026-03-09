@@ -19,6 +19,7 @@ import type {
   ButlerDigestPayload,
   ButlerState,
   ButlerTask,
+  QQExternalSourceInfo,
   TaskCompletionNotice,
   TaskLifecycleNotice
 } from "@/types"
@@ -318,6 +319,100 @@ function resolveRoundLabel(round: ButlerState["recentRounds"][number]): string {
   if (round.kind === "digest_comment") return "服务汇总"
   if (round.kind === "task_comment") return "管家"
   return "管家"
+}
+
+function describeExternalReplyTarget(target: QQExternalSourceInfo["replyTarget"]): string {
+  if (target.scene === "group") {
+    return `group:${target.groupId || "unknown"}`
+  }
+  if (target.scene === "guild") {
+    return `guild:${target.channelId || "unknown"}`
+  }
+  if (target.scene === "dm") {
+    return `dm:${target.userId || "unknown"}`
+  }
+  return `c2c:${target.userId || "unknown"}`
+}
+
+function parseLegacyReplyTarget(raw: string): QQExternalSourceInfo["replyTarget"] | null {
+  const value = raw.trim()
+  if (!value) return null
+  const [scene, id] = value.split(":", 2)
+  if (scene === "group") {
+    return { scene: "group", groupId: id?.trim() || undefined }
+  }
+  if (scene === "guild") {
+    return { scene: "guild", channelId: id?.trim() || undefined }
+  }
+  if (scene === "dm") {
+    return { scene: "dm", userId: id?.trim() || undefined }
+  }
+  if (scene === "c2c") {
+    return { scene: "c2c", userId: id?.trim() || undefined }
+  }
+  return null
+}
+
+function parseLegacyExternalSource(text: string): QQExternalSourceInfo | null {
+  if (!text.includes("[External Source]")) return null
+
+  const lines = text.split(/\r?\n/)
+  const findValue = (prefix: string): string =>
+    lines
+      .find((line) => line.startsWith(prefix))
+      ?.slice(prefix.length)
+      .trim() || ""
+  const findIndex = (label: string): number => lines.findIndex((line) => line.trim() === label)
+  const collectList = (label: string): string[] => {
+    const start = findIndex(label)
+    if (start < 0) return []
+    const result: string[] = []
+    for (let index = start + 1; index < lines.length; index += 1) {
+      const line = lines[index]
+      if (!line.startsWith("- ")) break
+      const item = line.slice(2).trim()
+      if (item && item !== "none") {
+        result.push(item)
+      }
+    }
+    return result
+  }
+  const collectBlock = (label: string, stopLabels: string[]): string => {
+    const start = findIndex(label)
+    if (start < 0) return ""
+    const result: string[] = []
+    for (let index = start + 1; index < lines.length; index += 1) {
+      const line = lines[index]
+      if (stopLabels.includes(line.trim())) break
+      result.push(line)
+    }
+    return result.join("\n").trim()
+  }
+
+  const messageType = findValue("messageType: ")
+  const replyTarget = parseLegacyReplyTarget(findValue("replyTarget: "))
+  if (!replyTarget) return null
+  if (
+    messageType !== "c2c" &&
+    messageType !== "group" &&
+    messageType !== "guild" &&
+    messageType !== "dm"
+  ) {
+    return null
+  }
+
+  return {
+    source: "qqbot",
+    senderOpenId: findValue("senderOpenId: "),
+    senderName: findValue("senderName: ") || undefined,
+    messageId: findValue("messageId: "),
+    messageType,
+    timestamp: findValue("timestamp: "),
+    replyTarget,
+    originalText: collectBlock("originalText:", ["attachments:", "voiceNotes:"]),
+    attachmentPaths: collectList("attachments:"),
+    voiceNotes: collectList("voiceNotes:")
+  }
 }
 
 function findTaskForNotice(
@@ -718,6 +813,12 @@ export function ButlerWorkspace(): React.JSX.Element {
           )}
           {rounds.map((round) => {
             const isSystemNotice = round.kind !== "chat" || round.noticeType !== undefined
+            const externalSource =
+              !isSystemNotice && round.externalSource?.source === "qqbot"
+                ? round.externalSource
+                : !isSystemNotice
+                  ? parseLegacyExternalSource(round.user)
+                  : null
             const digestSnapshot = isSystemNotice
               ? extractNoticeSnapshot(round.assistant, TASK_DIGEST_MARKER)
               : null
@@ -767,7 +868,8 @@ export function ButlerWorkspace(): React.JSX.Element {
             const styledNoticeId = noticeVariant === "digest" ? digestNoticeId : eventNoticeId
             const styledNoticeCollapsed =
               styledNotice && collapsedStyledNotices[styledNoticeId] === true
-            const digestPrimaryThreadId = digestTasks.find((task) => task.threadId.trim())?.threadId || ""
+            const digestPrimaryThreadId =
+              digestTasks.find((task) => task.threadId.trim())?.threadId || ""
             const primaryTitle =
               digestNotice?.title ||
               noticeCard?.title ||
@@ -777,9 +879,103 @@ export function ButlerWorkspace(): React.JSX.Element {
               <div key={round.id} className="space-y-4">
                 {!isSystemNotice && (
                   <div className="flex justify-end">
-                    <div className="max-w-[80%] rounded-2xl rounded-tr-sm border border-accent/20 bg-accent/8 p-4 text-sm whitespace-pre-wrap shadow-sm">
-                      {round.user}
-                    </div>
+                    {externalSource ? (
+                      <Card className="max-w-[85%] border-accent/20 bg-accent/8 shadow-sm">
+                        <CardHeader className="pb-3">
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="min-w-0">
+                              <div className="text-[10px] uppercase tracking-[0.15em] text-accent/70 font-bold">
+                                QQ Bot
+                              </div>
+                              <CardTitle className="mt-1 truncate text-sm font-semibold">
+                                {externalSource.senderName?.trim() || "unknown"}
+                              </CardTitle>
+                            </div>
+                            <Badge variant="info">{externalSource.messageType}</Badge>
+                          </div>
+                        </CardHeader>
+                        <CardContent className="space-y-3 text-xs">
+                          <div className="grid grid-cols-1 gap-2 text-muted-foreground sm:grid-cols-2">
+                            <div className="butler-notice-kv">
+                              <div className="butler-notice-kv__label">来源</div>
+                              <div className="butler-notice-kv__value">QQ Bot</div>
+                            </div>
+                            <div className="butler-notice-kv">
+                              <div className="butler-notice-kv__label">OpenID</div>
+                              <div className="butler-notice-kv__value break-all">
+                                {externalSource.senderOpenId}
+                              </div>
+                            </div>
+                            <div className="butler-notice-kv">
+                              <div className="butler-notice-kv__label">消息 ID</div>
+                              <div className="butler-notice-kv__value break-all">
+                                {externalSource.messageId}
+                              </div>
+                            </div>
+                            <div className="butler-notice-kv">
+                              <div className="butler-notice-kv__label">时间</div>
+                              <div className="butler-notice-kv__value">
+                                {new Date(externalSource.timestamp).toLocaleString()}
+                              </div>
+                            </div>
+                            <div className="butler-notice-kv sm:col-span-2">
+                              <div className="butler-notice-kv__label">回复目标</div>
+                              <div className="butler-notice-kv__value break-all">
+                                {describeExternalReplyTarget(externalSource.replyTarget)}
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="butler-notice-section text-muted-foreground">
+                            <div className="mb-2 text-[10px] uppercase tracking-wide text-muted-foreground/80">
+                              正文
+                            </div>
+                            <div className="whitespace-pre-wrap rounded-lg border border-border/40 bg-background/50 p-3">
+                              {externalSource.originalText || "(empty)"}
+                            </div>
+                          </div>
+
+                          <div className="grid grid-cols-1 gap-3 text-muted-foreground sm:grid-cols-2">
+                            <div className="butler-notice-section">
+                              <div className="mb-2 text-[10px] uppercase tracking-wide text-muted-foreground/80">
+                                附件
+                              </div>
+                              <div className="space-y-1">
+                                {externalSource.attachmentPaths.length > 0 ? (
+                                  externalSource.attachmentPaths.map((item) => (
+                                    <div key={item} className="whitespace-pre-wrap break-all">
+                                      {item}
+                                    </div>
+                                  ))
+                                ) : (
+                                  <div>none</div>
+                                )}
+                              </div>
+                            </div>
+                            <div className="butler-notice-section">
+                              <div className="mb-2 text-[10px] uppercase tracking-wide text-muted-foreground/80">
+                                语音转写
+                              </div>
+                              <div className="space-y-1">
+                                {externalSource.voiceNotes.length > 0 ? (
+                                  externalSource.voiceNotes.map((item) => (
+                                    <div key={item} className="whitespace-pre-wrap break-all">
+                                      {item}
+                                    </div>
+                                  ))
+                                ) : (
+                                  <div>none</div>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    ) : (
+                      <div className="max-w-[80%] rounded-2xl rounded-tr-sm border border-accent/20 bg-accent/8 p-4 text-sm whitespace-pre-wrap shadow-sm">
+                        {round.user}
+                      </div>
+                    )}
                   </div>
                 )}
 
@@ -853,7 +1049,10 @@ export function ButlerWorkspace(): React.JSX.Element {
                               >
                                 {digestDetailExpanded ? "收起明细" : "展开明细"}
                               </button>
-                            ) : isSystemNotice && !digestNotice && noticeCard && !isDispatchNotice ? (
+                            ) : isSystemNotice &&
+                              !digestNotice &&
+                              noticeCard &&
+                              !isDispatchNotice ? (
                               <button
                                 type="button"
                                 onClick={() => {
@@ -869,19 +1068,21 @@ export function ButlerWorkspace(): React.JSX.Element {
                       </CardHeader>
                       <CardContent className="space-y-3">
                         {styledNotice && styledNoticeCollapsed ? (
-                          <div className="text-xs text-muted-foreground">已折叠，点击“展开卡片”查看详情。</div>
+                          <div className="text-xs text-muted-foreground">
+                            已折叠，点击“展开卡片”查看详情。
+                          </div>
                         ) : null}
 
                         {!styledNoticeCollapsed &&
                         !(noticeVariant === "dispatch" && dispatchStructured) ? (
-                        <div
-                          className={cn(
-                            "rounded-lg border border-border/40 bg-background/45 p-3 text-sm whitespace-pre-wrap",
-                            styledNotice && "butler-notice-section"
-                          )}
-                        >
-                          {assistantText || "处理中..."}
-                        </div>
+                          <div
+                            className={cn(
+                              "rounded-lg border border-border/40 bg-background/45 p-3 text-sm whitespace-pre-wrap",
+                              styledNotice && "butler-notice-section"
+                            )}
+                          >
+                            {assistantText || "处理中..."}
+                          </div>
                         ) : null}
 
                         {!styledNoticeCollapsed && noticeVariant === "dispatch" ? (
@@ -979,14 +1180,16 @@ export function ButlerWorkspace(): React.JSX.Element {
 
                             {!dispatchStructured ? (
                               <div className="butler-notice-section max-h-44 overflow-y-auto whitespace-pre-wrap text-xs text-muted-foreground">
-                                {resolveTaskDetail(noticeCard || {
-                                  threadId: "",
-                                  title: "",
-                                  status: "queued",
-                                  resultBrief: assistantText,
-                                  resultDetail: assistantText,
-                                  completedAt: round.ts
-                                })}
+                                {resolveTaskDetail(
+                                  noticeCard || {
+                                    threadId: "",
+                                    title: "",
+                                    status: "queued",
+                                    resultBrief: assistantText,
+                                    resultDetail: assistantText,
+                                    completedAt: round.ts
+                                  }
+                                )}
                               </div>
                             ) : null}
 
@@ -1061,7 +1264,10 @@ export function ButlerWorkspace(): React.JSX.Element {
                           </div>
                         ) : null}
 
-                        {!styledNoticeCollapsed && isSystemNotice && digestNotice && digestDetailExpanded ? (
+                        {!styledNoticeCollapsed &&
+                        isSystemNotice &&
+                        digestNotice &&
+                        digestDetailExpanded ? (
                           <Card className="border-border/40 bg-background/45 shadow-none">
                             <CardContent className="space-y-3 pt-4">
                               <div className="flex items-center justify-between gap-2">

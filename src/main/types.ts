@@ -220,6 +220,7 @@ export interface ThreadMetadata {
   butlerTaskId?: string
   nonInterruptible?: boolean
   disableApprovals?: boolean
+  externalSource?: QQExternalSourceInfo
   ralph?: RalphState
   loop?: LoopConfig
   expert?: ExpertConfig
@@ -534,7 +535,33 @@ export interface SystemPromptsSettings {
   agentPrefix: string
 }
 
+export type QQMessageScene = "c2c" | "group" | "guild" | "dm"
+
+export interface QQReplyTargetInfo {
+  scene: QQMessageScene
+  userId?: string
+  groupId?: string
+  channelId?: string
+  guildId?: string
+  replyToMessageId?: string
+}
+
+export interface QQExternalSourceInfo {
+  source: "qqbot"
+  senderOpenId: string
+  senderName?: string
+  messageId: string
+  messageType: QQMessageScene
+  timestamp: string
+  replyTarget: QQReplyTargetInfo
+  originalText: string
+  attachmentPaths: string[]
+  voiceNotes: string[]
+  sessionId?: string
+}
+
 export interface QQSettings {
+  enabled: boolean
   appId: string
   clientSecret: string
 }
@@ -617,6 +644,7 @@ export interface ButlerTask {
   originUserMessage?: string
   retryOfTaskId?: string
   retryAttempt?: number
+  externalSource?: QQExternalSourceInfo
 }
 
 export type ButlerRoundKind = "chat" | "event_comment" | "digest_comment" | "task_comment"
@@ -638,6 +666,7 @@ export interface ButlerRound {
   relatedThreadId?: string
   relatedTaskId?: string
   noticeType?: "task" | "event" | "digest"
+  externalSource?: QQExternalSourceInfo
 }
 
 export interface ButlerPendingDispatchChoice {
@@ -660,9 +689,7 @@ export interface ButlerState {
 export interface ButlerExternalSendInput {
   source: "qqbot"
   message: string
-  senderOpenId: string
-  senderName?: string
-  messageId: string
+  externalSource: QQExternalSourceInfo
 }
 
 export interface ButlerExternalSendResult {
@@ -985,12 +1012,7 @@ export interface MemorySearchResult {
   workingSnapshot?: WorkingMemorySnapshot | null
 }
 
-export type MemoryRangePreset =
-  | "today"
-  | "yesterday"
-  | "this_week"
-  | "this_month"
-  | "custom"
+export type MemoryRangePreset = "today" | "yesterday" | "this_week" | "this_month" | "custom"
 
 export interface MemoryRangeSummaryQuery {
   from?: string

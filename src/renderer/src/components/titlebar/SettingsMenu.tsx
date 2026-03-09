@@ -66,6 +66,7 @@ export function SettingsMenu(_props: SettingsMenuProps): React.JSX.Element {
   const [butlerMonitorScanIntervalSec, setButlerMonitorScanIntervalSec] = useState("30")
   const [butlerMonitorPullIntervalSec, setButlerMonitorPullIntervalSec] = useState("60")
   const [butlerAvatarDataUrl, setButlerAvatarDataUrl] = useState("")
+  const [qqEnabled, setQqEnabled] = useState(false)
   const [qqAppId, setQqAppId] = useState("")
   const [qqClientSecret, setQqClientSecret] = useState("")
 
@@ -120,6 +121,7 @@ export function SettingsMenu(_props: SettingsMenuProps): React.JSX.Element {
           setButlerMonitorScanIntervalSec(String(settings.butler?.monitorScanIntervalSec ?? 30))
           setButlerMonitorPullIntervalSec(String(settings.butler?.monitorPullIntervalSec ?? 60))
           setButlerAvatarDataUrl(settings.butler?.avatarDataUrl || "")
+          setQqEnabled(!!settings.qq?.enabled)
           setQqAppId(settings.qq?.appId || "")
           setQqClientSecret(settings.qq?.clientSecret || "")
           setVisionPreprocessInterceptEnabled(settings.vision?.preprocessInterceptEnabled !== false)
@@ -261,6 +263,7 @@ export function SettingsMenu(_props: SettingsMenuProps): React.JSX.Element {
                 : 60
           },
           qq: {
+            enabled: qqEnabled,
             appId: qqAppId.trim(),
             clientSecret: qqClientSecret.trim()
           },
@@ -311,6 +314,7 @@ export function SettingsMenu(_props: SettingsMenuProps): React.JSX.Element {
     imapPass,
     imapPollIntervalSec,
     taskTag,
+    qqEnabled,
     qqAppId,
     qqClientSecret
   ])
@@ -852,6 +856,15 @@ export function SettingsMenu(_props: SettingsMenuProps): React.JSX.Element {
                     <span className="text-[10px] text-green-500">{t("settings.saved")}</span>
                   ) : null}
                 </div>
+
+                <label className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <input
+                    type="checkbox"
+                    checked={qqEnabled}
+                    onChange={(e) => setQqEnabled(e.target.checked)}
+                  />
+                  {t("settings.qq.enabled")}
+                </label>
 
                 <div className="space-y-2">
                   <label className="text-[10px] text-muted-foreground block">

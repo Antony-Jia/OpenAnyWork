@@ -1123,7 +1123,6 @@ export function ButlerWorkspace(): React.JSX.Element {
                                   toggleDigestDetails(digestNoticeId)
                                 }}
                                 className="text-[10px] text-accent hover:text-accent/80"
-                                disabled={assistantCardCollapsed}
                               >
                                 {digestDetailExpanded ? "收起明细" : "展开明细"}
                               </button>
@@ -1342,10 +1341,7 @@ export function ButlerWorkspace(): React.JSX.Element {
                           </div>
                         ) : null}
 
-                        {!assistantCardCollapsed &&
-                        isSystemNotice &&
-                        digestNotice &&
-                        digestDetailExpanded ? (
+                        {isSystemNotice && digestNotice && digestDetailExpanded ? (
                           <Card className="border-border/40 bg-background/45 shadow-none">
                             <CardContent className="space-y-3 pt-4">
                               <div className="flex items-center justify-between gap-2">
@@ -1426,8 +1422,7 @@ export function ButlerWorkspace(): React.JSX.Element {
                           </Card>
                         ) : null}
 
-                        {!assistantCardCollapsed &&
-                        isSystemNotice &&
+                        {isSystemNotice &&
                         !digestNotice &&
                         !isDispatchNotice &&
                         noticeCard &&

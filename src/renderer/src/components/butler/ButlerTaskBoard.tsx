@@ -1,4 +1,5 @@
 import { Badge } from "@/components/ui/badge"
+import { StreamingMarkdown } from "@/components/chat/StreamingMarkdown"
 import type { ButlerTask } from "@/types"
 
 function toStatusVariant(
@@ -77,14 +78,14 @@ export function ButlerTaskBoard({ tasks, onOpenThread }: ButlerTaskBoardProps): 
           {isSettledStatus(task.status) ? (
             <details className="rounded-lg border border-border/40 bg-background/30 backdrop-blur-sm p-3">
               <summary className="cursor-pointer text-xs text-muted-foreground font-semibold">详细结果</summary>
-              <div className="mt-2.5 max-h-48 overflow-y-auto whitespace-pre-wrap text-xs rounded-lg border border-border/40 bg-background/50 backdrop-blur-sm p-3">
-                {resolveTaskDetail(task)}
+              <div className="mt-2.5 max-h-48 overflow-y-auto rounded-lg border border-border/40 bg-background/50 p-3 text-xs text-muted-foreground">
+                <StreamingMarkdown variant="compact">{resolveTaskDetail(task)}</StreamingMarkdown>
               </div>
             </details>
           ) : (
             task.resultBrief && (
-              <div className="text-xs rounded-lg border border-border/40 bg-background/40 backdrop-blur-sm p-3 whitespace-pre-wrap">
-                {task.resultBrief}
+              <div className="rounded-lg border border-border/40 bg-background/40 p-3 text-xs text-muted-foreground">
+                <StreamingMarkdown variant="compact">{task.resultBrief}</StreamingMarkdown>
               </div>
             )
           )}

@@ -364,9 +364,9 @@ html.task-popup-mode #root {
 
 /* Streaming markdown styles */
 .streaming-markdown {
-  font-size: 0.9375rem; /* 15px is clearer than 14px for reading */
-  line-height: 1.6;
-  color: var(--foreground);
+  min-width: 0;
+  color: inherit;
+  word-break: break-word;
 }
 
 .streaming-markdown p {
@@ -384,6 +384,7 @@ html.task-popup-mode #root {
   margin-top: 1.5em;
   margin-bottom: 0.75em;
   letter-spacing: -0.02em;
+  line-height: 1.3;
 }
 
 .streaming-markdown h1 {
@@ -404,6 +405,12 @@ html.task-popup-mode #root {
 }
 .streaming-markdown li {
   margin-bottom: 0.375em;
+}
+
+.streaming-markdown li > ul,
+.streaming-markdown li > ol {
+  margin-top: 0.375em;
+  margin-bottom: 0.5em;
 }
 
 .streaming-markdown code {
@@ -431,6 +438,7 @@ html.task-popup-mode #root {
   padding: 0;
   border: none;
   color: inherit;
+  white-space: pre;
 }
 
 .streaming-markdown blockquote {
@@ -453,6 +461,117 @@ html.task-popup-mode #root {
 }
 .streaming-markdown a:hover {
   border-bottom-color: var(--primary);
+}
+
+.streaming-markdown hr {
+  margin: 1.25em 0;
+  border: none;
+  border-top: 1px solid color-mix(in srgb, var(--border) 88%, transparent);
+}
+
+.streaming-markdown img {
+  max-width: 100%;
+  border-radius: var(--radius);
+}
+
+.streaming-markdown__table {
+  width: 100%;
+  overflow-x: auto;
+  margin-bottom: 1.25em;
+}
+
+.streaming-markdown table {
+  width: 100%;
+  min-width: max-content;
+  border-collapse: collapse;
+  font-size: 0.95em;
+}
+
+.streaming-markdown th,
+.streaming-markdown td {
+  border: 1px solid color-mix(in srgb, var(--border) 88%, transparent);
+  padding: 0.5rem 0.625rem;
+  text-align: left;
+  vertical-align: top;
+}
+
+.streaming-markdown th {
+  background: color-mix(in srgb, var(--secondary) 55%, transparent);
+  font-weight: 600;
+}
+
+.streaming-markdown tbody tr:nth-child(even) {
+  background: color-mix(in srgb, var(--secondary) 18%, transparent);
+}
+
+.streaming-markdown--chat {
+  font-size: 0.9375rem;
+  line-height: 1.6;
+}
+
+.streaming-markdown--card {
+  font-size: 0.875rem;
+  line-height: 1.55;
+}
+
+.streaming-markdown--compact {
+  font-size: 0.75rem;
+  line-height: 1.5;
+}
+
+.streaming-markdown--card p,
+.streaming-markdown--compact p {
+  margin-bottom: 0.75em;
+}
+
+.streaming-markdown--card ul,
+.streaming-markdown--card ol,
+.streaming-markdown--compact ul,
+.streaming-markdown--compact ol {
+  margin-left: 1em;
+  margin-bottom: 0.75em;
+}
+
+.streaming-markdown--card h1 {
+  font-size: 1.45em;
+}
+
+.streaming-markdown--card h2 {
+  font-size: 1.25em;
+}
+
+.streaming-markdown--card h3 {
+  font-size: 1.05em;
+}
+
+.streaming-markdown--compact h1,
+.streaming-markdown--compact h2,
+.streaming-markdown--compact h3,
+.streaming-markdown--compact h4 {
+  margin-top: 1.15em;
+  margin-bottom: 0.55em;
+}
+
+.streaming-markdown--compact h1 {
+  font-size: 1.25em;
+}
+
+.streaming-markdown--compact h2 {
+  font-size: 1.12em;
+}
+
+.streaming-markdown--compact h3,
+.streaming-markdown--compact h4 {
+  font-size: 1em;
+}
+
+.streaming-markdown--compact pre,
+.streaming-markdown--compact .streaming-markdown__table {
+  margin-bottom: 0.85em;
+}
+
+.streaming-markdown--compact code {
+  font-size: 0.95em;
 }
 
 /* Window drag region for frameless window */

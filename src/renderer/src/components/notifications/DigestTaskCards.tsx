@@ -1,4 +1,5 @@
 import { Badge } from "@/components/ui/badge"
+import { StreamingMarkdown } from "@/components/chat/StreamingMarkdown"
 import type { ButlerDigestTaskCard } from "@/types"
 
 function toStatusVariant(
@@ -45,8 +46,8 @@ export function DigestTaskCards({
             <Badge variant={toStatusVariant(task.status)}>{task.status}</Badge>
           </div>
 
-          <div className="mt-2 whitespace-pre-wrap text-xs text-muted-foreground">
-            {task.resultBrief || "暂无摘要。"}
+          <div className="mt-2 text-xs text-muted-foreground">
+            <StreamingMarkdown variant="compact">{task.resultBrief || "暂无摘要。"}</StreamingMarkdown>
           </div>
 
           <div className="mt-2 flex items-center justify-end gap-3">

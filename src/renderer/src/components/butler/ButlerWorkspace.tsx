@@ -14,6 +14,7 @@ import { useAppStore } from "@/lib/store"
 import { ButlerTaskBoard } from "./ButlerTaskBoard"
 import { ButlerMonitorBoard } from "./ButlerMonitorBoard"
 import { DigestTaskCards } from "@/components/notifications/DigestTaskCards"
+import { StreamingMarkdown } from "@/components/chat/StreamingMarkdown"
 import type {
   AppSettings,
   ButlerDigestPayload,
@@ -1154,11 +1155,13 @@ export function ButlerWorkspace(): React.JSX.Element {
                         !(noticeVariant === "dispatch" && dispatchStructured) ? (
                           <div
                             className={cn(
-                              "rounded-lg border border-border/40 bg-background/45 p-3 text-sm whitespace-pre-wrap",
+                              "rounded-lg border border-border/40 bg-background/45 p-3 text-sm",
                               styledNotice && "butler-notice-section"
                             )}
                           >
-                            {assistantText || "处理中..."}
+                            <StreamingMarkdown variant="card">
+                              {assistantText || "处理中..."}
+                            </StreamingMarkdown>
                           </div>
                         ) : null}
 
@@ -1190,8 +1193,8 @@ export function ButlerWorkspace(): React.JSX.Element {
                                 </div>
                                 <div className="space-y-1">
                                   {dispatchStructured.queryItems.map((item) => (
-                                    <div key={item} className="whitespace-pre-wrap">
-                                      {item}
+                                    <div key={item}>
+                                      <StreamingMarkdown variant="compact">{item}</StreamingMarkdown>
                                     </div>
                                   ))}
                                 </div>
@@ -1205,8 +1208,8 @@ export function ButlerWorkspace(): React.JSX.Element {
                                 </div>
                                 <div className="space-y-1">
                                   {dispatchStructured.outputItems.map((item) => (
-                                    <div key={item} className="whitespace-pre-wrap">
-                                      {item}
+                                    <div key={item}>
+                                      <StreamingMarkdown variant="compact">{item}</StreamingMarkdown>
                                     </div>
                                   ))}
                                 </div>
@@ -1217,8 +1220,8 @@ export function ButlerWorkspace(): React.JSX.Element {
                               <div className="butler-notice-section text-xs text-muted-foreground">
                                 <div className="space-y-1">
                                   {dispatchStructured.progressLines.map((line) => (
-                                    <div key={line} className="whitespace-pre-wrap">
-                                      {line}
+                                    <div key={line}>
+                                      <StreamingMarkdown variant="compact">{line}</StreamingMarkdown>
                                     </div>
                                   ))}
                                 </div>
@@ -1247,8 +1250,8 @@ export function ButlerWorkspace(): React.JSX.Element {
                                 </div>
                                 <div className="space-y-1">
                                   {dispatchSummary.taskLines.map((line) => (
-                                    <div key={line} className="whitespace-pre-wrap">
-                                      {line}
+                                    <div key={line}>
+                                      <StreamingMarkdown variant="compact">{line}</StreamingMarkdown>
                                     </div>
                                   ))}
                                 </div>
@@ -1256,23 +1259,27 @@ export function ButlerWorkspace(): React.JSX.Element {
                             ) : null}
 
                             {!dispatchStructured ? (
-                              <div className="butler-notice-section max-h-44 overflow-y-auto whitespace-pre-wrap text-xs text-muted-foreground">
-                                {resolveTaskDetail(
-                                  noticeCard || {
-                                    threadId: "",
-                                    title: "",
-                                    status: "queued",
-                                    resultBrief: assistantText,
-                                    resultDetail: assistantText,
-                                    completedAt: round.ts
-                                  }
-                                )}
+                              <div className="butler-notice-section max-h-44 overflow-y-auto text-xs text-muted-foreground">
+                                <StreamingMarkdown variant="compact">
+                                  {resolveTaskDetail(
+                                    noticeCard || {
+                                      threadId: "",
+                                      title: "",
+                                      status: "queued",
+                                      resultBrief: assistantText,
+                                      resultDetail: assistantText,
+                                      completedAt: round.ts
+                                    }
+                                  )}
+                                </StreamingMarkdown>
                               </div>
                             ) : null}
 
                             {dispatchStructured?.capabilityLine ? (
-                              <div className="butler-notice-section text-xs text-muted-foreground whitespace-pre-wrap">
-                                {dispatchStructured.capabilityLine}
+                              <div className="butler-notice-section text-xs text-muted-foreground">
+                                <StreamingMarkdown variant="compact">
+                                  {dispatchStructured.capabilityLine}
+                                </StreamingMarkdown>
                               </div>
                             ) : null}
 
@@ -1319,8 +1326,10 @@ export function ButlerWorkspace(): React.JSX.Element {
                                 </div>
                               </div>
                             </div>
-                            <div className="rounded-lg border border-border/40 bg-background/50 p-3 text-xs whitespace-pre-wrap text-muted-foreground">
-                              {digestNotice.digest.summaryText}
+                            <div className="rounded-lg border border-border/40 bg-background/50 p-3 text-xs text-muted-foreground">
+                              <StreamingMarkdown variant="compact">
+                                {digestNotice.digest.summaryText}
+                              </StreamingMarkdown>
                             </div>
                             <div className="text-[11px] text-muted-foreground">
                               更新时间：{new Date(digestNotice.completedAt).toLocaleString()}
@@ -1396,8 +1405,10 @@ export function ButlerWorkspace(): React.JSX.Element {
                                       </div>
                                     </div>
                                   </div>
-                                  <div className="rounded-lg border border-border/40 bg-background/50 p-3 text-xs whitespace-pre-wrap text-muted-foreground">
-                                    {digestNotice.digest.summaryText}
+                                  <div className="rounded-lg border border-border/40 bg-background/50 p-3 text-xs text-muted-foreground">
+                                    <StreamingMarkdown variant="compact">
+                                      {digestNotice.digest.summaryText}
+                                    </StreamingMarkdown>
                                   </div>
                                   <div className="text-[11px] text-muted-foreground">
                                     更新时间：{new Date(digestNotice.completedAt).toLocaleString()}
@@ -1452,8 +1463,10 @@ export function ButlerWorkspace(): React.JSX.Element {
                                 </div>
                               </div>
 
-                              <div className="max-h-44 overflow-y-auto whitespace-pre-wrap rounded-lg border border-border/40 bg-background/50 p-3 text-xs text-muted-foreground">
-                                {resolveTaskDetail(noticeCard)}
+                              <div className="max-h-44 overflow-y-auto rounded-lg border border-border/40 bg-background/50 p-3 text-xs text-muted-foreground">
+                                <StreamingMarkdown variant="compact">
+                                  {resolveTaskDetail(noticeCard)}
+                                </StreamingMarkdown>
                               </div>
                               <div className="flex justify-end">
                                 {taskSnapshotIdentity ? (

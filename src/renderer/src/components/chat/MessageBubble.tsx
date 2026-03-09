@@ -139,7 +139,11 @@ export function MessageBubble({
       if (isUser) {
         return <div className="whitespace-pre-wrap text-sm">{message.content}</div>
       }
-      return <StreamingMarkdown isStreaming={isStreaming}>{message.content}</StreamingMarkdown>
+      return (
+        <StreamingMarkdown isStreaming={isStreaming} variant="chat">
+          {message.content}
+        </StreamingMarkdown>
+      )
     }
 
     // Handle content blocks
@@ -155,7 +159,7 @@ export function MessageBubble({
             )
           }
           return (
-            <StreamingMarkdown key={index} isStreaming={isStreaming}>
+            <StreamingMarkdown key={index} isStreaming={isStreaming} variant="chat">
               {block.text}
             </StreamingMarkdown>
           )

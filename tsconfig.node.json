@@ -4,8 +4,7 @@
     "electron.vite.config.*",
     "src/main/**/*",
     "src/preload/**/*",
-    "src/types.ts",
-    "packages/openwork-qqbot/src/**/*"
+    "src/types.ts"
   ],
   "compilerOptions": {
     "composite": true,

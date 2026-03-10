@@ -69,7 +69,7 @@ import {
   refreshQQBotBridgeDigestInterval,
   startQQBotBridgeService,
   stopQQBotBridgeService
-} from "./integrations/qqbot"
+} from "./integrations"
 
 let mainWindow: BrowserWindow | null = null
 let quickInputWindow: BrowserWindow | null = null

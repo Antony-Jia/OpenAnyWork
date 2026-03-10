@@ -2,7 +2,7 @@
 
 ## 目标
 
-本次集成把原 `D:\Code\qqbot\qqbot` 的 QQ 能力拆成独立组件工程 `packages/openwork-qqbot`，再由 `src/main/integrations/qqbot/` 把 QQ 消息桥接到 Openwork Butler。
+本次集成把原 `D:\Code\qqbot\qqbot` 的 QQ 能力收敛到 Openwork 主进程内部，由 `src/main/integrations/providers/qq/protocol/` 提供 QQ 协议与媒体处理能力，再由 `src/main/integrations/providers/qq/bridge/` 把 QQ 消息桥接到 Openwork Butler。
 
 当前方案的核心约束：
 
@@ -14,20 +14,20 @@
 
 ## 目录映射
 
-### 组件工程
+### QQ 协议层
 
-- `packages/openwork-qqbot/src/types.ts`
-- `packages/openwork-qqbot/src/service.ts`
-- `packages/openwork-qqbot/src/gateway.ts`
-- `packages/openwork-qqbot/src/api.ts`
-- `packages/openwork-qqbot/src/media-pipeline.ts`
-- `packages/openwork-qqbot/src/reply-renderer.ts`
+- `src/main/integrations/providers/qq/protocol/types.ts`
+- `src/main/integrations/providers/qq/protocol/service.ts`
+- `src/main/integrations/providers/qq/protocol/gateway.ts`
+- `src/main/integrations/providers/qq/protocol/api.ts`
+- `src/main/integrations/providers/qq/protocol/media-pipeline.ts`
+- `src/main/integrations/providers/qq/protocol/reply-renderer.ts`
 
 ### Openwork 桥接层
 
-- `src/main/integrations/qqbot/config.ts`
-- `src/main/integrations/qqbot/butler-adapter.ts`
-- `src/main/integrations/qqbot/service.ts`
+- `src/main/integrations/providers/qq/bridge/config.ts`
+- `src/main/integrations/providers/qq/bridge/butler-adapter.ts`
+- `src/main/integrations/providers/qq/bridge/service.ts`
 
 ### Butler 扩展
 

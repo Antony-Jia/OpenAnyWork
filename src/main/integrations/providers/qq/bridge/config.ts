@@ -1,8 +1,8 @@
 import { existsSync, readFileSync } from "node:fs"
 import { join } from "node:path"
-import { getEnvFilePath, getOpenworkDir } from "../../storage"
-import { getSettings } from "../../settings"
-import type { QQBotConfig } from "../../../../packages/openwork-qqbot/src/index.js"
+import type { QQBotConfig } from "../protocol/index.js"
+import { getSettings } from "../../../../settings"
+import { getEnvFilePath, getOpenworkDir } from "../../../../storage"
 
 interface QQBotFileConfig {
   enabled?: boolean

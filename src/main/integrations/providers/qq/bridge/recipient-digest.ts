@@ -1,6 +1,6 @@
-import type { ButlerDigestTaskCard, QQExternalSourceInfo, TaskLifecycleNotice } from "../../types"
-import { getSettings } from "../../settings"
-import { resolveTaskIdentityFromLifecycleNotice } from "../../notifications/task-identity"
+import type { ButlerDigestTaskCard, QQExternalSourceInfo, TaskLifecycleNotice } from "../../../../types"
+import { resolveTaskIdentityFromLifecycleNotice } from "../../../../notifications/task-identity"
+import { getSettings } from "../../../../settings"
 
 interface QQRecipientDigestLogger {
   warn(message: string): void

@@ -1,5 +1,7 @@
 # openwork-qqbot
 
+> Deprecated: Electron 主应用已改为使用 `src/main/integrations/providers/qq/` 下的实现；此目录仅保留历史参考、示例配置和 demo 资源。
+
 `openwork-qqbot` 是从 `D:\Code\qqbot\qqbot` 抽出的可复用 QQ 组件包，目标是把 QQ 协议接入、附件落盘、消息封装、标签渲染和基础发送链从 OpenClaw/Openwork 运行时里隔离出来。
 
 ## 提供的能力

@@ -5,13 +5,13 @@ import {
   type QQBotServiceHandlerResult,
   type QQBotLogger,
   type QQReplyTarget
-} from "../../../../packages/openwork-qqbot/src/index.js"
-import { getThread } from "../../db"
-import { butlerManager } from "../../butler/manager"
-import type { QQExternalSourceInfo, TaskLifecycleNotice } from "../../types"
+} from "../protocol/index.js"
+import { butlerManager } from "../../../../butler/manager"
+import { getThread } from "../../../../db"
+import type { QQExternalSourceInfo, TaskLifecycleNotice } from "../../../../types"
+import { sendQQEnvelopeToButler } from "./butler-adapter"
 import { loadQQBotBridgeConfig } from "./config"
 import { QQRecipientDigestService } from "./recipient-digest"
-import { sendQQEnvelopeToButler } from "./butler-adapter"
 
 const TASK_NOTICE_MARKER = "[TASK_NOTICE_JSON]"
 const TASK_DIGEST_MARKER = "[TASK_DIGEST_JSON]"

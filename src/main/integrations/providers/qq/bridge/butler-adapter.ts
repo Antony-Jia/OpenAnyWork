@@ -1,6 +1,6 @@
-import { butlerManager } from "../../butler/manager"
-import type { ButlerExternalSendResult } from "../../types"
-import type { QQButlerEnvelope } from "../../../../packages/openwork-qqbot/src/index.js"
+import { butlerManager } from "../../../../butler/manager"
+import type { ButlerExternalSendResult } from "../../../../types"
+import type { QQButlerEnvelope } from "../protocol/index.js"
 
 export interface QQButlerAdapterResult extends ButlerExternalSendResult {
   replyText: string

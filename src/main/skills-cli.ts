@@ -1,10 +1,21 @@
-import { spawn } from "node:child_process"
+import { spawn, type ChildProcessByStdio } from "node:child_process"
 import { homedir } from "node:os"
+import type { Readable } from "node:stream"
 import type { SkillsCliResult } from "./types"
 import { getAgentUserSkillsRoot, scanAndImportAgentUserSkills } from "./skills"
 
 function getNpxCommand(): string {
   return process.platform === "win32" ? "npx.cmd" : "npx"
+}
+
+function quoteWindowsArg(value: string): string {
+  if (!value.length) {
+    return '""'
+  }
+  if (!/[\s"]/u.test(value)) {
+    return value
+  }
+  return `"${value.replace(/(\\*)"/g, '$1$1\\"').replace(/(\\+)$/g, "$1$1")}"`
 }
 
 function stripAnsi(input: string): string {
@@ -20,15 +31,23 @@ async function runSkillsCli(
   const command = `${getNpxCommand()} ${args.join(" ")}`
 
   const result = await new Promise<SkillsCliResult>((resolve, reject) => {
-    const proc = spawn(getNpxCommand(), args, {
+    const sharedOptions = {
       cwd,
       env: {
         ...process.env,
         FORCE_COLOR: "0",
         NO_COLOR: "1"
       },
-      stdio: ["ignore", "pipe", "pipe"]
-    })
+      stdio: ["ignore", "pipe", "pipe"] as ["ignore", "pipe", "pipe"]
+    }
+    const proc: ChildProcessByStdio<null, Readable, Readable> =
+      process.platform === "win32"
+        ? spawn(
+            process.env.ComSpec || "cmd.exe",
+            ["/d", "/s", "/c", `${getNpxCommand()} ${args.map(quoteWindowsArg).join(" ")}`],
+            sharedOptions
+          )
+        : spawn(getNpxCommand(), args, sharedOptions)
 
     let stdout = ""
     let stderr = ""

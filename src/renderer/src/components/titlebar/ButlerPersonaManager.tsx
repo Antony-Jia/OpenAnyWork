@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
-import { Bot, Check } from "lucide-react"
+import { UserCog, Check } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { cn } from "@/lib/utils"
@@ -110,7 +110,7 @@ export function ButlerPersonaManager(): React.JSX.Element {
         aria-label="Butler Persona"
         onClick={() => setOpen(true)}
       >
-        <Bot className="size-4" />
+        <UserCog className="size-4" />
       </Button>
 
       <DialogContent className="w-[980px] h-[760px] max-w-[94vw] max-h-[92vh] p-0 overflow-hidden">
@@ -137,7 +137,9 @@ export function ButlerPersonaManager(): React.JSX.Element {
             ) : (
               <div className="grid grid-cols-2 gap-4">
                 <label className="space-y-2">
-                  <div className="text-xs uppercase tracking-[0.16em] text-muted-foreground">Name</div>
+                  <div className="text-xs uppercase tracking-[0.16em] text-muted-foreground">
+                    Name
+                  </div>
                   <input
                     className={inputClass}
                     value={form.name}
@@ -145,7 +147,9 @@ export function ButlerPersonaManager(): React.JSX.Element {
                   />
                 </label>
                 <label className="space-y-2">
-                  <div className="text-xs uppercase tracking-[0.16em] text-muted-foreground">Role</div>
+                  <div className="text-xs uppercase tracking-[0.16em] text-muted-foreground">
+                    Role
+                  </div>
                   <input
                     className={inputClass}
                     value={form.role}
@@ -153,7 +157,9 @@ export function ButlerPersonaManager(): React.JSX.Element {
                   />
                 </label>
                 <label className="space-y-2 col-span-2">
-                  <div className="text-xs uppercase tracking-[0.16em] text-muted-foreground">Relationship To User</div>
+                  <div className="text-xs uppercase tracking-[0.16em] text-muted-foreground">
+                    Relationship To User
+                  </div>
                   <input
                     className={inputClass}
                     value={form.relationshipToUser}
@@ -163,7 +169,9 @@ export function ButlerPersonaManager(): React.JSX.Element {
                   />
                 </label>
                 <label className="space-y-2 col-span-2">
-                  <div className="text-xs uppercase tracking-[0.16em] text-muted-foreground">Tone</div>
+                  <div className="text-xs uppercase tracking-[0.16em] text-muted-foreground">
+                    Tone
+                  </div>
                   <input
                     className={inputClass}
                     value={form.tone}
@@ -171,7 +179,9 @@ export function ButlerPersonaManager(): React.JSX.Element {
                   />
                 </label>
                 <label className="space-y-2">
-                  <div className="text-xs uppercase tracking-[0.16em] text-muted-foreground">Comment Style</div>
+                  <div className="text-xs uppercase tracking-[0.16em] text-muted-foreground">
+                    Comment Style
+                  </div>
                   <select
                     className={inputClass}
                     value={form.commentStyle}
@@ -188,14 +198,17 @@ export function ButlerPersonaManager(): React.JSX.Element {
                   </select>
                 </label>
                 <label className="space-y-2">
-                  <div className="text-xs uppercase tracking-[0.16em] text-muted-foreground">Initiative Level</div>
+                  <div className="text-xs uppercase tracking-[0.16em] text-muted-foreground">
+                    Initiative Level
+                  </div>
                   <select
                     className={inputClass}
                     value={form.initiativeLevel}
                     onChange={(event) =>
                       setForm((prev) => ({
                         ...prev,
-                        initiativeLevel: event.target.value as ButlerPersonaSettings["initiativeLevel"]
+                        initiativeLevel: event.target
+                          .value as ButlerPersonaSettings["initiativeLevel"]
                       }))
                     }
                   >
@@ -205,17 +218,24 @@ export function ButlerPersonaManager(): React.JSX.Element {
                   </select>
                 </label>
                 <label className="space-y-2">
-                  <div className="text-xs uppercase tracking-[0.16em] text-muted-foreground">Principles</div>
+                  <div className="text-xs uppercase tracking-[0.16em] text-muted-foreground">
+                    Principles
+                  </div>
                   <textarea
                     className={textareaClass}
                     value={toTextareaValue(form.principles)}
                     onChange={(event) =>
-                      setForm((prev) => ({ ...prev, principles: fromTextareaValue(event.target.value) }))
+                      setForm((prev) => ({
+                        ...prev,
+                        principles: fromTextareaValue(event.target.value)
+                      }))
                     }
                   />
                 </label>
                 <label className="space-y-2">
-                  <div className="text-xs uppercase tracking-[0.16em] text-muted-foreground">Do</div>
+                  <div className="text-xs uppercase tracking-[0.16em] text-muted-foreground">
+                    Do
+                  </div>
                   <textarea
                     className={textareaClass}
                     value={toTextareaValue(form.dos)}
@@ -225,7 +245,9 @@ export function ButlerPersonaManager(): React.JSX.Element {
                   />
                 </label>
                 <label className="space-y-2 col-span-2">
-                  <div className="text-xs uppercase tracking-[0.16em] text-muted-foreground">Don't</div>
+                  <div className="text-xs uppercase tracking-[0.16em] text-muted-foreground">
+                    Don&apos;t
+                  </div>
                   <textarea
                     className={textareaClass}
                     value={toTextareaValue(form.donts)}

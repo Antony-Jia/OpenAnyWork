@@ -321,14 +321,52 @@ export interface SubagentConfig {
   enabled?: boolean
 }
 
+export interface SkillCapabilities {
+  canEdit: boolean
+  canDelete: boolean
+  canCliManage: boolean
+}
+
+export interface SkillTextFile {
+  path: string
+  content?: string
+  editable: boolean
+  isText: boolean
+  size?: number
+}
+
+export interface SkillBundle {
+  id: string
+  name: string
+  description: string
+  rootPath: string
+  mainFilePath: string
+  source?: string
+  sourceType?: "managed" | "agent-user" | "agent-workspace" | "configured-path"
+  files: SkillTextFile[]
+  capabilities: SkillCapabilities
+}
+
+export interface SkillsCliResult {
+  ok: boolean
+  command: string
+  stdout: string
+  stderr: string
+  summary: string
+}
+
 // Skill metadata for management UI
 export interface SkillItem {
+  id: string
   name: string
   description: string
   path: string
+  rootPath: string
+  mainFilePath: string
   source?: string
   sourceType?: "managed" | "agent-user" | "agent-workspace" | "configured-path"
   readOnly?: boolean
+  capabilities: SkillCapabilities
   enabledClassic: boolean
   enabledButler: boolean
   enabled: boolean

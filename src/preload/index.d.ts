@@ -6,7 +6,9 @@ import type {
   StreamEvent,
   HITLDecision,
   SubagentConfig,
+  SkillBundle,
   SkillItem,
+  SkillsCliResult,
   ToolInfo,
   ToolKeyUpdateParams,
   ToolEnableScopeUpdateParams,
@@ -244,7 +246,12 @@ interface CustomAPI {
   skills: {
     list: () => Promise<SkillItem[]>
     scan: () => Promise<SkillItem[]>
-    create: (input: { name: string; description: string; content?: string }) => Promise<SkillItem>
+    create: (input: {
+      name: string
+      description: string
+      content?: string
+      files?: Array<{ path: string; content: string }>
+    }) => Promise<SkillItem>
     install: (input: { path: string }) => Promise<SkillItem>
     delete: (name: string) => Promise<void>
     setEnabled: (input: { name: string; enabled: boolean }) => Promise<SkillItem>
@@ -254,7 +261,20 @@ interface CustomAPI {
       scope: CapabilityScope
     }) => Promise<SkillItem>
     getContent: (name: string) => Promise<string>
+    getBundle: (id: string) => Promise<SkillBundle>
     saveContent: (input: { name: string; content: string }) => Promise<SkillItem>
+    update: (input: {
+      id: string
+      upsert?: Array<{ path: string; content: string }>
+      remove?: string[]
+    }) => Promise<SkillBundle>
+    cliAdd: (input: { source: string; skillNames?: string[] }) => Promise<SkillsCliResult>
+    cliList: () => Promise<SkillsCliResult>
+    cliFind: (input: { query: string }) => Promise<SkillsCliResult>
+    cliRemove: (input: { names: string[] }) => Promise<SkillsCliResult>
+    cliCheck: () => Promise<SkillsCliResult>
+    cliUpdate: () => Promise<SkillsCliResult>
+    cliInit: (input: { name: string }) => Promise<SkillsCliResult>
   }
   tools: {
     list: () => Promise<ToolInfo[]>

@@ -1,5 +1,4 @@
-import { existsSync, mkdirSync, writeFileSync } from "node:fs"
-import { join, resolve } from "node:path"
+import { existsSync } from "node:fs"
 import { HumanMessage, SystemMessage } from "@langchain/core/messages"
 import type { ToolRuntime } from "@langchain/core/tools"
 import { ChatOpenAI } from "@langchain/openai"
@@ -8,7 +7,7 @@ import { z } from "zod"
 import { SqlJsSaver } from "../checkpointer/sqljs-saver"
 import { logEntry, logExit } from "../logging"
 import { getProviderState } from "../provider-config"
-import { createSkill, getSkillsRoot, listAppSkills } from "../skills"
+import { createSkill, listAppSkills } from "../skills"
 import { getThreadCheckpointPath } from "../storage"
 import type { ProviderConfig, ProviderState, SimpleProviderId, ToolDefinition } from "../types"
 
@@ -623,14 +622,11 @@ export const createSkillFromConversationTool = tool(
     const created = createSkill({
       name: finalName,
       description,
-      content: skillMd
+      files: [
+        { path: "SKILL.md", content: skillMd },
+        { path: "references/execution-log.md", content: executionLogContent }
+      ]
     })
-
-    const skillsRoot = getSkillsRoot()
-    const skillDir = resolve(skillsRoot, finalName)
-    const executionLogPath = join(skillDir, "references", "execution-log.md")
-    mkdirSync(resolve(skillDir, "references"), { recursive: true })
-    writeFileSync(executionLogPath, executionLogContent)
 
     const result = {
       ok: true,
@@ -642,7 +638,7 @@ export const createSkillFromConversationTool = tool(
       },
       files: {
         skillMdPath: created.path,
-        executionLogPath: resolve(executionLogPath)
+        executionLogPath: `${created.rootPath}/references/execution-log.md`
       },
       stats: {
         checkpoints: checkpoints.length,

@@ -7,7 +7,9 @@ import type {
   StreamEvent,
   HITLDecision,
   SubagentConfig,
+  SkillBundle,
   SkillItem,
+  SkillsCliResult,
   ToolInfo,
   ToolKeyUpdateParams,
   ToolEnableScopeUpdateParams,
@@ -489,6 +491,7 @@ const api = {
       name: string
       description: string
       content?: string
+      files?: Array<{ path: string; content: string }>
     }): Promise<SkillItem> => {
       return ipcRenderer.invoke("skills:create", input)
     },
@@ -511,8 +514,39 @@ const api = {
     getContent: (name: string): Promise<string> => {
       return ipcRenderer.invoke("skills:getContent", name)
     },
+    getBundle: (id: string): Promise<SkillBundle> => {
+      return ipcRenderer.invoke("skills:getBundle", id)
+    },
     saveContent: (input: { name: string; content: string }): Promise<SkillItem> => {
       return ipcRenderer.invoke("skills:saveContent", input)
+    },
+    update: (input: {
+      id: string
+      upsert?: Array<{ path: string; content: string }>
+      remove?: string[]
+    }): Promise<SkillBundle> => {
+      return ipcRenderer.invoke("skills:update", input)
+    },
+    cliAdd: (input: { source: string; skillNames?: string[] }): Promise<SkillsCliResult> => {
+      return ipcRenderer.invoke("skills:cliAdd", input)
+    },
+    cliList: (): Promise<SkillsCliResult> => {
+      return ipcRenderer.invoke("skills:cliList")
+    },
+    cliFind: (input: { query: string }): Promise<SkillsCliResult> => {
+      return ipcRenderer.invoke("skills:cliFind", input)
+    },
+    cliRemove: (input: { names: string[] }): Promise<SkillsCliResult> => {
+      return ipcRenderer.invoke("skills:cliRemove", input)
+    },
+    cliCheck: (): Promise<SkillsCliResult> => {
+      return ipcRenderer.invoke("skills:cliCheck")
+    },
+    cliUpdate: (): Promise<SkillsCliResult> => {
+      return ipcRenderer.invoke("skills:cliUpdate")
+    },
+    cliInit: (input: { name: string }): Promise<SkillsCliResult> => {
+      return ipcRenderer.invoke("skills:cliInit", input)
     }
   },
   tools: {

@@ -41,30 +41,6 @@ export function registerPluginsIpc(ipcMain: IpcMain): () => void {
     )
   })
 
-  ipcMain.handle("plugins:actionbook:start", async () => {
-    return withSpan("IPC", "plugins:actionbook:start", undefined, async () =>
-      pluginHost.startActionbookBridge()
-    )
-  })
-
-  ipcMain.handle("plugins:actionbook:stop", async () => {
-    return withSpan("IPC", "plugins:actionbook:stop", undefined, async () =>
-      pluginHost.stopActionbookBridge()
-    )
-  })
-
-  ipcMain.handle("plugins:actionbook:status", async () => {
-    return withSpan("IPC", "plugins:actionbook:status", undefined, async () =>
-      pluginHost.runActionbookStatus()
-    )
-  })
-
-  ipcMain.handle("plugins:actionbook:ping", async () => {
-    return withSpan("IPC", "plugins:actionbook:ping", undefined, async () =>
-      pluginHost.runActionbookPing()
-    )
-  })
-
   ipcMain.handle("plugins:knowledgebase:getState", async () => {
     return withSpan("IPC", "plugins:knowledgebase:getState", undefined, async () =>
       pluginHost.getKnowledgebaseState()

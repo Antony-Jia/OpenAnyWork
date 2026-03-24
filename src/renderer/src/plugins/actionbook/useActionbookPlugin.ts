@@ -10,10 +10,6 @@ interface UseActionbookPluginResult {
   reload: () => Promise<void>
   toggleEnabled: (enabled: boolean) => Promise<void>
   refreshChecks: () => Promise<void>
-  startBridge: () => Promise<void>
-  stopBridge: () => Promise<void>
-  runStatus: () => Promise<void>
-  runPing: () => Promise<void>
 }
 
 function toErrorMessage(error: unknown, fallback = "Unknown error"): string {
@@ -107,34 +103,6 @@ export function useActionbookPlugin(): UseActionbookPluginResult {
     )
   }, [runAction])
 
-  const startBridge = useCallback(async () => {
-    await runAction(
-      "start",
-      async () => window.api.plugins.actionbookStart() as Promise<ActionbookRuntimeState>
-    )
-  }, [runAction])
-
-  const stopBridge = useCallback(async () => {
-    await runAction(
-      "stop",
-      async () => window.api.plugins.actionbookStop() as Promise<ActionbookRuntimeState>
-    )
-  }, [runAction])
-
-  const runStatus = useCallback(async () => {
-    await runAction(
-      "status",
-      async () => window.api.plugins.actionbookStatus() as Promise<ActionbookRuntimeState>
-    )
-  }, [runAction])
-
-  const runPing = useCallback(async () => {
-    await runAction(
-      "ping",
-      async () => window.api.plugins.actionbookPing() as Promise<ActionbookRuntimeState>
-    )
-  }, [runAction])
-
   return {
     plugin,
     runtime,
@@ -143,10 +111,6 @@ export function useActionbookPlugin(): UseActionbookPluginResult {
     error,
     reload,
     toggleEnabled,
-    refreshChecks,
-    startBridge,
-    stopBridge,
-    runStatus,
-    runPing
+    refreshChecks
   }
 }

@@ -632,18 +632,6 @@ const api = {
     actionbookRefreshChecks: (): Promise<ActionbookRuntimeState> => {
       return ipcRenderer.invoke("plugins:actionbook:refreshChecks")
     },
-    actionbookStart: (): Promise<ActionbookRuntimeState> => {
-      return ipcRenderer.invoke("plugins:actionbook:start")
-    },
-    actionbookStop: (): Promise<ActionbookRuntimeState> => {
-      return ipcRenderer.invoke("plugins:actionbook:stop")
-    },
-    actionbookStatus: (): Promise<ActionbookRuntimeState> => {
-      return ipcRenderer.invoke("plugins:actionbook:status")
-    },
-    actionbookPing: (): Promise<ActionbookRuntimeState> => {
-      return ipcRenderer.invoke("plugins:actionbook:ping")
-    },
     onActionbookEvent: (callback: (event: ActionbookEvent) => void): (() => void) => {
       const handler = (_: unknown, event: ActionbookEvent): void => callback(event)
       ipcRenderer.on("plugins:actionbook:event", handler)

@@ -325,10 +325,6 @@ interface CustomAPI {
     setEnabled: (input: PluginEnableUpdateParams) => Promise<PresetPluginItem>
     actionbookGetState: () => Promise<ActionbookRuntimeState>
     actionbookRefreshChecks: () => Promise<ActionbookRuntimeState>
-    actionbookStart: () => Promise<ActionbookRuntimeState>
-    actionbookStop: () => Promise<ActionbookRuntimeState>
-    actionbookStatus: () => Promise<ActionbookRuntimeState>
-    actionbookPing: () => Promise<ActionbookRuntimeState>
     onActionbookEvent: (callback: (event: ActionbookEvent) => void) => () => void
     knowledgebaseGetState: () => Promise<KnowledgebaseRuntimeState>
     knowledgebaseUpdateConfig: (

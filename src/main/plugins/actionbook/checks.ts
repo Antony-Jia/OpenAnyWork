@@ -11,11 +11,7 @@ import type {
   ActionbookPrereqStatus,
   ActionbookSkillCheck
 } from "../core/contracts"
-import {
-  parseActionbookPingLine,
-  parseActionbookStatusLine,
-  sanitizeActionbookOutput
-} from "./parser"
+import { sanitizeActionbookOutput } from "./parser"
 
 export function getActionbookExecutable(): string {
   return "actionbook"
@@ -178,14 +174,14 @@ function resolveActionbookExtensionPath(rawOutput: string): string | null {
   return line
 }
 
-export async function checkActionbookExtension(port: number): Promise<ActionbookExtensionCheck> {
+export async function checkActionbookExtension(): Promise<ActionbookExtensionCheck> {
   const pathResult = await runActionbookCommand(["extension", "path"])
   if (!pathResult.ok) {
     return {
       ok: false,
-      message: pathResult.message || "Failed to detect Actionbook extension path.",
-      bridgeRunning: false,
-      extensionConnected: false
+      message:
+        pathResult.message ||
+        "Actionbook extension not detected. Run `actionbook setup` if you need Extension mode."
     }
   }
 
@@ -193,9 +189,7 @@ export async function checkActionbookExtension(port: number): Promise<Actionbook
   if (!extensionPath) {
     return {
       ok: false,
-      message: "Actionbook extension path output is empty.",
-      bridgeRunning: false,
-      extensionConnected: false
+      message: "Actionbook extension path output is empty."
     }
   }
 
@@ -204,75 +198,26 @@ export async function checkActionbookExtension(port: number): Promise<Actionbook
     return {
       ok: false,
       message: "Extension folder found, but manifest.json is missing.",
-      path: extensionPath,
-      bridgeRunning: false,
-      extensionConnected: false
+      path: extensionPath
     }
   }
-
-  const statusResult = await runActionbookCommand(["extension", "status", "--port", String(port)])
-  const statusInfo = parseActionbookStatusLine(statusResult.output)
-
-  const pingResult = await runActionbookCommand(["extension", "ping", "--port", String(port)])
-  const pingInfo = parseActionbookPingLine(pingResult.output)
 
   return {
     ok: true,
-    message: "Actionbook extension files detected.",
+    message: "Actionbook extension detected. Use it only when you need your existing Chrome session.",
     path: extensionPath,
-    version: resolveActionbookExtensionVersion(manifestPath),
-    bridgeRunning: statusInfo.bridgeRunning,
-    extensionConnected: pingInfo.connected,
-    statusMessage: statusInfo.message,
-    pingMessage: pingInfo.message
+    version: resolveActionbookExtensionVersion(manifestPath)
   }
 }
 
-export function getActionbookTokenFileCandidates(): string[] {
-  const localAppData = process.env["LOCALAPPDATA"]
-  const xdgDataHome = process.env["XDG_DATA_HOME"]
-  const candidates: string[] = []
-
-  if (localAppData) {
-    candidates.push(join(localAppData, "actionbook", "bridge-token"))
-  }
-  if (xdgDataHome) {
-    candidates.push(join(xdgDataHome, "actionbook", "bridge-token"))
-  }
-  candidates.push(join(homedir(), ".local", "share", "actionbook", "bridge-token"))
-  candidates.push(join(homedir(), "Library", "Application Support", "actionbook", "bridge-token"))
-
-  return candidates
-}
-
-export function readActionbookTokenFromFile(): {
-  token: string
-  path: string
-} | null {
-  for (const tokenPath of getActionbookTokenFileCandidates()) {
-    if (!existsSync(tokenPath)) continue
-    try {
-      const token = readFileSync(tokenPath, "utf-8").trim()
-      if (token) {
-        return { token, path: tokenPath }
-      }
-    } catch {
-      // ignore and continue
-    }
-  }
-  return null
-}
-
-export async function checkActionbookPrerequisites(port: number): Promise<ActionbookPrereqStatus> {
+export async function checkActionbookPrerequisites(): Promise<ActionbookPrereqStatus> {
   const cli = await checkActionbookCli()
   const skill = checkActionbookSkill()
   const extension = cli.ok
-    ? await checkActionbookExtension(port)
+    ? await checkActionbookExtension()
     : {
         ok: false,
-        message: "Actionbook CLI missing. Extension checks skipped.",
-        bridgeRunning: false,
-        extensionConnected: false
+        message: "Actionbook CLI missing. Extension checks skipped."
       }
 
   return {

@@ -24,10 +24,6 @@ export interface ActionbookExtensionCheck {
   message: string
   path?: string
   version?: string
-  bridgeRunning: boolean
-  extensionConnected: boolean
-  statusMessage?: string
-  pingMessage?: string
 }
 
 export interface ActionbookPrereqStatus {
@@ -37,54 +33,9 @@ export interface ActionbookPrereqStatus {
   extension: ActionbookExtensionCheck
 }
 
-export type ActionbookTokenSource = "log" | "file" | null
-export type ActionbookLogSource = "stdout" | "stderr" | "system"
-
-export interface ActionbookLogEntry {
-  id: string
-  at: string
-  source: ActionbookLogSource
-  line: string
-}
-
-export type ActionbookMilestoneType =
-  | "bridge_started"
-  | "bridge_waiting_extension"
-  | "bridge_stopped"
-  | "bridge_exited"
-  | "token_found"
-  | "token_file_found"
-  | "status_ok"
-  | "status_fail"
-  | "ping_ok"
-  | "ping_fail"
-  | "error"
-
-export interface ActionbookMilestone {
-  id: string
-  at: string
-  type: ActionbookMilestoneType
-  ok: boolean
-  message: string
-}
-
-export interface ActionbookBridgeState {
-  running: boolean
-  managed: boolean
-  port: number
-  pid?: number
-}
-
 export interface ActionbookRuntimeState {
   enabled: boolean
-  bridge: ActionbookBridgeState
-  token: string | null
-  tokenSource: ActionbookTokenSource
   checks: ActionbookPrereqStatus
-  milestones: ActionbookMilestone[]
-  logs: ActionbookLogEntry[]
-  lastStatusMessage?: string | null
-  lastPingMessage?: string | null
   lastError?: string | null
 }
 

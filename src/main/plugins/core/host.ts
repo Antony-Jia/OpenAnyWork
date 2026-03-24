@@ -173,26 +173,6 @@ export class PluginHost {
     return this.actionbook.refreshChecks()
   }
 
-  async startActionbookBridge(): Promise<ActionbookRuntimeState> {
-    await this.hydrateFromSettings()
-    return this.actionbook.startBridge()
-  }
-
-  async stopActionbookBridge(): Promise<ActionbookRuntimeState> {
-    await this.hydrateFromSettings()
-    return this.actionbook.stopBridge()
-  }
-
-  async runActionbookStatus(): Promise<ActionbookRuntimeState> {
-    await this.hydrateFromSettings()
-    return this.actionbook.runStatusCheck()
-  }
-
-  async runActionbookPing(): Promise<ActionbookRuntimeState> {
-    await this.hydrateFromSettings()
-    return this.actionbook.runPingCheck()
-  }
-
   async getKnowledgebaseState(): Promise<KnowledgebaseRuntimeState> {
     await this.hydrateFromSettings()
     return this.knowledgebase.getState()

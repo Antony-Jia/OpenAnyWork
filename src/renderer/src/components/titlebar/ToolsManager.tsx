@@ -6,7 +6,13 @@ import { Input } from "@/components/ui/input"
 import { cn } from "@/lib/utils"
 import { useLanguage } from "@/lib/i18n"
 import type { CapabilityScope, ToolInfo } from "@/types"
-import type { PresetPluginItem } from "@/plugins/types"
+
+interface ToolPluginItem {
+  id: string
+  name: string
+  description: string
+  enabled: boolean
+}
 
 function isToolEnabledInScope(tool: ToolInfo, scope: CapabilityScope): boolean {
   return scope === "butler"
@@ -18,7 +24,7 @@ export function ToolsManager(): React.JSX.Element {
   const [open, setOpen] = useState(false)
   const [activeTab, setActiveTab] = useState<"native" | "plugin">("native")
   const [tools, setTools] = useState<ToolInfo[]>([])
-  const [plugins, setPlugins] = useState<PresetPluginItem[]>([])
+  const [plugins, setPlugins] = useState<ToolPluginItem[]>([])
   const [pluginGroupsExpanded, setPluginGroupsExpanded] = useState<Record<string, boolean>>({})
   const [keyInputs, setKeyInputs] = useState<Record<string, string>>({})
   const [showKeys, setShowKeys] = useState<Record<string, boolean>>({})

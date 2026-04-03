@@ -1,5 +1,5 @@
 import { resolve } from "path"
-import { readFileSync, copyFileSync, existsSync, mkdirSync } from "fs"
+import { readFileSync, cpSync, existsSync } from "fs"
 import { defineConfig } from "electron-vite"
 import react from "@vitejs/plugin-react"
 import tailwindcss from "@tailwindcss/vite"
@@ -11,15 +11,11 @@ function copyResources(): { name: string; closeBundle: () => void } {
   return {
     name: "copy-resources",
     closeBundle(): void {
-      const srcIcon = resolve("resources/icon.png")
+      const srcDir = resolve("resources")
       const destDir = resolve("out/resources")
-      const destIcon = resolve("out/resources/icon.png")
 
-      if (existsSync(srcIcon)) {
-        if (!existsSync(destDir)) {
-          mkdirSync(destDir, { recursive: true })
-        }
-        copyFileSync(srcIcon, destIcon)
+      if (existsSync(srcDir)) {
+        cpSync(srcDir, destDir, { recursive: true })
       }
     }
   }

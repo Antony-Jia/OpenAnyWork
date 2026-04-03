@@ -89,6 +89,15 @@ let finalizeQuitDone = false
 // Simple dev check - replaces @electron-toolkit/utils is.dev
 const isDev = !app.isPackaged
 
+function getAppIconPath(): string {
+  return join(__dirname, "../../resources/icon.png")
+}
+
+function loadAppIcon() {
+  const icon = nativeImage.createFromPath(getAppIconPath())
+  return icon.isEmpty() ? nativeImage.createEmpty() : icon
+}
+
 function createWindow(): void {
   mainWindow = new BrowserWindow({
     width: 1920,
@@ -99,6 +108,7 @@ function createWindow(): void {
     frame: false, // Frameless mode
     transparent: true, // Enable transparency for rounded corners
     backgroundColor: "#00000000",
+    icon: getAppIconPath(),
     // titleBarStyle: "hiddenInset", // Removed for custom controls
     trafficLightPosition: { x: 16, y: 16 },
     webPreferences: {
@@ -221,6 +231,7 @@ function createQuickInputWindow(): void {
     skipTaskbar: true,
     transparent: true,
     backgroundColor: "#00000000",
+    icon: getAppIconPath(),
     webPreferences: {
       preload: join(__dirname, "../preload/index.js"),
       sandbox: false
@@ -289,13 +300,7 @@ function updateTrayMenu(): void {
 }
 
 function createTray(): void {
-  const iconPath = join(__dirname, "../../resources/icon.png")
-  let icon = nativeImage.createFromPath(iconPath)
-  if (icon.isEmpty()) {
-    icon = nativeImage.createEmpty()
-  }
-
-  tray = new Tray(icon)
+  tray = new Tray(loadAppIcon())
   tray.setToolTip("Openwork")
   tray.on("click", () => {
     if (!mainWindow) return
@@ -317,9 +322,8 @@ app.whenReady().then(async () => {
 
   // Set dock icon on macOS
   if (process.platform === "darwin" && app.dock) {
-    const iconPath = join(__dirname, "../../resources/icon.png")
     try {
-      const icon = nativeImage.createFromPath(iconPath)
+      const icon = loadAppIcon()
       if (!icon.isEmpty()) {
         app.dock.setIcon(icon)
       }

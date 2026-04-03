@@ -7,6 +7,8 @@
 [license-badge]: https://img.shields.io/badge/License-MIT-yellow.svg
 [license-url]: https://opensource.org/licenses/MIT
 
+> This project is a fork of [langchain-ai/openwork](https://github.com/langchain-ai/openwork). The original repository is no longer actively maintained, and this fork is being kept up to date with ongoing maintenance.
+
 OpenAnyWork is a desktop workbench for Deep Agents: not just chat, but enabling agents to invoke tools, execute tasks, and orchestrate workflows within local workspaces.
 
 > [!CAUTION]

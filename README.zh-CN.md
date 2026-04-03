@@ -7,6 +7,8 @@
 [license-badge]: https://img.shields.io/badge/License-MIT-yellow.svg
 [license-url]: https://opensource.org/licenses/MIT
 
+> 本项目是 [langchain-ai/openwork](https://github.com/langchain-ai/openwork) 的 fork。原仓库已经不再持续更新，这个 fork 会继续维护并保持更新。
+
 OpenAnyWork 是一个面向 Deep Agent 的桌面工作台：不只是聊天，而是让 Agent 在本地工作区里调用工具、执行任务、持续编排。
 
 > [!CAUTION]

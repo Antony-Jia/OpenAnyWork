@@ -51,7 +51,7 @@
   "build": {
     "appId": "com.langchain.openwork",
     "productName": "OpenWork",
-    "afterAllArtifactBuild": "./scripts/after-all-artifact-build.mjs",
+    "afterPack": "./scripts/after-pack.mjs",
     "directories": {
       "output": "dist"
     },

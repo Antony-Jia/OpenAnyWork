@@ -369,7 +369,7 @@ export interface CreateAgentRuntimeOptions {
 // Create agent runtime with configured model and checkpointer
 export type AgentRuntime = ReturnType<typeof createDeepAgent>
 
-export async function createAgentRuntime(options: CreateAgentRuntimeOptions) {
+export async function createAgentRuntime(options: CreateAgentRuntimeOptions): Promise<AgentRuntime> {
   const {
     threadId,
     threadMode,

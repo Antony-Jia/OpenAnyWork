@@ -4,7 +4,7 @@
 
 | Version | Supported          |
 | ------- | ------------------ |
-| 0.x.x   | :white_check_mark: |
+| 0.5.0   | :white_check_mark: |
 
 ## Reporting a Vulnerability
 
@@ -13,8 +13,6 @@ We take security vulnerabilities seriously. If you discover a security issue, pl
 ### How to Report
 
 **Please do not report security vulnerabilities through public GitHub issues.**
-
-Instead, please report them via email to: **security@langchain.dev**
 
 Include the following information in your report:
 

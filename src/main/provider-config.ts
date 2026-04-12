@@ -1,5 +1,9 @@
 import type { ProviderConfig, ProviderState, SimpleProviderId } from "./types"
 import { getDb, markDbDirty } from "./db"
+import {
+  inferOpenAICompatibleImplementationFromUrl,
+  normalizeOpenAICompatibleReasoning
+} from "../shared/openai-compatible"
 
 function isSimpleProviderId(value: unknown): value is SimpleProviderId {
   return value === "ollama" || value === "openai-compatible" || value === "multimodal"
@@ -17,7 +21,7 @@ function normalizeProviderState(value: unknown): ProviderState | null {
     return { active, configs: configs as ProviderState["configs"] }
   }
   if ("type" in record && typeof record.type === "string") {
-    const legacy = record as unknown as ProviderConfig
+    const legacy = normalizeProviderConfig(record as unknown as ProviderConfig)
     if (!isSimpleProviderId(legacy.type)) return null
     return {
       active: legacy.type,
@@ -25,6 +29,20 @@ function normalizeProviderState(value: unknown): ProviderState | null {
     }
   }
   return null
+}
+
+function normalizeProviderConfig(config: ProviderConfig): ProviderConfig {
+  if (config.type !== "openai-compatible") {
+    return config
+  }
+
+  const implementation =
+    config.implementation ?? inferOpenAICompatibleImplementationFromUrl(config.url)
+  return {
+    ...config,
+    implementation,
+    reasoning: normalizeOpenAICompatibleReasoning(config.reasoning, implementation)
+  }
 }
 
 export function getProviderState(): ProviderState | null {
@@ -39,7 +57,17 @@ export function getProviderState(): ProviderState | null {
   stmt.free()
   try {
     const parsed = JSON.parse(row.data ?? "")
-    return normalizeProviderState(parsed)
+    const normalized = normalizeProviderState(parsed)
+    if (!normalized) return null
+    return {
+      ...normalized,
+      configs: Object.fromEntries(
+        Object.entries(normalized.configs).map(([key, config]) => [
+          key,
+          config ? normalizeProviderConfig(config) : config
+        ])
+      ) as ProviderState["configs"]
+    }
   } catch {
     return null
   }

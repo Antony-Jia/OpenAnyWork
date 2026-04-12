@@ -1,5 +1,4 @@
 import { HumanMessage, SystemMessage, ToolMessage } from "@langchain/core/messages"
-import { ChatOpenAI } from "@langchain/openai"
 import { createDeepAgent } from "deepagents"
 import { createMiddleware } from "langchain"
 import { LocalSandbox } from "../agent/local-sandbox"
@@ -7,8 +6,9 @@ import { getProviderState } from "../provider-config"
 import { getCheckpointer } from "../agent/runtime"
 import { getSettings } from "../settings"
 import { getOpenworkDir } from "../storage"
-import { getProxyAgents } from "../proxy-config"
 import type { ProviderConfig, ProviderState, SimpleProviderId } from "../types"
+import { createChatModelFromProviderConfig } from "../model-factory"
+import { stripReasoningBlocks } from "../../shared/reasoning"
 import {
   buildButlerDirectReplySystemPrompt,
   buildButlerDirectReplyUserPrompt,
@@ -56,7 +56,10 @@ export interface ButlerDirectReplyTurnResult {
 export interface ButlerPerceptionTurnInput {
   threadId: string
   perception: ButlerPerceptionInput
-  promptContext: Pick<ButlerPromptContext, "personaProfile" | "workingMemoryText" | "memoryRecallText">
+  promptContext: Pick<
+    ButlerPromptContext,
+    "personaProfile" | "workingMemoryText" | "memoryRecallText"
+  >
 }
 
 export interface ButlerPerceptionTurnResult {
@@ -70,7 +73,10 @@ export interface ButlerDigestTurnInput {
     windowEnd: string
     tasks: ButlerDigestTaskCard[]
   }
-  promptContext: Pick<ButlerPromptContext, "personaProfile" | "workingMemoryText" | "memoryRecallText">
+  promptContext: Pick<
+    ButlerPromptContext,
+    "personaProfile" | "workingMemoryText" | "memoryRecallText"
+  >
 }
 
 export interface ButlerDigestTurnResult {
@@ -80,7 +86,10 @@ export interface ButlerDigestTurnResult {
 export interface ButlerTaskCommentTurnInput {
   threadId: string
   notice: TaskCompletionNotice | TaskLifecycleNotice
-  promptContext: Pick<ButlerPromptContext, "personaProfile" | "workingMemoryText" | "memoryRecallText">
+  promptContext: Pick<
+    ButlerPromptContext,
+    "personaProfile" | "workingMemoryText" | "memoryRecallText"
+  >
 }
 
 export interface ButlerTaskCommentTurnResult {
@@ -215,36 +224,13 @@ function resolveProviderConfig(state: ProviderState, providerId: SimpleProviderI
   return config
 }
 
-function getModelInstance(): ChatOpenAI {
+function getModelInstance() {
   const state = requireProviderState()
   const config = resolveProviderConfig(state, state.active)
   if (!config.model) {
     throw new Error("Active provider has no model configured.")
   }
-
-  // Get proxy agent if configured
-  const proxyAgents = getProxyAgents()
-
-  if (config.type === "ollama") {
-    const baseURL = config.url.endsWith("/v1") ? config.url : `${config.url}/v1`
-    return new ChatOpenAI({
-      model: config.model,
-      configuration: {
-        baseURL,
-        ...proxyAgents
-      },
-      apiKey: "ollama"
-    })
-  }
-
-  return new ChatOpenAI({
-    model: config.model,
-    apiKey: config.apiKey,
-    configuration: {
-      baseURL: config.url,
-      ...proxyAgents
-    }
-  })
+  return createChatModelFromProviderConfig(config)
 }
 
 async function createButlerRuntime(params: {
@@ -360,9 +346,10 @@ export async function runButlerOrchestratorTurn(
     }
   }
 
-  const rawAssistantText = lastAssistant.trim() || lastValuesAssistant.trim()
+  const rawAssistantText = stripReasoningBlocks(lastAssistant.trim() || lastValuesAssistant.trim())
   const parsed = parseButlerAssistantText(rawAssistantText)
-  const assistantText = parsed.assistantText || (intents.length > 0 ? "已完成任务编排并开始执行。" : "")
+  const assistantText =
+    parsed.assistantText || (intents.length > 0 ? "已完成任务编排并开始执行。" : "")
   if (!assistantText) {
     console.warn("[Butler] Empty assistant text after orchestration.", {
       intents: intents.length,
@@ -386,7 +373,7 @@ export async function runButlerDirectReplyTurn(
   const systemPrompt = buildButlerDirectReplySystemPrompt(getSettings().systemPrompts.butlerPrefix)
   const userPrompt = buildButlerDirectReplyUserPrompt(input.promptContext)
   const result = await model.invoke([new SystemMessage(systemPrompt), new HumanMessage(userPrompt)])
-  const text = extractTextContent(result.content)
+  const text = stripReasoningBlocks(extractTextContent(result.content))
   const parsed = parseButlerAssistantText(text)
   return {
     assistantText: parsed.assistantText,
@@ -425,7 +412,7 @@ export async function runButlerPerceptionTurn(
   })
 
   const result = await model.invoke([new SystemMessage(systemPrompt), new HumanMessage(userPrompt)])
-  const reminderText = extractTextContent(result.content)
+  const reminderText = stripReasoningBlocks(extractTextContent(result.content))
   return {
     reminderText: reminderText || "检测到新的监听事件，请及时处理。"
   }
@@ -446,7 +433,7 @@ export async function runButlerDigestTurn(
   })
 
   const result = await model.invoke([new SystemMessage(systemPrompt), new HumanMessage(userPrompt)])
-  const summaryText = extractTextContent(result.content)
+  const summaryText = stripReasoningBlocks(extractTextContent(result.content))
   return {
     summaryText: summaryText || ""
   }
@@ -464,7 +451,7 @@ export async function runButlerTaskCommentTurn(
     memoryRecallText: input.promptContext.memoryRecallText
   })
   const result = await model.invoke([new SystemMessage(systemPrompt), new HumanMessage(userPrompt)])
-  const commentText = extractTextContent(result.content)
+  const commentText = stripReasoningBlocks(extractTextContent(result.content))
   return {
     commentText: commentText || ""
   }

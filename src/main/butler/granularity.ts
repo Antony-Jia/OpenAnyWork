@@ -1,10 +1,9 @@
 import { HumanMessage, SystemMessage } from "@langchain/core/messages"
-import { ChatOpenAI } from "@langchain/openai"
 import { z } from "zod"
 import { getProviderState } from "../provider-config"
-import { getProxyAgents } from "../proxy-config"
 import type { ProviderConfig, ProviderState, SimpleProviderId } from "../types"
 import type { ButlerDispatchIntent } from "./tools"
+import { createChatModelFromProviderConfig } from "../model-factory"
 
 export type OversplitVerdict = "valid_multi" | "suspected_oversplit"
 
@@ -45,36 +44,13 @@ function resolveProviderConfig(state: ProviderState, providerId: SimpleProviderI
   return config
 }
 
-function getModelInstance(): ChatOpenAI {
+function getModelInstance() {
   const state = requireProviderState()
   const config = resolveProviderConfig(state, state.active)
   if (!config.model) {
     throw new Error("Active provider has no model configured.")
   }
-
-  // Get proxy agent if configured
-  const proxyAgents = getProxyAgents()
-
-  if (config.type === "ollama") {
-    const baseURL = config.url.endsWith("/v1") ? config.url : `${config.url}/v1`
-    return new ChatOpenAI({
-      model: config.model,
-      configuration: {
-        baseURL,
-        ...proxyAgents
-      },
-      apiKey: "ollama"
-    })
-  }
-
-  return new ChatOpenAI({
-    model: config.model,
-    apiKey: config.apiKey,
-    configuration: {
-      baseURL: config.url,
-      ...proxyAgents
-    }
-  })
+  return createChatModelFromProviderConfig(config)
 }
 
 function extractTextContent(content: unknown): string {

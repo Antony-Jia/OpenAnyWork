@@ -241,6 +241,13 @@ export interface ModelConfig {
 
 // New simplified provider configuration types
 export type SimpleProviderId = "ollama" | "openai-compatible" | "multimodal"
+export type {
+  BooleanReasoningConfig,
+  OpenAICompatibleImplementation,
+  OpenAICompatibleReasoningConfig,
+  OpenAINativeReasoningConfig,
+  OpenAIReasoningEffort
+} from "../../shared/openai-compatible"
 
 export interface DockerMount {
   hostPath: string
@@ -286,6 +293,8 @@ export interface OpenAICompatibleConfig {
   url: string // e.g., "https://api.deepseek.com"
   apiKey: string
   model: string // e.g., "deepseek-chat"
+  implementation?: import("../../shared/openai-compatible").OpenAICompatibleImplementation
+  reasoning?: import("../../shared/openai-compatible").OpenAICompatibleReasoningConfig
 }
 
 export interface MultimodalConfig {

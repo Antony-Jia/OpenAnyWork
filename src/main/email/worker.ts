@@ -16,6 +16,7 @@ import {
 } from "./service"
 import { generateTitle } from "../services/title-generator"
 import { emitTaskCompleted, emitTaskStarted } from "../tasks/lifecycle"
+import { stripReasoningBlocks } from "../../shared/reasoning"
 import type { EmailTask } from "./service"
 import type { CapabilityScope } from "../types"
 
@@ -105,9 +106,9 @@ async function runAgentToSummary({
     }
   }
 
-  const summary = lastAssistant.trim()
+  const summary = stripReasoningBlocks(lastAssistant.trim())
   if (summary) return summary
-  return lastAssistantFromValues.trim()
+  return stripReasoningBlocks(lastAssistantFromValues.trim())
 }
 
 async function processStartWorkTask(task: EmailTask, defaultWorkspacePath: string): Promise<void> {

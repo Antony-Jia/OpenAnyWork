@@ -566,6 +566,17 @@ export function ChatContainer({
     return dedupeMessagesById([...threadMessages, ...streamingMsgs])
   }, [expertMessages, ralphMessages, streamData.messages, threadMessages, threadMode])
 
+  const streamingAssistantMessageId = useMemo(() => {
+    if (!isLoading) return null
+    for (let i = displayMessages.length - 1; i >= 0; i -= 1) {
+      const candidate = displayMessages[i]
+      if (candidate.role === "assistant") {
+        return candidate.id
+      }
+    }
+    return null
+  }, [displayMessages, isLoading])
+
   // Build tool results map from tool messages
   const toolResults = useMemo(() => {
     const results = new Map<string, { content: string | unknown; is_error?: boolean }>()
@@ -845,6 +856,7 @@ export function ChatContainer({
               <MessageBubble
                 key={message.id}
                 message={message}
+                isStreaming={streamingAssistantMessageId === message.id}
                 toolResults={toolResults}
                 pendingApproval={pendingApproval}
                 onApprovalDecision={handleApprovalDecision}

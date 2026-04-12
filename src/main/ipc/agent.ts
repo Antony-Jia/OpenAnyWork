@@ -11,6 +11,7 @@ import { ensureDockerRunning, getDockerRuntimeConfig } from "../docker/session"
 import { appendRalphLogEntry } from "../ralph-log"
 import { runAgentStream } from "../agent/run"
 import { extractAssistantChunkText } from "../agent/stream-utils"
+import { stripReasoningBlocks } from "../../shared/reasoning"
 import { runExpertPipeline } from "../expert/runner"
 import { normalizeStoredExpertConfig } from "../expert/config"
 import { ensureRalphPlan, runRalphWorkflow } from "../ralph/workflow"
@@ -559,7 +560,7 @@ export function registerAgentHandlers(ipcMain: IpcMain): void {
       if (!abortController.signal.aborted) {
         emitTaskCompleted({
           threadId,
-          result: lastAssistant.trim() || "Agent resume completed.",
+          result: stripReasoningBlocks(lastAssistant.trim()) || "Agent resume completed.",
           source: "agent"
         })
         window.webContents.send(channel, { type: "done" })
@@ -670,7 +671,8 @@ export function registerAgentHandlers(ipcMain: IpcMain): void {
         if (!abortController.signal.aborted) {
           emitTaskCompleted({
             threadId,
-            result: lastAssistant.trim() || "Agent interrupt approval completed.",
+            result:
+              stripReasoningBlocks(lastAssistant.trim()) || "Agent interrupt approval completed.",
             source: "agent"
           })
           window.webContents.send(channel, { type: "done" })

@@ -5,6 +5,8 @@ import { useLanguage } from "@/lib/i18n"
 import type { Message, HITLRequest } from "@/types"
 import { ToolCallRenderer } from "./ToolCallRenderer"
 import { StreamingMarkdown } from "./StreamingMarkdown"
+import { ThinkingBlock } from "./ThinkingBlock"
+import { parseReasoningSegments, stripReasoningBlocks } from "../../../../shared/reasoning"
 
 interface ToolResultInfo {
   content: string | unknown
@@ -21,11 +23,13 @@ interface MessageBubbleProps {
 }
 
 function extractTextFromContent(content: Message["content"]): string {
-  if (typeof content === "string") return content
-  return content
-    .map((block) => (block.type === "text" && block.text ? block.text : ""))
-    .filter(Boolean)
-    .join("\n")
+  if (typeof content === "string") return stripReasoningBlocks(content)
+  return stripReasoningBlocks(
+    content
+      .map((block) => (block.type === "text" && block.text ? block.text : ""))
+      .filter(Boolean)
+      .join("\n")
+  )
 }
 
 function base64ToUint8Array(base64: string): Uint8Array {
@@ -129,6 +133,52 @@ export function MessageBubble({
   }
 
   const renderContent = (): React.ReactNode => {
+    const renderAssistantText = (text: string, keyPrefix = "msg"): React.ReactNode => {
+      const segments = parseReasoningSegments(text, { isStreaming })
+      if (segments.length === 0) return null
+      const hasThinking = segments.some((segment) => segment.type === "thinking")
+
+      if (!hasThinking) {
+        return (
+          <StreamingMarkdown isStreaming={isStreaming} variant="chat">
+            {text}
+          </StreamingMarkdown>
+        )
+      }
+
+      return (
+        <div className="space-y-2">
+          {segments.map((segment, index) => {
+            if (!segment.text.trim() && segment.type === "text") {
+              return null
+            }
+            if (segment.type === "thinking") {
+              return (
+                <ThinkingBlock
+                  key={`${keyPrefix}-thinking-${index}`}
+                  text={segment.text}
+                  isStreaming={Boolean(isStreaming && segment.open)}
+                />
+              )
+            }
+            const isStreamingText =
+              Boolean(isStreaming) &&
+              index === segments.length - 1 &&
+              segments[segments.length - 1]?.type === "text"
+            return (
+              <StreamingMarkdown
+                key={`${keyPrefix}-text-${index}`}
+                isStreaming={isStreamingText}
+                variant="chat"
+              >
+                {segment.text}
+              </StreamingMarkdown>
+            )
+          })}
+        </div>
+      )
+    }
+
     if (typeof message.content === "string") {
       // Empty content
       if (!message.content.trim()) {
@@ -139,11 +189,7 @@ export function MessageBubble({
       if (isUser) {
         return <div className="whitespace-pre-wrap text-sm">{message.content}</div>
       }
-      return (
-        <StreamingMarkdown isStreaming={isStreaming} variant="chat">
-          {message.content}
-        </StreamingMarkdown>
-      )
+      return renderAssistantText(message.content)
     }
 
     // Handle content blocks
@@ -158,11 +204,7 @@ export function MessageBubble({
               </div>
             )
           }
-          return (
-            <StreamingMarkdown key={index} isStreaming={isStreaming} variant="chat">
-              {block.text}
-            </StreamingMarkdown>
-          )
+          return <div key={index}>{renderAssistantText(block.text, `block-${index}`)}</div>
         }
         if (block.type === "image_url" && block.image_url?.url) {
           return (

@@ -4,6 +4,7 @@ import { HumanMessage, type MessageContent } from "@langchain/core/messages"
 import { createAgentRuntime } from "./runtime"
 import { extractAssistantChunkText } from "./stream-utils"
 import { appendRalphLogEntry } from "../ralph-log"
+import { stripReasoningBlocks } from "../../shared/reasoning"
 import type {
   CapabilityScope,
   ContentBlock,
@@ -300,12 +301,15 @@ export async function runAgentStream({
     })
   }
 
-  if (ralphLog?.enabled && !loggedAnything && lastAssistant.trim()) {
+  const finalAssistantText = stripReasoningBlocks(lastAssistant.trim())
+  const finalValuesText = stripReasoningBlocks(lastValuesAiContent.trim())
+
+  if (ralphLog?.enabled && !loggedAnything && finalAssistantText) {
     appendLog({
       role: "ai",
-      content: lastAssistant.trim()
+      content: finalAssistantText
     })
   }
 
-  return lastAssistant.trim() || lastValuesAiContent.trim()
+  return finalAssistantText || finalValuesText
 }

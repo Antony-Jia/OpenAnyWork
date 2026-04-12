@@ -1,16 +1,15 @@
 import { existsSync } from "node:fs"
 import { HumanMessage, SystemMessage } from "@langchain/core/messages"
 import type { ToolRuntime } from "@langchain/core/tools"
-import { ChatOpenAI } from "@langchain/openai"
 import { tool } from "@langchain/core/tools"
 import { z } from "zod"
 import { SqlJsSaver } from "../checkpointer/sqljs-saver"
 import { logEntry, logExit } from "../logging"
 import { getProviderState } from "../provider-config"
-import { getProxyAgents } from "../proxy-config"
 import { createSkill, listAppSkills } from "../skills"
 import { getThreadCheckpointPath } from "../storage"
 import type { ProviderConfig, ProviderState, SimpleProviderId, ToolDefinition } from "../types"
+import { createChatModelFromProviderConfig } from "../model-factory"
 
 type ProcessEventType = "user" | "assistant" | "tool_call" | "tool_result"
 
@@ -448,7 +447,7 @@ function resolveProviderConfig(state: ProviderState, providerId: SimpleProviderI
   return config
 }
 
-function getModelInstance(): ChatOpenAI {
+function getModelInstance() {
   const state = getProviderState()
   if (!state) {
     throw new Error(
@@ -459,30 +458,7 @@ function getModelInstance(): ChatOpenAI {
   if (!config.model) {
     throw new Error("Active provider has no model configured.")
   }
-
-  // Get proxy agent if configured
-  const proxyAgents = getProxyAgents()
-
-  if (config.type === "ollama") {
-    const baseURL = config.url.endsWith("/v1") ? config.url : `${config.url}/v1`
-    return new ChatOpenAI({
-      model: config.model,
-      configuration: {
-        baseURL,
-        ...proxyAgents
-      },
-      apiKey: "ollama"
-    })
-  }
-
-  return new ChatOpenAI({
-    model: config.model,
-    apiKey: config.apiKey,
-    configuration: {
-      baseURL: config.url,
-      ...proxyAgents
-    }
-  })
+  return createChatModelFromProviderConfig(config)
 }
 
 async function extractSkillDraftByModel(params: {

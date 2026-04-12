@@ -6,7 +6,6 @@ import { toolRetryMiddleware, createMiddleware } from "langchain"
 import { getThreadCheckpointPath } from "../storage"
 import { getProviderState } from "../provider-config"
 import { getSettings } from "../settings"
-import { ChatOpenAI } from "@langchain/openai"
 import { ToolMessage } from "@langchain/core/messages"
 import { SqlJsSaver } from "../checkpointer/sqljs-saver"
 import { LocalSandbox } from "./local-sandbox"
@@ -21,7 +20,6 @@ import {
 import { getRunningMcpToolInstances, listRunningMcpTools } from "../mcp/service"
 import { resolveMiddlewareById } from "../middleware/registry"
 import { createDockerTools } from "../tools/docker-tools"
-import { getProxyAgents } from "../proxy-config"
 import type {
   CapabilityScope,
   ContentBlock,
@@ -33,6 +31,7 @@ import type {
   ThreadMode
 } from "../types"
 import { logEntry, logExit, summarizeList } from "../logging"
+import { createChatModelFromProviderConfig } from "../model-factory"
 
 import type * as _lcTypes from "langchain"
 import type * as _lcMessages from "@langchain/core/messages"
@@ -237,7 +236,7 @@ function getModelInstance(
   providerOverride?: SimpleProviderId,
   modelOverride?: string,
   messageContent?: string | ContentBlock[]
-): ChatOpenAI {
+) {
   const state = requireProviderState()
   const requestedProvider = providerOverride ?? state.active
   const config = resolveProviderConfig(state, requestedProvider)
@@ -257,44 +256,18 @@ function getModelInstance(
     console.log("[Runtime] Detected image content in message")
   }
 
-  // Get proxy agent if configured
-  const proxyAgents = getProxyAgents()
-  if (proxyAgents.httpAgent || proxyAgents.httpsAgent) {
-    console.log("[Runtime] Using proxy for LLM requests")
-  }
-
-  if (config.type === "ollama") {
-    // Ollama uses OpenAI-compatible API at /v1 endpoint
-    const baseURL = config.url.endsWith("/v1") ? config.url : `${config.url}/v1`
-    console.log("[Runtime] Ollama baseURL:", baseURL)
-
-    return new ChatOpenAI({
-      model: effectiveModel,
-      configuration: {
-        baseURL: baseURL,
-        ...proxyAgents
-      },
-      // Ollama doesn't need an API key, but ChatOpenAI requires one
-      // Use a placeholder value
-      apiKey: "ollama"
-    })
-  }
-
-  if (!config.apiKey) {
+  if (config.type !== "ollama" && !config.apiKey) {
     throw new Error(`Provider "${requestedProvider}" is missing an API key.`)
   }
 
-  // OpenAI-compatible / Multimodal provider
-  console.log("[Runtime] OpenAI-compatible baseURL:", config.url)
+  if (config.type === "ollama") {
+    const baseURL = config.url.endsWith("/v1") ? config.url : `${config.url}/v1`
+    console.log("[Runtime] Ollama baseURL:", baseURL)
+  } else {
+    console.log("[Runtime] OpenAI-compatible baseURL:", config.url)
+  }
 
-  return new ChatOpenAI({
-    model: effectiveModel,
-    apiKey: config.apiKey,
-    configuration: {
-      baseURL: config.url,
-      ...proxyAgents
-    }
-  })
+  return createChatModelFromProviderConfig(config, effectiveModel)
 }
 
 // ============================================================================
@@ -378,7 +351,9 @@ export interface CreateAgentRuntimeOptions {
 // Create agent runtime with configured model and checkpointer
 export type AgentRuntime = ReturnType<typeof createDeepAgent>
 
-export async function createAgentRuntime(options: CreateAgentRuntimeOptions): Promise<AgentRuntime> {
+export async function createAgentRuntime(
+  options: CreateAgentRuntimeOptions
+): Promise<AgentRuntime> {
   const {
     threadId,
     threadMode,

@@ -1,6 +1,7 @@
 import { Badge } from "@/components/ui/badge"
 import { StreamingMarkdown } from "@/components/chat/StreamingMarkdown"
 import type { ButlerDigestTaskCard } from "@/types"
+import { stripReasoningBlocks } from "../../../../shared/reasoning"
 
 function toStatusVariant(
   status: ButlerDigestTaskCard["status"]
@@ -47,7 +48,9 @@ export function DigestTaskCards({
           </div>
 
           <div className="mt-2 text-xs text-muted-foreground">
-            <StreamingMarkdown variant="compact">{task.resultBrief || "暂无摘要。"}</StreamingMarkdown>
+            <StreamingMarkdown variant="compact">
+              {stripReasoningBlocks(task.resultBrief || "暂无摘要。")}
+            </StreamingMarkdown>
           </div>
 
           <div className="mt-2 flex items-center justify-end gap-3">

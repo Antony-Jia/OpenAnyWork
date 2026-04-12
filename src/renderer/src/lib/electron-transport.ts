@@ -2,6 +2,10 @@ import type { UseStreamTransport } from "@langchain/langgraph-sdk/react"
 import type { ToolCall, ToolCallChunk } from "@langchain/core/messages"
 import type { StreamPayload, StreamEvent, IPCEvent, IPCStreamEvent } from "../../../types"
 import type { ContentBlock, Subagent } from "../types"
+import {
+  extractReasoningSummaryFromResponseOutput,
+  injectReasoningBlock
+} from "../../../shared/reasoning"
 
 /**
  * Usage metadata from LangChain model responses.
@@ -44,6 +48,7 @@ interface SerializedMessageChunk {
     usage_metadata?: UsageMetadata
     response_metadata?: {
       usage?: UsageMetadata
+      output?: unknown
       [key: string]: unknown
     }
   }
@@ -442,7 +447,7 @@ export class ElectronIPCTransport implements UseStreamTransport {
       const isAIMessage = className.includes("AI") || className.includes("AIMessageChunk")
 
       if (isAIMessage) {
-        const content = this.extractContent(kwargs.content)
+        const content = this.buildDisplayContent(kwargs)
         const msgId = kwargs.id || this.currentMessageId || crypto.randomUUID()
         this.currentMessageId = msgId
 
@@ -623,7 +628,8 @@ export class ElectronIPCTransport implements UseStreamTransport {
 
           // Determine message type from class name
           const type: "ai" | "tool" = className.includes("Tool") ? "tool" : "ai"
-          const content = this.extractContent(kwargs.content)
+          const content =
+            type === "ai" ? this.buildDisplayContent(kwargs) : this.extractContent(kwargs.content)
 
           return {
             id: kwargs.id || crypto.randomUUID(),
@@ -744,6 +750,14 @@ export class ElectronIPCTransport implements UseStreamTransport {
         .join("")
     }
     return ""
+  }
+
+  private buildDisplayContent(kwargs: SerializedMessageChunk["kwargs"]): string {
+    const content = this.extractContent(kwargs?.content)
+    const reasoningSummary = extractReasoningSummaryFromResponseOutput(
+      kwargs?.response_metadata?.output
+    )
+    return injectReasoningBlock(content, reasoningSummary)
   }
 
   /**

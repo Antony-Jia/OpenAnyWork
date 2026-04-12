@@ -1,6 +1,7 @@
 import { onTaskCompleted, type TaskCompletionPayload } from "../tasks/lifecycle"
 import type { TaskCompletionNotice } from "../types"
 import { resolveTaskIdentityFromCompletionPayload } from "./task-identity"
+import { stripReasoningBlocks } from "../../shared/reasoning"
 
 export interface TaskCompletionBusDeps {
   notifyButler: (notice: TaskCompletionNotice) => void
@@ -16,7 +17,7 @@ const TASK_DONE_THROTTLE_MS = 60_000
 const MAX_THROTTLE_ENTRIES = 5000
 
 function compact(text: string, max = 220): string {
-  const cleaned = text.trim().replace(/\s+/g, " ")
+  const cleaned = stripReasoningBlocks(text).trim().replace(/\s+/g, " ")
   if (cleaned.length <= max) return cleaned
   return `${cleaned.slice(0, max - 1)}…`
 }
@@ -37,14 +38,16 @@ function buildThrottleKey(payload: TaskCompletionPayload): string {
 function buildNotice(payload: TaskCompletionPayload, taskIdentity: string): TaskCompletionNotice {
   const id = buildEventId(payload)
   const title = payload.title || "Task Completed"
-  const content = payload.error ? `任务失败: ${payload.error}` : payload.result || "任务已完成。"
+  const cleanError = payload.error ? stripReasoningBlocks(payload.error) : undefined
+  const cleanResult = payload.result ? stripReasoningBlocks(payload.result) : undefined
+  const content = cleanError ? `任务失败: ${cleanError}` : cleanResult || "任务已完成。"
   const resultBrief = compact(content, 260)
   const resultDetail = [
     `任务: ${title}`,
     `模式: ${payload.mode}`,
     `来源: ${payload.source}`,
-    payload.error ? `错误: ${compact(payload.error, 1200)}` : null,
-    payload.result ? `结果: ${compact(payload.result, 2400)}` : null
+    cleanError ? `错误: ${compact(cleanError, 1200)}` : null,
+    cleanResult ? `结果: ${compact(cleanResult, 2400)}` : null
   ]
     .filter((line): line is string => !!line)
     .join("\n")

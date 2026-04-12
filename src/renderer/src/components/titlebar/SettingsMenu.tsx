@@ -13,11 +13,18 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { cn } from "@/lib/utils"
 import type {
   AppSettings,
+  OpenAICompatibleImplementation,
+  OpenAIReasoningEffort,
   ProviderConfig,
   ProviderState,
   ProxyMode,
   SimpleProviderId
 } from "@/types"
+import {
+  getDefaultOpenAICompatibleUrl,
+  inferOpenAICompatibleImplementationFromUrl,
+  isDefaultOpenAICompatibleUrl
+} from "../../../../shared/openai-compatible"
 
 interface SettingsMenuProps {
   threadId: string | null
@@ -38,6 +45,11 @@ export function SettingsMenu(_props: SettingsMenuProps): React.JSX.Element {
   const [openaiUrl, setOpenaiUrl] = useState("https://api.openai.com/v1")
   const [openaiKey, setOpenaiKey] = useState("")
   const [openaiModel, setOpenaiModel] = useState("")
+  const [openaiImplementation, setOpenaiImplementation] =
+    useState<OpenAICompatibleImplementation>("openai-native")
+  const [openaiReasoningEnabled, setOpenaiReasoningEnabled] = useState(false)
+  const [openaiReasoningEffort, setOpenaiReasoningEffort] =
+    useState<OpenAIReasoningEffort>("medium")
   const [multimodalUrl, setMultimodalUrl] = useState("https://api.openai.com/v1")
   const [multimodalKey, setMultimodalKey] = useState("")
   const [multimodalModel, setMultimodalModel] = useState("")
@@ -100,9 +112,21 @@ export function SettingsMenu(_props: SettingsMenuProps): React.JSX.Element {
           }
           const openaiConfig = state.configs["openai-compatible"] as ProviderConfig | undefined
           if (openaiConfig && openaiConfig.type === "openai-compatible") {
+            const implementation =
+              openaiConfig.implementation ??
+              inferOpenAICompatibleImplementationFromUrl(openaiConfig.url)
             setOpenaiUrl(openaiConfig.url)
             setOpenaiKey(openaiConfig.apiKey)
             setOpenaiModel(openaiConfig.model)
+            setOpenaiImplementation(implementation)
+            setOpenaiReasoningEnabled(openaiConfig.reasoning?.enabled === true)
+            setOpenaiReasoningEffort(
+              implementation === "openai-native" &&
+                openaiConfig.reasoning &&
+                "effort" in openaiConfig.reasoning
+                ? openaiConfig.reasoning.effort
+                : "medium"
+            )
           }
           const multimodalConfig = state.configs.multimodal as ProviderConfig | undefined
           if (multimodalConfig && multimodalConfig.type === "multimodal") {
@@ -181,6 +205,24 @@ export function SettingsMenu(_props: SettingsMenuProps): React.JSX.Element {
     setButlerAvatarDataUrl("")
   }, [])
 
+  const handleOpenAIImplementationChange = useCallback(
+    (nextImplementation: OpenAICompatibleImplementation) => {
+      setOpenaiImplementation((currentImplementation) => {
+        const trimmedUrl = openaiUrl.trim()
+        const shouldReplaceUrl =
+          !trimmedUrl || isDefaultOpenAICompatibleUrl(trimmedUrl, currentImplementation)
+        if (shouldReplaceUrl) {
+          setOpenaiUrl(getDefaultOpenAICompatibleUrl(nextImplementation))
+        }
+        return nextImplementation
+      })
+      if (nextImplementation !== "openai-native") {
+        setOpenaiReasoningEffort("medium")
+      }
+    },
+    [openaiUrl]
+  )
+
   const handleSaveSettings = useCallback(async () => {
     const iterationsValue = Number.parseInt(ralphIterations, 10)
     const smtpPortValue = Number.parseInt(smtpPort, 10)
@@ -209,7 +251,18 @@ export function SettingsMenu(_props: SettingsMenuProps): React.JSX.Element {
           type: "openai-compatible",
           url: trimmedOpenaiUrl,
           apiKey: openaiKey.trim(),
-          model: trimmedOpenaiModel
+          model: trimmedOpenaiModel,
+          implementation: openaiImplementation,
+          reasoning:
+            openaiImplementation === "openai-native"
+              ? {
+                  enabled: openaiReasoningEnabled,
+                  effort: openaiReasoningEffort,
+                  summary: "auto"
+                }
+              : {
+                  enabled: openaiReasoningEnabled
+                }
         }
       }
       const trimmedMultimodalUrl = multimodalUrl.trim()
@@ -312,6 +365,9 @@ export function SettingsMenu(_props: SettingsMenuProps): React.JSX.Element {
     openaiUrl,
     openaiKey,
     openaiModel,
+    openaiImplementation,
+    openaiReasoningEnabled,
+    openaiReasoningEffort,
     multimodalUrl,
     multimodalKey,
     multimodalModel,
@@ -348,6 +404,25 @@ export function SettingsMenu(_props: SettingsMenuProps): React.JSX.Element {
     qqAppId,
     qqClientSecret
   ])
+
+  const openaiUrlPlaceholder =
+    openaiImplementation === "ark"
+      ? t("provider.url_placeholder_ark")
+      : openaiImplementation === "openrouter"
+        ? t("provider.url_placeholder_openrouter")
+        : t("provider.url_placeholder_openai_native")
+  const openaiModelPlaceholder =
+    openaiImplementation === "ark"
+      ? t("provider.model_placeholder_ark")
+      : openaiImplementation === "openrouter"
+        ? t("provider.model_placeholder_openrouter")
+        : t("provider.model_placeholder_openai_native")
+  const openaiApiKeyHint =
+    openaiImplementation === "ark"
+      ? t("provider.api_key_hint_ark")
+      : openaiImplementation === "openrouter"
+        ? t("provider.api_key_hint_openrouter")
+        : t("provider.api_key_hint_openai_native")
 
   const handleSelectDefaultWorkspace = useCallback(async () => {
     try {
@@ -718,13 +793,35 @@ export function SettingsMenu(_props: SettingsMenuProps): React.JSX.Element {
                       <div className="space-y-2">
                         <div>
                           <label className="text-[10px] text-muted-foreground block mb-1">
+                            {t("provider.implementation")}
+                          </label>
+                          <select
+                            value={openaiImplementation}
+                            onChange={(e) =>
+                              handleOpenAIImplementationChange(
+                                e.target.value as OpenAICompatibleImplementation
+                              )
+                            }
+                            className="w-full h-8 px-2.5 text-[13px] bg-muted/50 border border-border rounded-md focus:outline-none focus:ring-1 focus:ring-ring"
+                          >
+                            <option value="openai-native">
+                              {t("provider.implementation.openai_native")}
+                            </option>
+                            <option value="ark">{t("provider.implementation.ark")}</option>
+                            <option value="openrouter">
+                              {t("provider.implementation.openrouter")}
+                            </option>
+                          </select>
+                        </div>
+                        <div>
+                          <label className="text-[10px] text-muted-foreground block mb-1">
                             {t("provider.url")}
                           </label>
                           <input
                             type="text"
                             value={openaiUrl}
                             onChange={(e) => setOpenaiUrl(e.target.value)}
-                            placeholder={t("provider.url_placeholder_openai")}
+                            placeholder={openaiUrlPlaceholder}
                             className="w-full h-8 px-2.5 text-[13px] bg-muted/50 border border-border rounded-md focus:outline-none focus:ring-1 focus:ring-ring"
                           />
                         </div>
@@ -739,6 +836,9 @@ export function SettingsMenu(_props: SettingsMenuProps): React.JSX.Element {
                             placeholder={t("provider.key_placeholder")}
                             className="w-full h-8 px-2.5 text-[13px] bg-muted/50 border border-border rounded-md focus:outline-none focus:ring-1 focus:ring-ring"
                           />
+                          <div className="mt-1 text-[10px] text-muted-foreground/70">
+                            {openaiApiKeyHint}
+                          </div>
                         </div>
                         <div>
                           <label className="text-[10px] text-muted-foreground block mb-1">
@@ -748,10 +848,38 @@ export function SettingsMenu(_props: SettingsMenuProps): React.JSX.Element {
                             type="text"
                             value={openaiModel}
                             onChange={(e) => setOpenaiModel(e.target.value)}
-                            placeholder={t("provider.model_placeholder_openai")}
+                            placeholder={openaiModelPlaceholder}
                             className="w-full h-8 px-2.5 text-[13px] bg-muted/50 border border-border rounded-md focus:outline-none focus:ring-1 focus:ring-ring"
                           />
                         </div>
+                        <label className="flex items-center gap-2 text-xs text-muted-foreground">
+                          <input
+                            type="checkbox"
+                            checked={openaiReasoningEnabled}
+                            onChange={(e) => setOpenaiReasoningEnabled(e.target.checked)}
+                          />
+                          {t("provider.reasoning_enabled")}
+                        </label>
+                        {openaiImplementation === "openai-native" && openaiReasoningEnabled && (
+                          <div>
+                            <label className="text-[10px] text-muted-foreground block mb-1">
+                              {t("provider.reasoning_effort")}
+                            </label>
+                            <select
+                              value={openaiReasoningEffort}
+                              onChange={(e) =>
+                                setOpenaiReasoningEffort(e.target.value as OpenAIReasoningEffort)
+                              }
+                              className="w-full h-8 px-2.5 text-[13px] bg-muted/50 border border-border rounded-md focus:outline-none focus:ring-1 focus:ring-ring"
+                            >
+                              <option value="low">{t("provider.reasoning_effort.low")}</option>
+                              <option value="medium">
+                                {t("provider.reasoning_effort.medium")}
+                              </option>
+                              <option value="high">{t("provider.reasoning_effort.high")}</option>
+                            </select>
+                          </div>
+                        )}
                       </div>
                     </CardContent>
                   </Card>

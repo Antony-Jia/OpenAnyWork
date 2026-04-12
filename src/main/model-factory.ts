@@ -34,6 +34,9 @@ export function createChatModelFromProviderConfig(
     configuration: {
       baseURL: config.url.trim(),
       ...proxyAgents
+    },
+    extra_body: {
+      think: true
     }
   }
 

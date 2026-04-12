@@ -6,7 +6,8 @@
     "src/renderer/src/**/*.tsx",
     "src/preload/*.d.ts",
     "src/types.ts",
-    "src/main/agent/types.ts"
+    "src/main/agent/types.ts",
+    "src/shared/**/*"
   ],
   "compilerOptions": {
     "composite": true,

@@ -24,6 +24,11 @@ import type {
   ExpertLogEntry
 } from "@/types"
 import type { DeepAgent } from "../../../main/agent/types"
+import {
+  extractReasoningSummaryFromResponseOutput,
+  hasReasoningBlocks,
+  injectReasoningBlock
+} from "../../../shared/reasoning"
 
 // Open file tab type
 export interface OpenFile {
@@ -133,6 +138,8 @@ const defaultStreamData: StreamData = {
 
 const ThreadContext = createContext<ThreadContextValue | null>(null)
 
+type MessageContentBlock = Exclude<Message["content"], string>[number]
+
 // Custom event types from the stream
 interface CustomEventData {
   type?: string
@@ -180,6 +187,106 @@ function detectMessageRole(className: string, fallbackType?: unknown): Message["
   return "assistant"
 }
 
+function normalizeMessageContent(content: unknown): Message["content"] {
+  if (typeof content === "string") {
+    return content
+  }
+
+  if (!Array.isArray(content)) {
+    return ""
+  }
+
+  const blocks: MessageContentBlock[] = []
+
+  for (const block of content) {
+    if (!isRecord(block) || typeof block.type !== "string") {
+      continue
+    }
+
+    if (block.type === "text" && typeof block.text === "string") {
+      blocks.push({ type: "text", text: block.text })
+      continue
+    }
+
+    if (block.type === "thinking") {
+      const thinkText =
+        typeof block.thinking === "string"
+          ? block.thinking
+          : typeof block.text === "string"
+            ? block.text
+            : ""
+      if (thinkText) {
+        blocks.push({
+          type: "text",
+          text: `<think>${thinkText}</think>`
+        })
+      }
+      continue
+    }
+
+    if (
+      block.type === "image_url" &&
+      isRecord(block.image_url) &&
+      typeof block.image_url.url === "string"
+    ) {
+      blocks.push({
+        type: "image_url",
+        image_url: { url: block.image_url.url },
+        ...(typeof block.file_path === "string" ? { file_path: block.file_path } : {})
+      })
+    }
+  }
+
+  return blocks
+}
+
+function extractReasoningText(message: Record<string, unknown>, kwargs: Record<string, unknown>): string {
+  const additionalKwargs = isRecord(kwargs.additional_kwargs)
+    ? kwargs.additional_kwargs
+    : isRecord(message.additional_kwargs)
+      ? message.additional_kwargs
+      : null
+  const reasoningContent =
+    additionalKwargs && typeof additionalKwargs.reasoning_content === "string"
+      ? additionalKwargs.reasoning_content.trim()
+      : ""
+  if (reasoningContent) {
+    return reasoningContent
+  }
+
+  const responseMetadata = isRecord(kwargs.response_metadata)
+    ? kwargs.response_metadata
+    : isRecord(message.response_metadata)
+      ? message.response_metadata
+      : null
+  return extractReasoningSummaryFromResponseOutput(responseMetadata?.output).trim()
+}
+
+function buildAssistantContent(
+  message: Record<string, unknown>,
+  kwargs: Record<string, unknown>
+): Message["content"] {
+  const baseContent = normalizeMessageContent(kwargs.content ?? message.content)
+  const reasoningText = extractReasoningText(message, kwargs)
+
+  if (typeof baseContent === "string") {
+    return injectReasoningBlock(baseContent, reasoningText)
+  }
+
+  if (!reasoningText) {
+    return baseContent
+  }
+
+  const hasThinkingBlock = baseContent.some(
+    (block) => block.type === "text" && typeof block.text === "string" && hasReasoningBlocks(block.text)
+  )
+  if (hasThinkingBlock) {
+    return baseContent
+  }
+
+  return [{ type: "text", text: injectReasoningBlock("", reasoningText) }, ...baseContent]
+}
+
 function parseStreamMessages(rawMessages: unknown[]): Message[] {
   return rawMessages
     .map((rawMsg, index) => {
@@ -195,16 +302,10 @@ function parseStreamMessages(rawMessages: unknown[]): Message[] {
         (typeof rawMsg.id === "string" && rawMsg.id) ||
         `${role}-${index}`
 
-      let content: Message["content"] = ""
-      if (typeof kwargs.content === "string") {
-        content = kwargs.content
-      } else if (Array.isArray(kwargs.content)) {
-        content = kwargs.content as Message["content"]
-      } else if (typeof rawMsg.content === "string") {
-        content = rawMsg.content
-      } else if (Array.isArray(rawMsg.content)) {
-        content = rawMsg.content as Message["content"]
-      }
+      const content =
+        role === "assistant"
+          ? buildAssistantContent(rawMsg, kwargs)
+          : normalizeMessageContent(kwargs.content ?? rawMsg.content)
 
       const toolCalls = Array.isArray(kwargs.tool_calls)
         ? (kwargs.tool_calls as Message["tool_calls"])
@@ -862,6 +963,8 @@ export function ThreadProvider({ children }: { children: ReactNode }) {
 
           if (channelValues?.messages && Array.isArray(channelValues.messages)) {
             const messages: Message[] = channelValues.messages.map((msg, index) => {
+              const rawMsg = msg as unknown as Record<string, unknown>
+              const kwargs = isRecord(rawMsg.kwargs) ? rawMsg.kwargs : {}
               let role: "user" | "assistant" | "system" | "tool" = "assistant"
               if (typeof msg._getType === "function") {
                 const type = msg._getType()
@@ -872,13 +975,14 @@ export function ThreadProvider({ children }: { children: ReactNode }) {
               } else if (msg.type) {
                 if (msg.type === "human") role = "user"
                 else if (msg.type === "ai") role = "assistant"
-                else if (msg.type === "system") role = "system"
-                else if (msg.type === "tool") role = "tool"
+                  else if (msg.type === "system") role = "system"
+                  else if (msg.type === "tool") role = "tool"
               }
 
-              let content: Message["content"] = ""
-              if (typeof msg.content === "string") content = msg.content
-              else if (Array.isArray(msg.content)) content = msg.content as Message["content"]
+              const content =
+                role === "assistant"
+                  ? buildAssistantContent(rawMsg, kwargs)
+                  : normalizeMessageContent(msg.content)
 
               return {
                 id: msg.id || `msg-${index}`,

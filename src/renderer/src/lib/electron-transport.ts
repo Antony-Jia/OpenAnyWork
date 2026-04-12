@@ -40,7 +40,13 @@ interface SerializedMessageChunk {
   /** Actual message data is in kwargs */
   kwargs?: {
     id?: string
-    content?: string | Array<{ type: string; text?: string; image_url?: { url: string } }>
+    content?:
+      | string
+      | Array<{ type: string; text?: string; thinking?: string; image_url?: { url: string } }>
+    additional_kwargs?: {
+      reasoning_content?: string
+      [key: string]: unknown
+    }
     tool_calls?: ToolCall[]
     tool_call_chunks?: ToolCallChunk[]
     tool_call_id?: string
@@ -737,7 +743,7 @@ export class ElectronIPCTransport implements UseStreamTransport {
   private extractContent(
     content:
       | string
-      | Array<{ type: string; text?: string; image_url?: { url: string } }>
+      | Array<{ type: string; text?: string; thinking?: string; image_url?: { url: string } }>
       | undefined
   ): string {
     if (typeof content === "string") {
@@ -745,8 +751,14 @@ export class ElectronIPCTransport implements UseStreamTransport {
     }
     if (Array.isArray(content)) {
       return content
-        .filter((block): block is { type: "text"; text: string } => block.type === "text")
-        .map((block) => block.text)
+        .map((block) => {
+          if (block.type === "text" && block.text) return block.text
+          if (block.type === "thinking") {
+            const thinkText = block.thinking || block.text || ""
+            return thinkText ? `<think>${thinkText}</think>` : ""
+          }
+          return ""
+        })
         .join("")
     }
     return ""
@@ -754,10 +766,14 @@ export class ElectronIPCTransport implements UseStreamTransport {
 
   private buildDisplayContent(kwargs: SerializedMessageChunk["kwargs"]): string {
     const content = this.extractContent(kwargs?.content)
+    const reasoningContent =
+      typeof kwargs?.additional_kwargs?.reasoning_content === "string"
+        ? kwargs.additional_kwargs.reasoning_content
+        : ""
     const reasoningSummary = extractReasoningSummaryFromResponseOutput(
       kwargs?.response_metadata?.output
     )
-    return injectReasoningBlock(content, reasoningSummary)
+    return injectReasoningBlock(content, reasoningContent || reasoningSummary)
   }
 
   /**

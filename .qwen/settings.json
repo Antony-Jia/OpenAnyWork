@@ -5,7 +5,8 @@
       "Bash(npm run *)",
       "Bash(select-string *)",
       "Bash(select-object *)",
-      "WebSearch"
+      "WebSearch",
+      "Bash(dir *)"
     ]
   },
   "$version": 3

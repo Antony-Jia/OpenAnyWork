@@ -23,6 +23,7 @@ import type {
   McpServerUpdateParams,
   McpToolInfo,
   AppSettings,
+  ProxyConfig,
   SettingsUpdateParams,
   SpeechSttRequest,
   SpeechSttResponse,
@@ -459,6 +460,14 @@ const api = {
     },
     setConfig: (config: ProviderState): Promise<void> => {
       return ipcRenderer.invoke("provider:setConfig", config)
+    }
+  },
+  proxy: {
+    get: (): Promise<ProxyConfig> => {
+      return ipcRenderer.invoke("proxy:get")
+    },
+    update: (config: ProxyConfig): Promise<ProxyConfig> => {
+      return ipcRenderer.invoke("proxy:update", config)
     }
   },
   attachments: {

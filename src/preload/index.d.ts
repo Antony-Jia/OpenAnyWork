@@ -21,6 +21,7 @@ import type {
   McpServerUpdateParams,
   McpToolInfo,
   AppSettings,
+  ProxyConfig,
   SettingsUpdateParams,
   SpeechSttRequest,
   SpeechSttResponse,
@@ -233,6 +234,10 @@ interface CustomAPI {
   provider: {
     getConfig: () => Promise<ProviderState | null>
     setConfig: (config: ProviderState) => Promise<void>
+  }
+  proxy: {
+    get: () => Promise<ProxyConfig>
+    update: (config: ProxyConfig) => Promise<ProxyConfig>
   }
   attachments: {
     pick: (input: { kind: "image" | "document" }) => Promise<Attachment[] | null>

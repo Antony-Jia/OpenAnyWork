@@ -7,6 +7,7 @@ import { z } from "zod"
 import { SqlJsSaver } from "../checkpointer/sqljs-saver"
 import { logEntry, logExit } from "../logging"
 import { getProviderState } from "../provider-config"
+import { getProxyAgents } from "../proxy-config"
 import { createSkill, listAppSkills } from "../skills"
 import { getThreadCheckpointPath } from "../storage"
 import type { ProviderConfig, ProviderState, SimpleProviderId, ToolDefinition } from "../types"
@@ -459,11 +460,17 @@ function getModelInstance(): ChatOpenAI {
     throw new Error("Active provider has no model configured.")
   }
 
+  // Get proxy agent if configured
+  const proxyAgents = getProxyAgents()
+
   if (config.type === "ollama") {
     const baseURL = config.url.endsWith("/v1") ? config.url : `${config.url}/v1`
     return new ChatOpenAI({
       model: config.model,
-      configuration: { baseURL },
+      configuration: {
+        baseURL,
+        ...proxyAgents
+      },
       apiKey: "ollama"
     })
   }
@@ -471,7 +478,10 @@ function getModelInstance(): ChatOpenAI {
   return new ChatOpenAI({
     model: config.model,
     apiKey: config.apiKey,
-    configuration: { baseURL: config.url }
+    configuration: {
+      baseURL: config.url,
+      ...proxyAgents
+    }
   })
 }
 

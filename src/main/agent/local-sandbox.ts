@@ -12,6 +12,7 @@
 import { spawn } from "node:child_process"
 import { randomUUID } from "node:crypto"
 import { FilesystemBackend, type ExecuteResponse, type SandboxBackendProtocol } from "deepagents"
+import { getProxyEnvVars, stripProxyEnvVars } from "../proxy-config"
 
 function countReplacementChars(value: string): number {
   const matches = value.match(/\uFFFD/g)
@@ -94,7 +95,14 @@ export class LocalSandbox extends FilesystemBackend implements SandboxBackendPro
     this.id = `local-sandbox-${randomUUID().slice(0, 8)}`
     this.timeout = options.timeout ?? 120_000 // 2 minutes default
     this.maxOutputBytes = options.maxOutputBytes ?? 100_000 // ~100KB default
-    this.env = options.env ?? ({ ...process.env } as Record<string, string>)
+
+    // Respect app-level proxy settings by clearing inherited proxy env first.
+    const baseEnv = stripProxyEnvVars(
+      options.env ? { ...process.env, ...options.env } : { ...process.env }
+    )
+    const proxyEnv = getProxyEnvVars()
+    this.env = { ...baseEnv, ...proxyEnv } as Record<string, string>
+
     this.workingDir = options.rootDir ?? process.cwd()
   }
 

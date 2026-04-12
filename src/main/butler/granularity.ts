@@ -2,6 +2,7 @@ import { HumanMessage, SystemMessage } from "@langchain/core/messages"
 import { ChatOpenAI } from "@langchain/openai"
 import { z } from "zod"
 import { getProviderState } from "../provider-config"
+import { getProxyAgents } from "../proxy-config"
 import type { ProviderConfig, ProviderState, SimpleProviderId } from "../types"
 import type { ButlerDispatchIntent } from "./tools"
 
@@ -51,11 +52,17 @@ function getModelInstance(): ChatOpenAI {
     throw new Error("Active provider has no model configured.")
   }
 
+  // Get proxy agent if configured
+  const proxyAgents = getProxyAgents()
+
   if (config.type === "ollama") {
     const baseURL = config.url.endsWith("/v1") ? config.url : `${config.url}/v1`
     return new ChatOpenAI({
       model: config.model,
-      configuration: { baseURL },
+      configuration: {
+        baseURL,
+        ...proxyAgents
+      },
       apiKey: "ollama"
     })
   }
@@ -63,7 +70,10 @@ function getModelInstance(): ChatOpenAI {
   return new ChatOpenAI({
     model: config.model,
     apiKey: config.apiKey,
-    configuration: { baseURL: config.url }
+    configuration: {
+      baseURL: config.url,
+      ...proxyAgents
+    }
   })
 }
 

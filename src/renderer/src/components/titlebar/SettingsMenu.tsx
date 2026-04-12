@@ -11,7 +11,13 @@ import {
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { cn } from "@/lib/utils"
-import type { AppSettings, ProviderConfig, ProviderState, SimpleProviderId } from "@/types"
+import type {
+  AppSettings,
+  ProviderConfig,
+  ProviderState,
+  ProxyMode,
+  SimpleProviderId
+} from "@/types"
 
 interface SettingsMenuProps {
   threadId: string | null
@@ -20,9 +26,9 @@ interface SettingsMenuProps {
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 export function SettingsMenu(_props: SettingsMenuProps): React.JSX.Element {
   const [open, setOpen] = useState(false)
-  const [activeTab, setActiveTab] = useState<"general" | "provider" | "ralph" | "qq" | "email">(
-    "general"
-  )
+  const [activeTab, setActiveTab] = useState<
+    "general" | "provider" | "proxy" | "ralph" | "qq" | "email"
+  >("general")
   const { language, setLanguage, theme, setTheme, t } = useLanguage()
 
   // Provider configuration state
@@ -39,6 +45,10 @@ export function SettingsMenu(_props: SettingsMenuProps): React.JSX.Element {
   const [visionToolCallingEnabled, setVisionToolCallingEnabled] = useState(true)
   const [hasConfig, setHasConfig] = useState(false)
   const [settingsSaved, setSettingsSaved] = useState(false)
+  const [proxyMode, setProxyMode] = useState<ProxyMode>("system")
+  const [proxyHttp, setProxyHttp] = useState("")
+  const [proxyHttps, setProxyHttps] = useState("")
+  const [proxyNoProxy, setProxyNoProxy] = useState("")
 
   // Ralph settings
   const [ralphIterations, setRalphIterations] = useState("5")
@@ -74,7 +84,12 @@ export function SettingsMenu(_props: SettingsMenuProps): React.JSX.Element {
   useEffect(() => {
     async function loadConfig() {
       try {
-        const state = (await window.api.provider.getConfig()) as ProviderState | null
+        const [state, proxyConfig, settings] = await Promise.all([
+          window.api.provider.getConfig(),
+          window.api.proxy.get(),
+          window.api.settings.get()
+        ])
+
         if (state) {
           setHasConfig(Boolean(state.configs[state.active]))
           setProviderType(state.active)
@@ -96,7 +111,12 @@ export function SettingsMenu(_props: SettingsMenuProps): React.JSX.Element {
             setMultimodalModel(multimodalConfig.model)
           }
         }
-        const settings = (await window.api.settings.get()) as AppSettings
+        if (proxyConfig) {
+          setProxyMode(proxyConfig.mode)
+          setProxyHttp(proxyConfig.httpProxy ?? "")
+          setProxyHttps(proxyConfig.httpsProxy ?? "")
+          setProxyNoProxy(proxyConfig.noProxy ?? "")
+        }
         if (settings) {
           setRalphIterations(String(settings.ralphIterations || 5))
           setDefaultWorkspacePath(settings.defaultWorkspacePath || "")
@@ -273,6 +293,12 @@ export function SettingsMenu(_props: SettingsMenuProps): React.JSX.Element {
           }
         }
       })
+      await window.api.proxy.update({
+        mode: proxyMode,
+        httpProxy: proxyHttp.trim() || undefined,
+        httpsProxy: proxyHttps.trim() || undefined,
+        noProxy: proxyNoProxy.trim() || undefined
+      })
       window.dispatchEvent(new CustomEvent("openwork:settings-updated"))
       setSettingsSaved(true)
       setTimeout(() => setSettingsSaved(false), 2000)
@@ -291,6 +317,10 @@ export function SettingsMenu(_props: SettingsMenuProps): React.JSX.Element {
     multimodalModel,
     visionPreprocessInterceptEnabled,
     visionToolCallingEnabled,
+    proxyMode,
+    proxyHttp,
+    proxyHttps,
+    proxyNoProxy,
     ralphIterations,
     defaultWorkspacePath,
     butlerRootPath,
@@ -372,6 +402,7 @@ export function SettingsMenu(_props: SettingsMenuProps): React.JSX.Element {
               [
                 { id: "general", label: t("settings.tabs.general") },
                 { id: "provider", label: t("settings.tabs.provider") },
+                { id: "proxy", label: t("settings.tabs.proxy") },
                 { id: "ralph", label: t("settings.tabs.ralph") },
                 { id: "qq", label: t("settings.tabs.qq") },
                 { id: "email", label: t("settings.tabs.email") }
@@ -820,6 +851,80 @@ export function SettingsMenu(_props: SettingsMenuProps): React.JSX.Element {
                     />
                     {t("settings.vision.tool_calling")}
                   </label>
+                </div>
+              </div>
+            )}
+
+            {activeTab === "proxy" && (
+              <div className="px-4 py-3 pb-6 border-b border-border/70 space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">
+                    {t("settings.proxy.title")}
+                  </span>
+                  {settingsSaved ? (
+                    <span className="text-[10px] text-green-500">{t("settings.saved")}</span>
+                  ) : null}
+                </div>
+
+                <div className="text-xs text-muted-foreground">
+                  {t("settings.proxy.description")}
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-[10px] text-muted-foreground block">
+                    {t("settings.proxy.mode")}
+                  </label>
+                  <select
+                    value={proxyMode}
+                    onChange={(e) => setProxyMode(e.target.value as ProxyMode)}
+                    className="w-full h-8 px-2.5 text-[13px] bg-muted/50 border border-border rounded-md focus:outline-none focus:ring-1 focus:ring-ring"
+                  >
+                    <option value="system">{t("settings.proxy.system")}</option>
+                    <option value="manual">{t("settings.proxy.manual")}</option>
+                    <option value="disabled">{t("settings.proxy.disabled")}</option>
+                  </select>
+                  <div className="text-[10px] text-muted-foreground/70">
+                    {t("settings.proxy.mode_hint")}
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-[10px] text-muted-foreground block">
+                    {t("settings.proxy.http_proxy")}
+                  </label>
+                  <input
+                    type="text"
+                    value={proxyHttp}
+                    onChange={(e) => setProxyHttp(e.target.value)}
+                    placeholder="http://127.0.0.1:7890"
+                    className="w-full h-8 px-2.5 text-[13px] bg-muted/50 border border-border rounded-md focus:outline-none focus:ring-1 focus:ring-ring"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-[10px] text-muted-foreground block">
+                    {t("settings.proxy.https_proxy")}
+                  </label>
+                  <input
+                    type="text"
+                    value={proxyHttps}
+                    onChange={(e) => setProxyHttps(e.target.value)}
+                    placeholder="http://127.0.0.1:7890"
+                    className="w-full h-8 px-2.5 text-[13px] bg-muted/50 border border-border rounded-md focus:outline-none focus:ring-1 focus:ring-ring"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-[10px] text-muted-foreground block">
+                    {t("settings.proxy.no_proxy")}
+                  </label>
+                  <input
+                    type="text"
+                    value={proxyNoProxy}
+                    onChange={(e) => setProxyNoProxy(e.target.value)}
+                    placeholder="localhost,127.0.0.1,.local"
+                    className="w-full h-8 px-2.5 text-[13px] bg-muted/50 border border-border rounded-md focus:outline-none focus:ring-1 focus:ring-ring"
+                  />
                 </div>
               </div>
             )}

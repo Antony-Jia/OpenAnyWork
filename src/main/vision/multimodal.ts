@@ -2,6 +2,7 @@ import * as fs from "node:fs/promises"
 import * as path from "node:path"
 import { ChatOpenAI } from "@langchain/openai"
 import { getProviderState } from "../provider-config"
+import { getProxyAgents } from "../proxy-config"
 import type { MultimodalConfig, ProviderState } from "../types"
 
 export const DEFAULT_IMAGE_ANALYSIS_PROMPT =
@@ -58,11 +59,15 @@ export function createMultimodalClient(state?: ProviderState | null): ChatOpenAI
     throw new Error(getMultimodalDisabledReason(state))
   }
 
+  // Get proxy agent if configured
+  const proxyAgents = getProxyAgents()
+
   return new ChatOpenAI({
     model: config.model.trim(),
     apiKey: config.apiKey.trim(),
     configuration: {
-      baseURL: config.url.trim()
+      baseURL: config.url.trim(),
+      ...proxyAgents
     }
   })
 }

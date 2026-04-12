@@ -373,6 +373,16 @@ export interface ProviderState {
   configs: Partial<Record<SimpleProviderId, ProviderConfig>>
 }
 
+// Proxy configuration
+export type ProxyMode = "system" | "manual" | "disabled"
+
+export interface ProxyConfig {
+  mode: ProxyMode
+  httpProxy?: string // e.g., "http://127.0.0.1:7890"
+  httpsProxy?: string // e.g., "http://127.0.0.1:7890"
+  noProxy?: string // e.g., "localhost,127.0.0.1"
+}
+
 export type CapabilityScope = "classic" | "butler"
 
 // Custom subagent configuration

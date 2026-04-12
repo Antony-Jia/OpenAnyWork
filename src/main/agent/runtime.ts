@@ -21,6 +21,7 @@ import {
 import { getRunningMcpToolInstances, listRunningMcpTools } from "../mcp/service"
 import { resolveMiddlewareById } from "../middleware/registry"
 import { createDockerTools } from "../tools/docker-tools"
+import { getProxyAgents } from "../proxy-config"
 import type {
   CapabilityScope,
   ContentBlock,
@@ -256,6 +257,12 @@ function getModelInstance(
     console.log("[Runtime] Detected image content in message")
   }
 
+  // Get proxy agent if configured
+  const proxyAgents = getProxyAgents()
+  if (proxyAgents.httpAgent || proxyAgents.httpsAgent) {
+    console.log("[Runtime] Using proxy for LLM requests")
+  }
+
   if (config.type === "ollama") {
     // Ollama uses OpenAI-compatible API at /v1 endpoint
     const baseURL = config.url.endsWith("/v1") ? config.url : `${config.url}/v1`
@@ -264,7 +271,8 @@ function getModelInstance(
     return new ChatOpenAI({
       model: effectiveModel,
       configuration: {
-        baseURL: baseURL
+        baseURL: baseURL,
+        ...proxyAgents
       },
       // Ollama doesn't need an API key, but ChatOpenAI requires one
       // Use a placeholder value
@@ -283,7 +291,8 @@ function getModelInstance(
     model: effectiveModel,
     apiKey: config.apiKey,
     configuration: {
-      baseURL: config.url
+      baseURL: config.url,
+      ...proxyAgents
     }
   })
 }

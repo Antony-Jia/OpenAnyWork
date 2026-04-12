@@ -114,6 +114,7 @@
     "cron-parser": "^4.9.0",
     "deepagents": "^1.8.8",
     "electron-store": "^8.2.0",
+    "hpagent": "^1.2.0",
     "imapflow": "^1.0.200",
     "langchain": "^1.2.39",
     "lucide-react": "^0.469.0",
@@ -128,6 +129,7 @@
     "shiki": "^3.21.0",
     "sql.js": "^1.12.0",
     "tailwind-merge": "^2.6.0",
+    "undici": "^6.24.1",
     "uuid": "^11.0.5",
     "ws": "^8.19.0",
     "zustand": "^5.0.3"

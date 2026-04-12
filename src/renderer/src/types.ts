@@ -562,6 +562,15 @@ export interface AppSettings {
   plugins: PluginSettings
 }
 
+export type ProxyMode = "system" | "manual" | "disabled"
+
+export interface ProxyConfig {
+  mode: ProxyMode
+  httpProxy?: string
+  httpsProxy?: string
+  noProxy?: string
+}
+
 export interface ButlerSettings {
   rootPath: string
   maxConcurrent: number

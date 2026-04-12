@@ -70,6 +70,8 @@ import {
   startQQBotBridgeService,
   stopQQBotBridgeService
 } from "./integrations"
+import { initializeProxyConfigTable, applyProxyToFetch } from "./proxy-config"
+import { registerProxyHandlers } from "./ipc/proxy"
 
 let mainWindow: BrowserWindow | null = null
 let quickInputWindow: BrowserWindow | null = null
@@ -346,6 +348,11 @@ app.whenReady().then(async () => {
 
   // Initialize database
   await initializeDatabase()
+
+  // Initialize proxy configuration table
+  initializeProxyConfigTable()
+  applyProxyToFetch()
+
   await initializeMemoryService()
   await generateDailyProfileOnStartup()
   await butlerManager.initialize()
@@ -415,6 +422,7 @@ app.whenReady().then(async () => {
   })
   registerPromptHandlers(ipcMain)
   registerMemoryHandlers(ipcMain)
+  registerProxyHandlers(ipcMain)
   unsubscribePluginEvents = registerPluginsIpc(ipcMain)
 
   await startAutoMcpServers()

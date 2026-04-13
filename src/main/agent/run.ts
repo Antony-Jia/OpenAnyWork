@@ -1,12 +1,9 @@
 import { BrowserWindow } from "electron"
 import { randomUUID } from "node:crypto"
-import * as fs from "fs"
-import * as path from "path"
 import { HumanMessage, type MessageContent } from "@langchain/core/messages"
 import { createAgentRuntime } from "./runtime"
 import { appendRalphLogEntry } from "../ralph-log"
 import {
-  extractReasoningSummaryFromResponseOutput,
   stripReasoningBlocks,
   injectReasoningBlock
 } from "../../shared/reasoning"
@@ -67,51 +64,8 @@ export async function runAgentStream({
     phase?: RalphState["phase"]
   }
 }): Promise<string> {
-  // 创建日志文件
-  const logFilePath = path.join(process.cwd(), "agent-stream-debug.log")
-  // 清空日志文件
-  try {
-    fs.writeFileSync(logFilePath, "", "utf-8")
-  } catch (error) {
-    console.error("Failed to clear log file:", error)
-  }
-
-  const logToFile = (message: string): void => {
-    try {
-      const timestamp = new Date().toISOString()
-      fs.appendFileSync(logFilePath, `[${timestamp}] ${message}\n`, "utf-8")
-    } catch (error) {
-      console.error("Failed to write log:", error)
-    }
-  }
-
-  const summarizeDebugValue = (value: unknown, maxLength = 1200): string => {
-    if (value === undefined) return ""
-    if (typeof value === "string") {
-      return value.length > maxLength ? `${value.slice(0, maxLength)}...` : value
-    }
-    try {
-      const text = JSON.stringify(value)
-      return text.length > maxLength ? `${text.slice(0, maxLength)}...` : text
-    } catch {
-      return "[unserializable]"
-    }
-  }
-
   const isRecord = (value: unknown): value is Record<string, unknown> =>
     !!value && typeof value === "object" && !Array.isArray(value)
-
-  logToFile(
-    `[Agent Stream] Run start: ${summarizeDebugValue({
-      threadId,
-      modelId,
-      threadMode,
-      capabilityScope,
-      dockerEnabled: !!dockerConfig?.enabled,
-      disableApprovals: !!disableApprovals,
-      message: summarizeDebugValue(message, 800)
-    })}`
-  )
 
   const agent = await createAgentRuntime({
     threadId,
@@ -124,8 +78,7 @@ export async function runAgentStream({
     extraSystemPrompt,
     forceToolNames,
     threadMode,
-    capabilityScope,
-    debugLog: logToFile
+    capabilityScope
   })
 
   const humanMessage = Array.isArray(message)
@@ -143,8 +96,6 @@ export async function runAgentStream({
 
   let lastAssistant = ""
   let lastValuesAiContent = ""
-  let lastReasoningTokenCount: number | undefined
-  let accumulatedReasoningContent = ""
   let reasoningPhase = false
   const runId = randomUUID()
   const seenMessageIds = new Set<string>()
@@ -218,14 +169,6 @@ export async function runAgentStream({
     return extractContent(kwargs?.content)
   }
 
-  const getRawContent = (msg: Record<string, unknown>): unknown => {
-    if ("content" in msg) {
-      return msg.content
-    }
-    const kwargs = msg.kwargs as { content?: unknown } | undefined
-    return kwargs?.content
-  }
-
   const getAdditionalKwargs = (msg: Record<string, unknown>): Record<string, unknown> => {
     if ("additional_kwargs" in msg) {
       return msg.additional_kwargs as Record<string, unknown>
@@ -282,111 +225,6 @@ export async function runAgentStream({
     return {}
   }
 
-  const getResponseMetadata = (
-    msg: Record<string, unknown>
-  ): Record<string, unknown> | undefined => {
-    if (isRecord(msg.response_metadata)) {
-      return msg.response_metadata
-    }
-    const kwargs = msg.kwargs as { response_metadata?: Record<string, unknown> } | undefined
-    return kwargs?.response_metadata
-  }
-
-  const getUsageMetadata = (msg: unknown): Record<string, unknown> | undefined => {
-    if (!isRecord(msg)) {
-      return undefined
-    }
-
-    if (isRecord(msg.usage_metadata)) {
-      return msg.usage_metadata
-    }
-    const kwargs = msg.kwargs as { usage_metadata?: Record<string, unknown> } | undefined
-    return kwargs?.usage_metadata
-  }
-
-  const getReasoningTokenCount = (usage?: Record<string, unknown>): number | undefined => {
-    if (!usage) return undefined
-
-    const completionTokenDetails = isRecord(usage.completion_tokens_details)
-      ? usage.completion_tokens_details
-      : undefined
-    if (typeof completionTokenDetails?.reasoning_tokens === "number") {
-      return completionTokenDetails.reasoning_tokens
-    }
-
-    const outputTokenDetails = isRecord(usage.output_token_details)
-      ? usage.output_token_details
-      : undefined
-    if (typeof outputTokenDetails?.reasoning === "number") {
-      return outputTokenDetails.reasoning
-    }
-
-    return undefined
-  }
-
-  const summarizeUsageMetadata = (
-    usage?: Record<string, unknown>
-  ): Record<string, unknown> | undefined => {
-    if (!usage) return undefined
-
-    const promptTokenDetails = isRecord(usage.prompt_tokens_details)
-      ? usage.prompt_tokens_details
-      : undefined
-    const completionTokenDetails = isRecord(usage.completion_tokens_details)
-      ? usage.completion_tokens_details
-      : undefined
-    const outputTokenDetails = isRecord(usage.output_token_details)
-      ? usage.output_token_details
-      : undefined
-
-    return {
-      keys: Object.keys(usage),
-      promptTokens: usage.prompt_tokens,
-      completionTokens: usage.completion_tokens,
-      totalTokens: usage.total_tokens,
-      promptTokensDetails: promptTokenDetails,
-      completionTokensDetails: completionTokenDetails,
-      outputTokenDetails: outputTokenDetails,
-      reasoningTokenCount: getReasoningTokenCount(usage)
-    }
-  }
-
-  const summarizeReasoningLog = ({
-    reasoningContent,
-    reasoningDetails,
-    reasoningTokenCount,
-    reasoningTokenCountFromUsage,
-    reasoningTokenCountFromResponseUsage,
-    reasoningSummary
-  }: {
-    reasoningContent?: string
-    reasoningDetails?: unknown
-    reasoningTokenCount?: number
-    reasoningTokenCountFromUsage?: number
-    reasoningTokenCountFromResponseUsage?: number
-    reasoningSummary?: string
-  }): Record<string, unknown> | undefined => {
-    if (
-      !reasoningContent &&
-      reasoningDetails === undefined &&
-      typeof reasoningTokenCount !== "number" &&
-      typeof reasoningTokenCountFromUsage !== "number" &&
-      typeof reasoningTokenCountFromResponseUsage !== "number" &&
-      !reasoningSummary
-    ) {
-      return undefined
-    }
-
-    return {
-      reasoning_content: summarizeDebugValue(reasoningContent, 600) || undefined,
-      reasoning_details: summarizeDebugValue(reasoningDetails, 900) || undefined,
-      reasoning_tokens: reasoningTokenCount ?? undefined,
-      reasoning_tokens_from_usage: reasoningTokenCountFromUsage ?? undefined,
-      reasoning_tokens_from_response_usage: reasoningTokenCountFromResponseUsage ?? undefined,
-      reasoning_summary: summarizeDebugValue(reasoningSummary, 500) || undefined
-    }
-  }
-
   const getToolCalls = (
     msg: Record<string, unknown>
   ): Array<{ id?: string; name?: string; args?: Record<string, unknown> }> => {
@@ -420,7 +258,6 @@ export async function runAgentStream({
   for await (const chunk of stream) {
     if (abortController.signal.aborted) break
     const [mode, data] = chunk as [string, unknown]
-    logToFile(`orgin ` + JSON.stringify(chunk))
     if (mode === "values") {
       const state = data as { messages?: unknown[] }
       if (Array.isArray(state.messages)) {
@@ -436,39 +273,15 @@ export async function runAgentStream({
           }
 
           const content = getMessageContent(msg)
-          const rawContent = getRawContent(msg)
           const additionalKwargs = getAdditionalKwargs(msg)
-          const responseMetadata = getResponseMetadata(msg)
-          const usageMetadata = getUsageMetadata(msg)
-          const responseOutput = responseMetadata?.output
-          const reasoningSummary = extractReasoningSummaryFromResponseOutput(responseOutput)
           const toolCalls = getToolCalls(msg)
-          const responseUsage = isRecord(responseMetadata?.usage)
-            ? responseMetadata.usage
-            : undefined
-          const reasoningTokenCountFromUsage = getReasoningTokenCount(usageMetadata)
-          const reasoningTokenCountFromResponseUsage = getReasoningTokenCount(responseUsage)
-          const reasoningTokenCount =
-            reasoningTokenCountFromUsage ?? reasoningTokenCountFromResponseUsage
           const reasoningContent =
             typeof additionalKwargs.reasoning_content === "string"
               ? additionalKwargs.reasoning_content
               : ""
-          const reasoningDetails = isRecord(additionalKwargs.reasoning)
-            ? additionalKwargs.reasoning
-            : undefined
           // 从 __raw_response 提取 reasoning 内容
           const rawReasoning = extractReasoningFromRawResponse(additionalKwargs)
           const finalReasoningContent = reasoningContent || rawReasoning.reasoningContent
-          const finalReasoningDetails = reasoningDetails || rawReasoning.reasoningDetails
-          const reasoning = summarizeReasoningLog({
-            reasoningContent: finalReasoningContent,
-            reasoningDetails: finalReasoningDetails,
-            reasoningTokenCount,
-            reasoningTokenCountFromUsage,
-            reasoningTokenCountFromResponseUsage,
-            reasoningSummary
-          })
 
           // 如果有 reasoning_content，包装成 <think/> 格式并插入到 content 中
           let displayContent = content
@@ -484,32 +297,6 @@ ${finalReasoningContent}
 `
             }
           }
-
-          if (typeof reasoningTokenCount === "number") {
-            lastReasoningTokenCount = reasoningTokenCount
-          }
-
-          logToFile(
-            `[Agent Stream] ${role.toUpperCase()} Message: ` +
-              JSON.stringify({
-                messageId,
-                role,
-                content: summarizeDebugValue(content, 500),
-                rawContent: summarizeDebugValue(rawContent, 500),
-                displayContent: displayContent !== content ? summarizeDebugValue(displayContent, 500) : undefined,
-                additionalKwargsKeys: Object.keys(additionalKwargs),
-                usageMetadata: summarizeUsageMetadata(usageMetadata),
-                reasoning,
-                responseMetadata: responseMetadata
-                  ? {
-                      keys: Object.keys(responseMetadata),
-                      usage: summarizeUsageMetadata(responseUsage),
-                      output: summarizeDebugValue(responseOutput, 900)
-                    }
-                  : undefined,
-                toolCalls: toolCalls.length > 0 ? toolCalls : undefined
-              })
-          )
 
           if (role === "ai") {
             if (messageId) seenMessageIds.add(messageId)
@@ -560,63 +347,6 @@ ${finalReasoningContent}
             if (messageId) seenMessageIds.add(messageId)
             const meta = getToolMessageMeta(msg)
             const content = getMessageContent(msg)
-            const rawContent = getRawContent(msg)
-            const additionalKwargs = getAdditionalKwargs(msg)
-            const responseMetadata = getResponseMetadata(msg)
-            const usageMetadata = getUsageMetadata(msg)
-            const responseOutput = responseMetadata?.output
-            const reasoningSummary = extractReasoningSummaryFromResponseOutput(responseOutput)
-            const responseUsage = isRecord(responseMetadata?.usage)
-              ? responseMetadata.usage
-              : undefined
-            const reasoningTokenCountFromUsage = getReasoningTokenCount(usageMetadata)
-            const reasoningTokenCountFromResponseUsage = getReasoningTokenCount(responseUsage)
-            const reasoningTokenCount =
-              reasoningTokenCountFromUsage ?? reasoningTokenCountFromResponseUsage
-            const reasoningContent =
-              typeof additionalKwargs.reasoning_content === "string"
-                ? additionalKwargs.reasoning_content
-                : ""
-            const reasoningDetails = isRecord(additionalKwargs.reasoning)
-              ? additionalKwargs.reasoning
-              : undefined
-            // 从 __raw_response 提取 reasoning 内容
-            const rawReasoning = extractReasoningFromRawResponse(additionalKwargs)
-            const finalReasoningContent = reasoningContent || rawReasoning.reasoningContent
-            const finalReasoningDetails = reasoningDetails || rawReasoning.reasoningDetails
-            const reasoning = summarizeReasoningLog({
-              reasoningContent: finalReasoningContent,
-              reasoningDetails: finalReasoningDetails,
-              reasoningTokenCount,
-              reasoningTokenCountFromUsage,
-              reasoningTokenCountFromResponseUsage,
-              reasoningSummary
-            })
-
-            if (typeof reasoningTokenCount === "number") {
-              lastReasoningTokenCount = reasoningTokenCount
-            }
-
-            logToFile(
-              `[Agent Stream] ToolMessage Details: ` +
-                JSON.stringify({
-                  messageId,
-                  toolCallId: meta.toolCallId,
-                  toolName: meta.toolName,
-                  content: summarizeDebugValue(content, 500),
-                  rawContent: summarizeDebugValue(rawContent, 500),
-                  additionalKwargsKeys: Object.keys(additionalKwargs),
-                  usageMetadata: summarizeUsageMetadata(usageMetadata),
-                  reasoning,
-                  responseMetadata: responseMetadata
-                    ? {
-                        keys: Object.keys(responseMetadata),
-                        usage: summarizeUsageMetadata(responseUsage),
-                        output: summarizeDebugValue(responseOutput, 900)
-                      }
-                    : undefined
-                })
-            )
 
             onTraceEvent?.({
               role: "tool",
@@ -661,56 +391,21 @@ ${finalReasoningContent}
         : isRecord(kwargs.additional_kwargs)
         ? kwargs.additional_kwargs
         : {}
-      const responseMetadata = isRecord(msgObj.response_metadata)
-        ? msgObj.response_metadata
-        : isRecord(kwargs.response_metadata)
-        ? kwargs.response_metadata
-        : undefined
-      const usageMetadata = getUsageMetadata(msgChunk as Record<string, unknown>)
-      const responseOutput = responseMetadata?.output
-      const reasoningSummary = extractReasoningSummaryFromResponseOutput(responseOutput)
-      const responseUsage = isRecord(responseMetadata?.usage) ? responseMetadata.usage : undefined
-      const reasoningTokenCountFromUsage = getReasoningTokenCount(usageMetadata)
-      const reasoningTokenCountFromResponseUsage = getReasoningTokenCount(responseUsage)
-      const reasoningTokenCount =
-        reasoningTokenCountFromUsage ?? reasoningTokenCountFromResponseUsage
       const reasoningContent =
         typeof additionalKwargs.reasoning_content === "string"
           ? additionalKwargs.reasoning_content
           : ""
-      const reasoningDetails = isRecord(additionalKwargs.reasoning)
-        ? additionalKwargs.reasoning
-        : undefined
       // 从 __raw_response 提取 reasoning 内容
       const rawReasoning = extractReasoningFromRawResponse(additionalKwargs)
       const finalReasoningContent = reasoningContent || rawReasoning.reasoningContent
-      const finalReasoningDetails = reasoningDetails || rawReasoning.reasoningDetails
-
-      const reasoning = summarizeReasoningLog({
-        reasoningContent: finalReasoningContent,
-        reasoningDetails: finalReasoningDetails,
-        reasoningTokenCount,
-        reasoningTokenCountFromUsage,
-        reasoningTokenCountFromResponseUsage,
-        reasoningSummary
-      })
-
-      if (typeof reasoningTokenCount === "number") {
-        lastReasoningTokenCount = reasoningTokenCount
-      }
 
       // ToolMessage 直接走默认发送，不参与 reasoning 注入逻辑
       if (!isToolMsg) {
         // 构建要发送给前端的流式内容
         let streamContent: string | null = null
-        let isReasoningChunk = false
 
         // 处理流式 reasoning 内容
         if (finalReasoningContent) {
-          isReasoningChunk = true
-          // 累积 reasoning_content
-          accumulatedReasoningContent += finalReasoningContent
-
           if (!reasoningPhase) {
             // 这是第一个 reasoning chunk，打开 think 标签
             reasoningPhase = true
@@ -733,27 +428,6 @@ ${finalReasoningContent}
         if (streamContent) {
           lastAssistant += streamContent
         }
-
-        logToFile(
-          `[Agent Stream] Messages Mode Chunk: ` +
-            JSON.stringify({
-              rawContentText: summarizeDebugValue(rawContentText, 500),
-              streamContent: summarizeDebugValue(streamContent, 500) || "null",
-              hasReasoningContent: !!finalReasoningContent,
-              isReasoningChunk,
-              reasoningPhase,
-              accumulatedReasoningLength: accumulatedReasoningContent.length,
-              usageMetadata: summarizeUsageMetadata(usageMetadata),
-              reasoning,
-              responseMetadata: responseMetadata
-                ? {
-                    keys: Object.keys(responseMetadata),
-                    usage: summarizeUsageMetadata(responseUsage),
-                    output: summarizeDebugValue(responseOutput, 900)
-                  }
-                : undefined
-            })
-        )
 
         // 如果有内容要发送，修改 data 中的 content 为包装后的内容
         if (streamContent && msgChunk?.kwargs) {
@@ -784,18 +458,6 @@ ${finalReasoningContent}
 
   const finalAssistantText = stripReasoningBlocks(lastAssistant.trim())
   const finalValuesText = stripReasoningBlocks(lastValuesAiContent.trim())
-
-  logToFile(
-    `[Agent Stream] Final summary: ${summarizeDebugValue({
-      lastAssistant: summarizeDebugValue(lastAssistant.trim(), 1200),
-      lastValuesAiContent: summarizeDebugValue(lastValuesAiContent.trim(), 1200),
-      finalAssistantText: summarizeDebugValue(finalAssistantText, 1200),
-      finalValuesText: summarizeDebugValue(finalValuesText, 1200),
-      lastReasoningTokenCount,
-      hasThinkTagInLastAssistant: lastAssistant.includes("<think>"),
-      hasThinkTagInLastValues: lastValuesAiContent.includes("<think>")
-    })}`
-  )
 
   if (ralphLog?.enabled && !loggedAnything && finalAssistantText) {
     appendLog({

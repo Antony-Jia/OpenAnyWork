@@ -489,14 +489,6 @@ export class ElectronIPCTransport implements UseStreamTransport {
           displayContent = rawContent
         }
 
-        console.log("[Transport] messages-mode AI chunk →", {
-          msgId: msgId?.slice(0, 20),
-          rawContent: rawContent.slice(0, 40),
-          reasoningChunk: reasoningChunk.slice(0, 20),
-          displayContent: displayContent?.slice(0, 60) ?? "null",
-          streamReasoningOpen: this.streamReasoningOpen,
-        })
-
         if (displayContent !== null && (displayContent || kwargs.tool_calls?.length)) {
           events.push({
             event: "messages",

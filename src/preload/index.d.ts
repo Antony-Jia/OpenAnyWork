@@ -140,6 +140,7 @@ interface CustomAPI {
     getRalphLogTail: (threadId: string, limit?: number) => Promise<RalphLogEntry[]>
     getExpertLogTail: (threadId: string, limit?: number) => Promise<ExpertLogEntry[]>
     generateTitle: (message: string) => Promise<string>
+    getThinking: (threadId: string) => Promise<Record<string, string>>
   }
   loop: {
     getConfig: (threadId: string) => Promise<LoopConfig | null>

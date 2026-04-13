@@ -1,5 +1,6 @@
 import { BrowserWindow } from "electron"
 import { randomUUID } from "node:crypto"
+import { existsSync, readFileSync, writeFileSync } from "fs"
 import { HumanMessage, type MessageContent } from "@langchain/core/messages"
 import { createAgentRuntime } from "./runtime"
 import { appendRalphLogEntry } from "../ralph-log"
@@ -7,6 +8,7 @@ import {
   stripReasoningBlocks,
   injectReasoningBlock
 } from "../../shared/reasoning"
+import { getThreadThinkingPath } from "../storage"
 import type {
   CapabilityScope,
   ContentBlock,
@@ -100,6 +102,10 @@ export async function runAgentStream({
   const runId = randomUUID()
   const seenMessageIds = new Set<string>()
   const seenToolCallIds = new Set<string>()
+  // Track accumulated reasoning content per message ID for history restoration
+  const reasoningByMessageId = new Map<string, string>()
+  let trackingMsgId: string | null = null
+  let trackingReasoning = ""
 
   let loggedAnything = false
   const appendLog = (entry: Omit<RalphLogEntry, "id" | "ts" | "threadId" | "runId">): void => {
@@ -404,6 +410,29 @@ ${finalReasoningContent}
         // 构建要发送给前端的流式内容
         let streamContent: string | null = null
 
+        // Track reasoning content per message ID for history restoration
+        const chunkMsgId =
+          (typeof kwargs.id === "string" && kwargs.id) ||
+          (typeof msgObj.id === "string" && msgObj.id) ||
+          null
+
+        if (chunkMsgId && finalReasoningContent) {
+          if (trackingMsgId !== chunkMsgId) {
+            // New message started - save previous if any
+            if (trackingMsgId && trackingReasoning) {
+              reasoningByMessageId.set(trackingMsgId, trackingReasoning)
+            }
+            trackingMsgId = chunkMsgId
+            trackingReasoning = ""
+          }
+          trackingReasoning += finalReasoningContent
+        } else if (chunkMsgId && trackingMsgId === chunkMsgId && trackingReasoning && !finalReasoningContent) {
+          // Content phase started for this message - reasoning is complete
+          reasoningByMessageId.set(chunkMsgId, trackingReasoning)
+          trackingMsgId = null
+          trackingReasoning = ""
+        }
+
         // 处理流式 reasoning 内容
         if (finalReasoningContent) {
           if (!reasoningPhase) {
@@ -454,6 +483,26 @@ ${finalReasoningContent}
       mode,
       data: JSON.parse(JSON.stringify(data))
     })
+  }
+
+  // Save any remaining tracked reasoning
+  if (trackingMsgId && trackingReasoning) {
+    reasoningByMessageId.set(trackingMsgId, trackingReasoning)
+  }
+
+  // Persist reasoning to sidecar file for history restoration
+  if (reasoningByMessageId.size > 0) {
+    try {
+      const thinkingPath = getThreadThinkingPath(threadId)
+      let existing: Record<string, string> = {}
+      if (existsSync(thinkingPath)) {
+        existing = JSON.parse(readFileSync(thinkingPath, "utf-8")) as Record<string, string>
+      }
+      const merged = { ...existing, ...Object.fromEntries(reasoningByMessageId) }
+      writeFileSync(thinkingPath, JSON.stringify(merged))
+    } catch (e) {
+      console.warn("[Agent] Failed to save thinking sidecar:", e)
+    }
   }
 
   const finalAssistantText = stripReasoningBlocks(lastAssistant.trim())

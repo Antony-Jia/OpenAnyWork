@@ -53,10 +53,18 @@ export function getThreadExpertLogPath(threadId: string): string {
   return join(getThreadCheckpointDir(), `${threadId}.expert.jsonl`)
 }
 
+export function getThreadThinkingPath(threadId: string): string {
+  return join(getThreadCheckpointDir(), `${threadId}.thinking.json`)
+}
+
 export function deleteThreadCheckpoint(threadId: string): void {
   const path = getThreadCheckpointPath(threadId)
   if (existsSync(path)) {
     unlinkSync(path)
+  }
+  const thinkingPath = getThreadThinkingPath(threadId)
+  if (existsSync(thinkingPath)) {
+    unlinkSync(thinkingPath)
   }
 }
 

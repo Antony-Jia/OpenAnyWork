@@ -1,4 +1,5 @@
 import { IpcMain } from "electron"
+import { existsSync, readFileSync } from "fs"
 import { v4 as uuid } from "uuid"
 import {
   getAllThreads,
@@ -8,7 +9,7 @@ import {
   deleteThread as dbDeleteThread
 } from "../db"
 import { getCheckpointer, closeCheckpointer } from "../agent/runtime"
-import { deleteThreadCheckpoint } from "../storage"
+import { deleteThreadCheckpoint, getThreadThinkingPath } from "../storage"
 import { generateTitle } from "../services/title-generator"
 import { broadcastThreadsChanged } from "./events"
 import { readRalphLogTail } from "../ralph-log"
@@ -185,6 +186,16 @@ export function registerThreadHandlers(ipcMain: IpcMain): void {
     } catch (e) {
       console.warn("Failed to get thread history:", e)
       return []
+    }
+  })
+
+  ipcMain.handle("threads:getThinking", async (_event, threadId: string) => {
+    const thinkingPath = getThreadThinkingPath(threadId)
+    if (!existsSync(thinkingPath)) return {}
+    try {
+      return JSON.parse(readFileSync(thinkingPath, "utf-8")) as Record<string, string>
+    } catch {
+      return {}
     }
   })
 

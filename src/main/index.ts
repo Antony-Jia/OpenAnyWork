@@ -92,7 +92,7 @@ let finalizeQuitDone = false
 const isDev = !app.isPackaged
 
 function getAppIconPath(): string {
-  return join(__dirname, "../../resources/icon.png")
+  return join(__dirname, `../../resources/icon.${process.platform === "win32" ? "ico" : "png"}`)
 }
 
 function loadAppIcon() {

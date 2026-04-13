@@ -264,10 +264,11 @@ function extractReasoningText(message: Record<string, unknown>, kwargs: Record<s
 
 function buildAssistantContent(
   message: Record<string, unknown>,
-  kwargs: Record<string, unknown>
+  kwargs: Record<string, unknown>,
+  thinkingOverride?: string
 ): Message["content"] {
   const baseContent = normalizeMessageContent(kwargs.content ?? message.content)
-  const reasoningText = extractReasoningText(message, kwargs)
+  const reasoningText = thinkingOverride?.trim() || extractReasoningText(message, kwargs)
 
   if (typeof baseContent === "string") {
     return injectReasoningBlock(baseContent, reasoningText)
@@ -927,7 +928,10 @@ export function ThreadProvider({ children }: { children: ReactNode }) {
 
       // Load thread history from checkpoints
       try {
-        const history = await window.api.threads.getHistory(threadId)
+        const [history, thinkingMap] = await Promise.all([
+          window.api.threads.getHistory(threadId),
+          window.api.threads.getThinking(threadId).catch(() => ({} as Record<string, string>))
+        ])
         if (history.length > 0) {
           const latestCheckpoint = history[0] as {
             checkpoint?: {
@@ -979,9 +983,10 @@ export function ThreadProvider({ children }: { children: ReactNode }) {
                   else if (msg.type === "tool") role = "tool"
               }
 
+              const msgIdForThinking = msg.id || `msg-${index}`
               const content =
                 role === "assistant"
-                  ? buildAssistantContent(rawMsg, kwargs)
+                  ? buildAssistantContent(rawMsg, kwargs, thinkingMap[msgIdForThinking])
                   : normalizeMessageContent(msg.content)
 
               return {

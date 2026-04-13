@@ -229,6 +229,9 @@ const api = {
     },
     generateTitle: (message: string): Promise<string> => {
       return ipcRenderer.invoke("threads:generateTitle", message)
+    },
+    getThinking: (threadId: string): Promise<Record<string, string>> => {
+      return ipcRenderer.invoke("threads:getThinking", threadId)
     }
   },
   loop: {

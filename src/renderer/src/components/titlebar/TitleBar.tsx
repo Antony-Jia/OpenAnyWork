@@ -37,13 +37,16 @@ export function TitleBar({ threadId }: TitleBarProps): React.JSX.Element {
             type="button"
             onClick={toggleMode}
             className={cn(
-              "text-[16px] font-extrabold tracking-[0.08em] uppercase select-none transition-all duration-300",
+              "text-[16px] font-extrabold tracking-[0.08em] uppercase select-none transition-all duration-300 relative",
               appMode === "butler"
                 ? "text-accent neon-text"
                 : "text-foreground/80 hover:text-accent hover:neon-text"
             )}
           >
             {t("app.title")}
+            <span className="absolute -bottom-1 -right-2 text-[8px] font-normal tracking-normal normal-case text-foreground/50">
+              {__APP_VERSION__}
+            </span>
           </button>
         </div>
 

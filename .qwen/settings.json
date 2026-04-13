@@ -6,7 +6,11 @@
       "Bash(select-string *)",
       "Bash(select-object *)",
       "WebSearch",
-      "Bash(dir *)"
+      "Bash(dir *)",
+      "Bash(npx *)",
+      "Bash(node *)",
+      "Bash(del *)",
+      "Bash(taskkill *)"
     ]
   },
   "$version": 3

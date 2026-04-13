@@ -106,6 +106,12 @@ export class ElectronIPCTransport implements UseStreamTransport {
   // Track tool calls already emitted as message events
   private emittedToolCalls: Set<string> = new Set()
 
+  // Track accumulated reasoning content across streaming chunks (for values-mode injection)
+  private accumulatedReasoningContent: string = ""
+
+  // Track whether we're currently inside a streaming <think> block
+  private streamReasoningOpen = false
+
   async stream(payload: StreamPayload): Promise<AsyncGenerator<StreamEvent>> {
     // Reset state for new stream
     this.currentMessageId = null
@@ -113,6 +119,8 @@ export class ElectronIPCTransport implements UseStreamTransport {
     this.accumulatedToolCalls.clear()
     this.completedToolCallsByName.clear()
     this.emittedToolCalls.clear()
+    this.accumulatedReasoningContent = ""
+    this.streamReasoningOpen = false
     // Extract thread ID and model ID from config
     const threadId = payload.config?.configurable?.thread_id
     const modelId = payload.config?.configurable?.model_id as string | undefined
@@ -453,18 +461,50 @@ export class ElectronIPCTransport implements UseStreamTransport {
       const isAIMessage = className.includes("AI") || className.includes("AIMessageChunk")
 
       if (isAIMessage) {
-        const content = this.buildDisplayContent(kwargs)
         const msgId = kwargs.id || this.currentMessageId || crypto.randomUUID()
         this.currentMessageId = msgId
 
-        if (content || kwargs.tool_calls?.length) {
+        // Extract reasoning chunk directly from __raw_response (OAI-compat: Ark, Ollama, etc.)
+        // This is more reliable than reading from kwargs.content which may not be modified by backend
+        const reasoningChunk = this.extractReasoningChunk(kwargs)
+        const rawContent = this.extractContent(kwargs.content)
+
+        let displayContent: string | null = null
+
+        if (reasoningChunk) {
+          // Accumulate for values-mode injection later
+          this.accumulatedReasoningContent += reasoningChunk
+          if (!this.streamReasoningOpen) {
+            // First reasoning chunk: open <think>
+            this.streamReasoningOpen = true
+            displayContent = `<think>${reasoningChunk}`
+          } else {
+            displayContent = reasoningChunk
+          }
+        } else if (this.streamReasoningOpen && rawContent) {
+          // Reasoning phase ended, first text content: close </think>
+          this.streamReasoningOpen = false
+          displayContent = `</think>${rawContent}`
+        } else if (rawContent) {
+          displayContent = rawContent
+        }
+
+        console.log("[Transport] messages-mode AI chunk →", {
+          msgId: msgId?.slice(0, 20),
+          rawContent: rawContent.slice(0, 40),
+          reasoningChunk: reasoningChunk.slice(0, 20),
+          displayContent: displayContent?.slice(0, 60) ?? "null",
+          streamReasoningOpen: this.streamReasoningOpen,
+        })
+
+        if (displayContent !== null && (displayContent || kwargs.tool_calls?.length)) {
           events.push({
             event: "messages",
             data: [
               {
                 id: msgId,
                 type: "ai",
-                content: content || "",
+                content: displayContent || "",
                 // Include tool_calls if present
                 ...(kwargs.tool_calls?.length && { tool_calls: kwargs.tool_calls })
               },
@@ -634,8 +674,22 @@ export class ElectronIPCTransport implements UseStreamTransport {
 
           // Determine message type from class name
           const type: "ai" | "tool" = className.includes("Tool") ? "tool" : "ai"
-          const content =
-            type === "ai" ? this.buildDisplayContent(kwargs) : this.extractContent(kwargs.content)
+          let content: string
+          if (type === "ai") {
+            const msgId = kwargs.id as string | undefined
+            const baseContent = this.extractContent(kwargs.content)
+            // Inject accumulated reasoning only for the current streaming message
+            if (msgId && msgId === this.currentMessageId && this.accumulatedReasoningContent) {
+              const reasoning = this.accumulatedReasoningContent
+              content = baseContent
+                ? `<think>${reasoning}</think>\n${baseContent}`
+                : `<think>${reasoning}</think>`
+            } else {
+              content = this.buildDisplayContent(kwargs)
+            }
+          } else {
+            content = this.extractContent(kwargs.content)
+          }
 
           return {
             id: kwargs.id || crypto.randomUUID(),
@@ -766,14 +820,37 @@ export class ElectronIPCTransport implements UseStreamTransport {
 
   private buildDisplayContent(kwargs: SerializedMessageChunk["kwargs"]): string {
     const content = this.extractContent(kwargs?.content)
-    const reasoningContent =
-      typeof kwargs?.additional_kwargs?.reasoning_content === "string"
-        ? kwargs.additional_kwargs.reasoning_content
-        : ""
     const reasoningSummary = extractReasoningSummaryFromResponseOutput(
       kwargs?.response_metadata?.output
     )
-    return injectReasoningBlock(content, reasoningContent || reasoningSummary)
+    // For values-mode non-current messages, only use native reasoning from response_metadata
+    return injectReasoningBlock(content, reasoningSummary)
+  }
+
+  /**
+   * Extract a reasoning chunk from a streaming message kwargs.
+   * Reads from __raw_response (OAI-compat: Ark, Ollama, etc.) or top-level
+   * additional_kwargs.reasoning_content (Anthropic native).
+   */
+  private extractReasoningChunk(kwargs: SerializedMessageChunk["kwargs"]): string {
+    // Top-level first (Anthropic native format)
+    if (
+      typeof kwargs?.additional_kwargs?.reasoning_content === "string" &&
+      kwargs.additional_kwargs.reasoning_content
+    ) {
+      return kwargs.additional_kwargs.reasoning_content
+    }
+    // OAI-compat: read from __raw_response (Ark, Ollama, etc.)
+    const rawResponse = (kwargs?.additional_kwargs as Record<string, unknown> | undefined)
+      ?.__raw_response as Record<string, unknown> | undefined
+    if (rawResponse && Array.isArray(rawResponse.choices)) {
+      const choice = rawResponse.choices[0] as Record<string, unknown> | undefined
+      const src = (choice?.delta || choice?.message) as Record<string, unknown> | undefined
+      if (typeof src?.reasoning_content === "string" && src.reasoning_content)
+        return src.reasoning_content
+      if (typeof src?.reasoning === "string" && src.reasoning) return src.reasoning
+    }
+    return ""
   }
 
   /**

@@ -79,7 +79,7 @@ export function registerAgentHandlers(ipcMain: IpcMain): void {
 
     console.log("[Agent] Received invoke request:", {
       threadId,
-      message: messageText.substring(0, 50),
+      message: messageText ? messageText.substring(0, 50) : "",
       modelId
     })
 

@@ -155,7 +155,7 @@ export class LocalSandbox extends FilesystemBackend implements SandboxBackendPro
         if (processedCommand !== command) {
           console.log("[LocalSandbox] Fixed escaped quotes in command for Windows")
           console.log(`[LocalSandbox] Original: ${command.substring(0, 200)}`)
-          console.log(`[LocalSandbox] Processed: ${processedCommand.substring(0, 200)}`)
+          console.log(`[LocalSandbox] Processed: ${processedCommand ? processedCommand.substring(0, 200) : ""}`)
         }
       }
 
@@ -240,7 +240,7 @@ export class LocalSandbox extends FilesystemBackend implements SandboxBackendPro
       proc.stderr.on("data", (data: Buffer) => {
         console.log(`[LocalSandbox] stderr data received: ${data.length} bytes`)
         const chunk = decodeOutputChunk(data, isWindows)
-        console.log(`[LocalSandbox] stderr content: ${chunk.substring(0, 200)}`)
+        console.log(`[LocalSandbox] stderr content: ${chunk ? chunk.substring(0, 200) : ""}`)
         if (truncated) return
 
         // Prefix each line with [stderr]

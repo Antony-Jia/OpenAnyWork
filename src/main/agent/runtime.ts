@@ -20,6 +20,10 @@ import {
 import { getRunningMcpToolInstances, listRunningMcpTools } from "../mcp/service"
 import { resolveMiddlewareById } from "../middleware/registry"
 import { createDockerTools } from "../tools/docker-tools"
+import {
+  inferOpenAICompatibleImplementationFromUrl,
+  normalizeOpenAICompatibleReasoning
+} from "../../shared/openai-compatible"
 import type {
   CapabilityScope,
   ContentBlock,
@@ -71,6 +75,19 @@ function getErrorMessage(error: unknown): string {
   }
 
   return String(error)
+}
+
+function summarizeDebugValue(value: unknown, maxLength = 1200): string {
+  if (value === undefined) return ""
+  if (typeof value === "string") {
+    return value.length > maxLength ? `${value.slice(0, maxLength)}...` : value
+  }
+  try {
+    const text = JSON.stringify(value)
+    return text.length > maxLength ? `${text.slice(0, maxLength)}...` : text
+  } catch {
+    return "[unserializable]"
+  }
 }
 
 function normalizeSkillSourcePath(path: string): string {
@@ -235,7 +252,8 @@ function resolveProviderConfig(state: ProviderState, providerId: SimpleProviderI
 function getModelInstance(
   providerOverride?: SimpleProviderId,
   modelOverride?: string,
-  messageContent?: string | ContentBlock[]
+  messageContent?: string | ContentBlock[],
+  debugLog?: (message: string) => void
 ) {
   const state = requireProviderState()
   const requestedProvider = providerOverride ?? state.active
@@ -246,6 +264,31 @@ function getModelInstance(
   if (!effectiveModel) {
     throw new Error(`Provider "${requestedProvider}" has no model configured.`)
   }
+
+  const implementation =
+    config.type === "openai-compatible"
+      ? (config.implementation ?? inferOpenAICompatibleImplementationFromUrl(config.url))
+      : undefined
+  const normalizedReasoning =
+    config.type === "openai-compatible" && implementation
+      ? normalizeOpenAICompatibleReasoning(config.reasoning, implementation)
+      : undefined
+
+  debugLog?.(
+    `[Runtime] Model selection: ${summarizeDebugValue({
+      requestedProvider,
+      configType: config.type,
+      configuredModel: config.model,
+      effectiveModel,
+      modelOverride: modelOverride?.trim() || "",
+      hasImageContent: hasImageBlocks(messageContent),
+      hasApiKey: config.type === "ollama" ? true : !!config.apiKey,
+      implementation,
+      reasoning: config.type === "openai-compatible" ? config.reasoning : undefined,
+      normalizedReasoning,
+      reasoningEnabled: normalizedReasoning?.enabled
+    })}`
+  )
 
   console.log("[Runtime] Using provider:", requestedProvider)
   console.log("[Runtime] Configured model:", config.model)
@@ -263,11 +306,31 @@ function getModelInstance(
   if (config.type === "ollama") {
     const baseURL = config.url.endsWith("/v1") ? config.url : `${config.url}/v1`
     console.log("[Runtime] Ollama baseURL:", baseURL)
+    debugLog?.(
+      `[Runtime] Ollama model config: ${summarizeDebugValue({
+        baseURL,
+        effectiveModel,
+        proxyDetected: false,
+        reasoning: undefined
+      })}`
+    )
   } else {
     console.log("[Runtime] OpenAI-compatible baseURL:", config.url)
+    debugLog?.(
+      `[Runtime] OpenAI-compatible base config: ${summarizeDebugValue({
+        baseURL: config.url,
+        effectiveModel,
+        hasApiKey: !!config.apiKey,
+        proxyDetected: false,
+        implementation,
+        reasoning: config.type === "openai-compatible" ? config.reasoning : undefined,
+        normalizedReasoning,
+        reasoningEnabled: normalizedReasoning?.enabled
+      })}`
+    )
   }
 
-  return createChatModelFromProviderConfig(config, effectiveModel)
+  return createChatModelFromProviderConfig(config, effectiveModel, debugLog)
 }
 
 // ============================================================================
@@ -346,6 +409,8 @@ export interface CreateAgentRuntimeOptions {
   forceToolNames?: string[]
   /** Capability scope used for tools/MCP/skills/subagents selection */
   capabilityScope?: CapabilityScope
+  /** Optional debug logger for writing model/runtime traces to a file */
+  debugLog?: (message: string) => void
 }
 
 // Create agent runtime with configured model and checkpointer
@@ -365,7 +430,8 @@ export async function createAgentRuntime(
     disableApprovals,
     extraSystemPrompt,
     forceToolNames,
-    capabilityScope = "classic"
+    capabilityScope = "classic",
+    debugLog
   } = options
   void modelId
 
@@ -386,6 +452,20 @@ export async function createAgentRuntime(
     dockerEnabled: !!dockerConfig?.enabled
   })
 
+  debugLog?.(
+    `[Runtime] createAgentRuntime start: ${summarizeDebugValue({
+      threadId,
+      threadMode: threadMode ?? "default",
+      hasWorkspace: !!workspacePath,
+      dockerEnabled: !!dockerConfig?.enabled,
+      capabilityScope,
+      modelId: modelId || "",
+      disableApprovals: !!disableApprovals,
+      hasExtraSystemPrompt: !!extraSystemPrompt,
+      forceToolNames: forceToolNames ?? []
+    })}`
+  )
+
   console.log("[Runtime] Creating agent runtime...")
   console.log("[Runtime] Thread ID:", threadId)
   console.log("[Runtime] Workspace path:", workspacePath)
@@ -394,12 +474,20 @@ export async function createAgentRuntime(
   }
 
   const requiresMultimodal = hasImageBlocks(messageContent)
+  debugLog?.(
+    `[Runtime] Multimodal detection: ${summarizeDebugValue({
+      requiresMultimodal,
+      messageContent: summarizeDebugValue(messageContent, 500)
+    })}`
+  )
   const model = getModelInstance(
     requiresMultimodal ? "multimodal" : undefined,
     undefined,
-    messageContent
+    messageContent,
+    debugLog
   )
   console.log("[Runtime] Model instance created:", typeof model)
+  debugLog?.(`[Runtime] Model instance created: ${summarizeDebugValue({ type: typeof model })}`)
 
   const checkpointer = await getCheckpointer(threadId)
   console.log("[Runtime] Checkpointer ready for thread:", threadId)
@@ -484,7 +572,7 @@ export async function createAgentRuntime(
       sourceCount: subagentSkillSources?.length ?? 0,
       sources: subagentSkillSources ?? []
     })
-    const subagentModel = getModelInstance(agent.provider, agent.model, undefined)
+    const subagentModel = getModelInstance(agent.provider, agent.model, undefined, debugLog)
     return {
       name: agent.name,
       description: agent.description,

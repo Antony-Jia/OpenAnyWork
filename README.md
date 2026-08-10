@@ -1,3 +1,5 @@
+
+
 # OpenAnyWork Deep Agent Workbench
 
 [![npm][npm-badge]][npm-url] [![License: MIT][license-badge]][license-url] [![English](https://img.shields.io/badge/lang-English-blue)](README.md) [![中文](https://img.shields.io/badge/lang-中文-red)](README.zh-CN.md)
@@ -25,7 +27,7 @@ OpenAnyWork is a desktop workbench for Deep Agents: not just chat, but enabling 
 ### Requirements
 
 - Node.js `>=18`
-- npm
+- pnpm
 - Docker (optional, but recommended for isolated execution)
 
 ### Local Development
@@ -33,8 +35,8 @@ OpenAnyWork is a desktop workbench for Deep Agents: not just chat, but enabling 
 ```bash
 git clone https://github.com/Antony-Jia/OpenAnyWork
 cd OpenAnyWork
-npm install
-npm run dev
+pnpm install
+pnpm run dev
 ```
 
 ### Build
